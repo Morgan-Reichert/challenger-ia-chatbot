@@ -7,12 +7,14 @@ import {
   Cloud, CloudOff, Trash2, FolderPlus, Folder, FolderOpen,
   GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
+  Mail, Lock, Eye, EyeOff,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
 import { subscribeToNewsletter } from './supabase';
@@ -604,6 +606,15 @@ export default function App() {
   const [consentNewsletter, setConsentNewsletter] = useState(true); // pré-coché
   const [consentLoading, setConsentLoading] = useState(false);
 
+  // ── Formulaire d'authentification email/password
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+  const [authShowPassword, setAuthShowPassword] = useState(false);
+  const [authFormError, setAuthFormError] = useState<string | null>(null);
+  const [authFormLoading, setAuthFormLoading] = useState(false);
+
   // ── Projects state
   const [projects, setProjects] = useState<Project[]>([]);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -722,6 +733,67 @@ export default function App() {
     setConsentPending(null);
     setConsentCgu(false);
     setConsentNewsletter(true);
+  };
+
+  // ── Auth email/password — traduire les codes d'erreur Firebase
+  function translateAuthError(code: string): string {
+    switch (code) {
+      case 'auth/email-already-in-use': return 'Cet email est déjà utilisé. Essayez de vous connecter.';
+      case 'auth/invalid-email': return 'Adresse email invalide.';
+      case 'auth/weak-password': return 'Mot de passe trop court (6 caractères minimum).';
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found': return 'Email ou mot de passe incorrect.';
+      case 'auth/too-many-requests': return 'Trop de tentatives. Réessayez dans quelques minutes.';
+      case 'auth/network-request-failed': return 'Erreur réseau. Vérifiez votre connexion.';
+      default: return 'Une erreur est survenue. Veuillez réessayer.';
+    }
+  }
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || authFormLoading) return;
+    setAuthFormError(null);
+    setAuthFormLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, authEmail.trim(), authPassword);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? '';
+      setAuthFormError(translateAuthError(code));
+    } finally {
+      setAuthFormLoading(false);
+    }
+  };
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || authFormLoading) return;
+    setAuthFormError(null);
+    if (authPassword.length < 6) {
+      setAuthFormError('Mot de passe trop court (6 caractères minimum).');
+      return;
+    }
+    if (authPassword !== authConfirmPassword) {
+      setAuthFormError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    setAuthFormLoading(true);
+    try {
+      await createUserWithEmailAndPassword(auth, authEmail.trim(), authPassword);
+      // onAuthStateChanged prend le relais → modal consentement
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? '';
+      setAuthFormError(translateAuthError(code));
+    } finally {
+      setAuthFormLoading(false);
+    }
+  };
+
+  const switchAuthMode = (mode: 'login' | 'signup') => {
+    setAuthMode(mode);
+    setAuthFormError(null);
+    setAuthPassword('');
+    setAuthConfirmPassword('');
   };
 
   // ── New conversation
@@ -989,6 +1061,204 @@ export default function App() {
       className="flex h-screen overflow-hidden bg-[#F0F4FF]"
       style={{ fontFamily: '"Inter", ui-sans-serif, system-ui, sans-serif' }}
     >
+
+      {/* ── Chargement initial Firebase ───────────────────────────────────── */}
+      {FIREBASE_ENABLED && authLoading && (
+        <div className="flex-1 bg-[#141414] flex flex-col items-center justify-center gap-5">
+          <img
+            src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+            alt="Challenger IA"
+            className="h-14 w-auto object-contain opacity-70"
+          />
+          <Loader2 className="w-5 h-5 animate-spin text-[#5D7BFF]" />
+          <p className="text-[8px] font-black uppercase tracking-widest text-white/20">
+            Vérification du compte…
+          </p>
+        </div>
+      )}
+
+      {/* ── Écran de connexion / inscription ─────────────────────────────── */}
+      {FIREBASE_ENABLED && !user && !authLoading && (
+        <div className="flex-1 bg-[#141414] overflow-y-auto flex items-center justify-center p-6">
+          <div className="w-full max-w-sm">
+
+            {/* Logo */}
+            <div className="text-center mb-8">
+              <img
+                src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                alt="Challenger IA"
+                className="h-14 w-auto mx-auto mb-3 object-contain"
+              />
+              <p className="text-[8px] font-black uppercase tracking-widest text-white/20">
+                Stariax Group — Challenger IA
+              </p>
+            </div>
+
+            {/* Toggle Connexion / Créer un compte */}
+            <div className="grid grid-cols-2 border-2 border-white/10 mb-6">
+              {(['login', 'signup'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => switchAuthMode(mode)}
+                  className={cx(
+                    'py-2.5 text-[9px] font-black uppercase tracking-widest transition-all',
+                    authMode === mode
+                      ? 'bg-[#5D7BFF] text-white'
+                      : 'text-white/30 hover:text-white/60'
+                  )}
+                >
+                  {mode === 'login' ? 'Connexion' : 'Créer un compte'}
+                </button>
+              ))}
+            </div>
+
+            {/* Formulaire email/password */}
+            <form
+              onSubmit={authMode === 'login' ? handleEmailSignIn : handleEmailSignUp}
+              className="space-y-4"
+            >
+              {/* Email */}
+              <div>
+                <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    className="w-full bg-white/5 border-2 border-white/10 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Mot de passe */}
+              <div>
+                <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">
+                  Mot de passe
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+                  <input
+                    type={authShowPassword ? 'text' : 'password'}
+                    required
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder={authMode === 'signup' ? '6 caractères minimum' : '••••••••'}
+                    className="w-full bg-white/5 border-2 border-white/10 focus:border-[#5D7BFF] pl-10 pr-10 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAuthShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors"
+                  >
+                    {authShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirmer mot de passe (inscription uniquement) */}
+              <AnimatePresence>
+                {authMode === 'signup' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18 }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">
+                      Confirmer le mot de passe
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+                      <input
+                        type={authShowPassword ? 'text' : 'password'}
+                        required
+                        autoComplete="new-password"
+                        value={authConfirmPassword}
+                        onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-white/5 border-2 border-white/10 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Erreur formulaire */}
+              <AnimatePresence>
+                {authFormError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 px-3 py-2.5"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-red-400 leading-relaxed">{authFormError}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Bouton submit */}
+              <button
+                type="submit"
+                disabled={authFormLoading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] disabled:opacity-40 transition-all"
+                style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.06)' }}
+              >
+                {authFormLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Chargement…</>
+                  : authMode === 'login'
+                    ? <><LogIn className="w-4 h-4" /> Se connecter</>
+                    : <><Check className="w-4 h-4" /> Créer mon compte</>
+                }
+              </button>
+            </form>
+
+            {/* Séparateur */}
+            <div className="flex items-center gap-4 my-5">
+              <div className="flex-1 h-px bg-white/10" />
+              <p className="text-[7px] font-black uppercase tracking-widest text-white/20">ou</p>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+
+            {/* Google */}
+            <button
+              onClick={handleSignIn}
+              disabled={authFormLoading}
+              className="w-full flex items-center justify-center gap-3 py-3 bg-white/5 border-2 border-white/10 hover:border-white/25 hover:bg-white/10 text-white disabled:opacity-40 transition-all"
+            >
+              {/* Google icon SVG */}
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span className="text-[9px] font-black uppercase tracking-widest">
+                Continuer avec Google
+              </span>
+            </button>
+
+            {/* Auth error global (Google) */}
+            {authError && (
+              <p className="mt-3 text-center text-[8px] text-red-400">{authError}</p>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ── Application (connecté ou mode local sans Firebase) ────────────── */}
+      {(!FIREBASE_ENABLED || user) && !authLoading && (<>
+
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       <AnimatePresence initial={false}>
         {sidebarOpen && (
@@ -1297,18 +1567,9 @@ export default function App() {
               )}
             </div>
 
-            {/* Auth footer */}
+            {/* User footer */}
             <div className="px-5 py-4 border-t-2 border-white/10">
-              {!FIREBASE_ENABLED ? (
-                <p className="text-center text-[7px] font-black uppercase tracking-widest text-white/15">
-                  Stariax Group © 2026
-                </p>
-              ) : authLoading ? (
-                <div className="flex items-center justify-center gap-2 text-white/25">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span className="text-[8px] uppercase tracking-widest">Connexion…</span>
-                </div>
-              ) : user ? (
+              {user ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     {user.photoURL ? (
@@ -1326,8 +1587,8 @@ export default function App() {
                       <p className="text-[9px] font-black text-white/70 truncate">
                         {user.displayName ?? user.email}
                       </p>
-                      <p className="text-[7px] text-white/25 uppercase tracking-widest">
-                        Sessions synchronisées
+                      <p className="text-[7px] text-white/25 uppercase tracking-widest truncate">
+                        {user.email}
                       </p>
                     </div>
                   </div>
@@ -1342,24 +1603,9 @@ export default function App() {
                   </button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <button
-                    onClick={handleSignIn}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-white/5 border border-white/15 hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/10 transition-all text-white/50 hover:text-white"
-                    style={{ boxShadow: 'none' }}
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">
-                      Se connecter
-                    </span>
-                  </button>
-                  {authError && (
-                    <p className="text-[7px] text-red-400 text-center">{authError}</p>
-                  )}
-                  <p className="text-center text-[7px] text-white/15 uppercase tracking-widest">
-                    Sauvegarde des sessions
-                  </p>
-                </div>
+                <p className="text-center text-[7px] font-black uppercase tracking-widest text-white/15">
+                  Stariax Group © 2026
+                </p>
               )}
             </div>
           </motion.aside>
@@ -1714,6 +1960,7 @@ export default function App() {
         </div>
       </div>
 
+      </>)}
       {/* ── Modal consentement CGU (première connexion) ──────────────────── */}
       <AnimatePresence>
         {consentPending && (
