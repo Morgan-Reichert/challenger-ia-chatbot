@@ -6,7 +6,7 @@ import {
   BookOpen, Target, TrendingUp, Brain, LogIn, LogOut, User,
   Cloud, CloudOff, Trash2, FolderPlus, Folder, FolderOpen,
   GripVertical, Check, Pencil, ChevronDown,
-  Paperclip, FileText, ImageIcon, FileCode, File,
+  Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -24,7 +24,7 @@ type FrictionLevel = 'doux' | 'moyen' | 'extreme';
 interface Attachment {
   id: string;
   name: string;
-  type: 'image' | 'text' | 'code';
+  type: 'image' | 'text' | 'code' | 'spreadsheet';
   mimeType: string;
   content: string; // base64 data URI pour images, texte brut pour les autres
   size: number;
@@ -173,7 +173,11 @@ function cx(...cs: (string | false | null | undefined)[]): string {
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 const CODE_EXTS = /\.(js|ts|tsx|jsx|py|java|c|cpp|cs|go|rs|rb|php|html|css|json|xml|yaml|yml|sh|sql|md)$/i;
-const MAX_SIZE_MB = 10;
+const PDF_EXT = /\.pdf$/i;
+const DOCX_EXT = /\.docx$/i;
+const PPTX_EXT = /\.pptx$/i;
+const XLSX_EXT = /\.(xlsx|numbers)$/i;
+const MAX_SIZE_MB = 25;
 
 function fmtBytes(b: number) {
   return b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`;
@@ -182,6 +186,7 @@ function fmtBytes(b: number) {
 function fileIcon(att: Attachment) {
   if (att.type === 'image') return ImageIcon;
   if (att.type === 'code') return FileCode;
+  if (att.type === 'spreadsheet') return FileSpreadsheet;
   return FileText;
 }
 
@@ -193,15 +198,121 @@ function readAsText(file: File): Promise<string> {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsText(file); });
 }
 
+function readAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = rej; r.readAsArrayBuffer(file); });
+}
+
+/** Extrait le texte d'un PDF via pdfjs-dist (max 60 pages) */
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
+  // Worker en mode fake (pas de Web Worker — compatibilité maximale)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+  const buffer = await readAsArrayBuffer(file);
+  const pdf = await pdfjsLib.getDocument({ data: buffer, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
+  const total = Math.min(pdf.numPages, 60);
+  const parts: string[] = [];
+  for (let i = 1; i <= total; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const pageText = tc.items.map((item: Record<string, unknown>) => ('str' in item ? item.str : '')).join(' ');
+    if (pageText.trim()) parts.push(`[Page ${i}]\n${pageText.trim()}`);
+  }
+  if (pdf.numPages > 60) parts.push(`[… ${pdf.numPages - 60} pages supplémentaires non extraites]`);
+  return parts.join('\n\n');
+}
+
+/** Extrait le texte d'un fichier Office Open XML (docx/pptx/xlsx) via jszip */
+async function extractOfficeText(file: File): Promise<string> {
+  const JSZip = (await import('jszip')).default;
+  const buffer = await readAsArrayBuffer(file);
+  const zip = await JSZip.loadAsync(buffer);
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+
+  function stripXml(xml: string): string {
+    return xml
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x[0-9A-Fa-f]+;/g, '')
+      .replace(/\s{2,}/g, ' ').trim();
+  }
+
+  if (ext === 'docx') {
+    const xml = await zip.file('word/document.xml')?.async('string') ?? '';
+    // Préserver les sauts de paragraphe
+    const formatted = xml.replace(/<\/w:p>/g, '\n').replace(/<\/w:tr>/g, '\n');
+    return stripXml(formatted);
+  }
+
+  if (ext === 'pptx') {
+    const slideFiles = Object.keys(zip.files)
+      .filter(f => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+      .sort((a, b) => {
+        const na = parseInt(a.match(/\d+/)?.[0] ?? '0');
+        const nb = parseInt(b.match(/\d+/)?.[0] ?? '0');
+        return na - nb;
+      });
+    const texts = await Promise.all(slideFiles.map(async (f, i) => {
+      const xml = await zip.files[f].async('string');
+      return `[Diapositive ${i + 1}]\n${stripXml(xml)}`;
+    }));
+    return texts.join('\n\n');
+  }
+
+  if (ext === 'xlsx' || ext === 'numbers') {
+    // Extraire les chaînes partagées
+    const ssXml = await zip.file('xl/sharedStrings.xml')?.async('string') ?? '';
+    const strings = [...ssXml.matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(m => m[1]);
+    // Extraire les feuilles
+    const sheetFiles = Object.keys(zip.files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+    const sheets = await Promise.all(sheetFiles.map(async (f, i) => {
+      const xml = await zip.files[f].async('string');
+      const cells = [...xml.matchAll(/<c[^>]*t="s"[^>]*><v>(\d+)<\/v>/g)]
+        .map(m => strings[parseInt(m[1])] ?? '');
+      return `[Feuille ${i + 1}]\n${cells.join(' | ')}`;
+    }));
+    return sheets.join('\n\n');
+  }
+
+  return '';
+}
+
 async function processFile(file: File): Promise<Attachment | null> {
   if (file.size > MAX_SIZE_MB * 1024 * 1024) {
     alert(`Fichier trop volumineux (max ${MAX_SIZE_MB}MB) : ${file.name}`);
     return null;
   }
+
+  // ── Images ──
   if (IMAGE_TYPES.includes(file.type)) {
     const content = await readAsDataURL(file);
     return { id: uid(), name: file.name, type: 'image', mimeType: file.type, content, size: file.size };
   }
+
+  // ── PDF ──
+  if (PDF_EXT.test(file.name) || file.type === 'application/pdf') {
+    try {
+      const content = await extractPdfText(file);
+      return { id: uid(), name: file.name, type: 'text', mimeType: 'application/pdf', content, size: file.size };
+    } catch (e) {
+      console.error('PDF extraction error:', e);
+      alert(`Impossible d'extraire le texte de ce PDF : ${file.name}`);
+      return null;
+    }
+  }
+
+  // ── Word / PowerPoint / Excel ──
+  if (DOCX_EXT.test(file.name) || PPTX_EXT.test(file.name) || XLSX_EXT.test(file.name)) {
+    try {
+      const content = await extractOfficeText(file);
+      const type = XLSX_EXT.test(file.name) ? 'spreadsheet' : 'text';
+      return { id: uid(), name: file.name, type: type as Attachment['type'], mimeType: file.type || 'application/octet-stream', content, size: file.size };
+    } catch (e) {
+      console.error('Office extraction error:', e);
+      alert(`Impossible d'extraire le texte de ce fichier : ${file.name}`);
+      return null;
+    }
+  }
+
+  // ── Texte / Code ──
   try {
     const content = await readAsText(file);
     const type = CODE_EXTS.test(file.name) ? 'code' : 'text';
@@ -1457,7 +1568,7 @@ export default function App() {
                 type="file"
                 multiple
                 className="hidden"
-                accept="image/*,.txt,.md,.csv,.json,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.rb,.php,.html,.css,.xml,.yaml,.yml,.sh,.sql"
+                accept="image/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.rb,.php,.html,.css,.xml,.yaml,.yml,.sh,.sql"
                 onChange={(e) => handleFiles(e.target.files)}
               />
               <button
