@@ -694,7 +694,7 @@ export default function App() {
             <div className="px-5 py-4 border-b-2 border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img
-                  src="https://i.postimg.cc/R0wfSKRt/C.png"
+                  src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
                   alt="Challenger IA"
                   className="h-10 w-auto flex-shrink-0 object-contain"
                 />
@@ -1102,18 +1102,11 @@ export default function App() {
               className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto"
             >
               <div className="text-center mb-10">
-                <div className="flex flex-col items-center mb-6 gap-4">
-                  <img
-                    src="https://i.postimg.cc/R0wfSKRt/C.png"
-                    alt="Challenger IA"
-                    className="h-16 w-auto object-contain"
-                  />
-                  <div
-                    className="w-12 h-12 bg-[#5D7BFF] flex items-center justify-center"
-                    style={{ boxShadow: '6px 6px 0px 0px rgba(20,20,20,1)' }}
-                  >
-                    <CurrentIcon className="w-6 h-6 text-white" />
-                  </div>
+                <div
+                  className="w-14 h-14 bg-[#5D7BFF] mx-auto mb-6 flex items-center justify-center"
+                  style={{ boxShadow: '8px 8px 0px 0px rgba(20,20,20,1)' }}
+                >
+                  <CurrentIcon className="w-7 h-7 text-white" />
                 </div>
                 <h1 className="text-3xl font-black uppercase tracking-tighter text-[#141414] mb-3">
                   {PERSONAS[persona].name}
