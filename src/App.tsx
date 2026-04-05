@@ -8,10 +8,12 @@ import {
   GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
-  Mic, MicOff, Volume2,
+  Mic, MicOff, Volume2, Library,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
+import LibraryPage from './LibraryPage';
+import { DEBATE_PERSONAS, type DebatePersona } from './debatePersonas';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
@@ -56,6 +58,8 @@ interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   projectId?: string;
+  debatePrompt?: string;    // system prompt personnalisé pour les débats
+  debatePersonaId?: string; // id du personnage débat
 }
 
 interface Project {
@@ -633,6 +637,9 @@ export default function App() {
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
+  // ── Navigation
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library'>('chat');
+
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
@@ -803,6 +810,46 @@ export default function App() {
     voiceOpenRef.current = false;
     lastSpokenIdRef.current = null;
   }, [stopListening]);
+
+  // ── Démarrer un débat depuis la bibliothèque
+  const startDebate = useCallback(async (debatePersona: DebatePersona) => {
+    // 1. Fetch contexte web (Wikipedia + DDG) via Vercel endpoint
+    let webContext = '';
+    try {
+      const res = await fetch(
+        `/api/search-context?query=${encodeURIComponent(debatePersona.wikiSlug)}&lang=${debatePersona.wikiLang}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        webContext = data.context ?? '';
+      }
+    } catch { /* silencieux — le débat fonctionne sans contexte web */ }
+
+    // 2. Construire le system prompt enrichi
+    const currentDate = new Date().toLocaleDateString('fr-FR', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const systemPrompt = debatePersona.buildSystemPrompt(webContext, currentDate);
+
+    // 3. Créer une nouvelle conversation de débat
+    const convId = uid();
+    const now = new Date();
+    const conv: Conversation = {
+      id: convId,
+      title: `Débat — ${debatePersona.name}`,
+      messages: [],
+      persona: 'opponent',
+      level: 'extreme',
+      createdAt: now,
+      updatedAt: now,
+      debatePrompt: systemPrompt,
+      debatePersonaId: debatePersona.id,
+    };
+    setConversations((p) => [conv, ...p]);
+    setActiveId(convId);
+    if (user) fsSaveConversation(user.uid, conv);
+    setCurrentPage('chat');
+  }, [user]);
 
   // ── Firebase Auth listener
   useEffect(() => {
@@ -1215,14 +1262,19 @@ export default function App() {
           return fileContext + msg.content;
         };
 
+        // Utilise le prompt de débat s'il existe, sinon le prompt standard
+        const activeConvNow = conversations.find((c) => c.id === convId);
+        const systemPrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
+        const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
+
         const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model,
+            model: debateModel,
             temperature,
             messages: [
-              { role: 'system', content: buildSystemPrompt(activePersona, activeLevel) },
+              { role: 'system', content: systemPrompt },
               ...allMessages.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
               { role: 'user', content: buildUserContent(userMsg) },
             ],
@@ -1531,6 +1583,19 @@ export default function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+              {/* Bibliothèque */}
+              <button
+                onClick={() => setCurrentPage('library')}
+                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Library className="w-4 h-4" />
+                  <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
+                </div>
+                <ChevronRight className="w-3 h-3 opacity-50" />
+              </button>
+
               {/* Persona selector */}
               <div>
                 <p className="text-[11px] font-black uppercase tracking-widest text-white/25 mb-3">
@@ -1872,8 +1937,16 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
+      {currentPage === 'library' && (
+        <LibraryPage
+          onBack={() => setCurrentPage('chat')}
+          onStartDebate={startDebate}
+        />
+      )}
+
       {/* ── Main area ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className={cx('flex-1 flex flex-col min-w-0 h-full', currentPage !== 'chat' && 'hidden')}>
         {/* Top bar */}
         <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
           {!sidebarOpen && (
@@ -1891,12 +1964,30 @@ export default function App() {
             <CurrentIcon className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
-              {PERSONAS[persona].name}
-            </p>
-            <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
-              Mode {FRICTION[level].label} — {FRICTION[level].hint}
-            </p>
+            {activeConv?.debatePersonaId ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
+                    Débat — {DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.name}
+                  </p>
+                  <span className="flex-shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-[#5D7BFF] text-white">
+                    DÉBAT
+                  </span>
+                </div>
+                <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
+                  {DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.title}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
+                  {PERSONAS[persona].name}
+                </p>
+                <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
+                  Mode {FRICTION[level].label} — {FRICTION[level].hint}
+                </p>
+              </>
+            )}
           </div>
           {activeConv && activeConv.messages.length > 0 && (
             <button
