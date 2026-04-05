@@ -1996,7 +1996,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             {/* New session */}
             <div className="px-5 py-4 border-b-2 border-white/10">
               <button
-                onClick={startNewConv}
+                onClick={() => { startNewConv(); setSidebarOpen(false); }}
                 className="w-full flex items-center justify-between px-4 py-3 bg-[#5D7BFF] text-white text-xs font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
                 style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.06)' }}
               >
@@ -2009,7 +2009,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
               {/* Bibliothèque */}
               <button
-                onClick={() => setCurrentPage('library')}
+                onClick={() => { setCurrentPage('library'); setSidebarOpen(false); }}
                 className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
               >
                 <div className="flex items-center gap-2.5">
@@ -2021,7 +2021,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
               {/* Profil IA */}
               <button
-                onClick={() => setCurrentPage('settings')}
+                onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); }}
                 className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
               >
                 <div className="flex items-center gap-2.5">
@@ -2299,7 +2299,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                                 key={conv.id}
                                 conv={conv}
                                 isActive={conv.id === activeId}
-                                onSelect={() => { setActiveId(conv.id); setPersona(conv.persona); setLevel(conv.level); }}
+                                onSelect={() => { setActiveId(conv.id); setPersona(conv.persona); setLevel(conv.level); setSidebarOpen(false); }}
                                 onDelete={() => deleteConv(conv.id)}
                                 onDragStart={() => setDraggedConvId(conv.id)}
                                 onDragEnd={() => setDraggedConvId(null)}
@@ -3214,7 +3214,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 disabled={sending}
                 title={subscription === 'pro' ? 'Joindre un fichier' : 'Fonctionnalité Pro'}
                 className={cx(
-                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
+                  'hidden md:flex flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
                   subscription === 'pro'
                     ? 'border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
                     : 'border-[#141414]/10 text-[#141414]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
@@ -3232,7 +3232,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 onClick={openVoice}
                 disabled={sending}
                 title="Discussion orale"
-                className="flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
+                className="hidden md:flex flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
               >
                 <Mic className="w-5 h-5" />
               </button>
@@ -3244,7 +3244,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 disabled={sending}
                 title="Commandes slash"
                 className={cx(
-                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm',
+                  'hidden md:flex flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm',
                   slashOpen
                     ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
                     : (activeConv?.interviewType || activeConv?.debatePersonaId)
