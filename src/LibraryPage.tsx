@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Swords, Globe, Calendar, Loader2, ChevronRight, X, Plus, Pen, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Swords, Globe, Calendar, Loader2, ChevronRight, X, Plus, Pen, AlertTriangle, Search } from 'lucide-react';
 import {
   DEBATE_PERSONAS_LIST,
   type DebatePersona,
@@ -29,6 +29,21 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
   const [activeCategory] = useState<'debat'>('debat');
   const [selectedPersona, setSelectedPersona] = useState<DebatePersona | null>(null);
   const [starting, setStarting] = useState(false);
+
+  // Search + filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('Tous');
+
+  // Derive unique categories from personas list
+  const categories = ['Tous', ...Array.from(new Set(DEBATE_PERSONAS_LIST.map(p => p.category)))];
+
+  // Filtered personas
+  const visiblePersonas = DEBATE_PERSONAS_LIST.filter(p => {
+    const matchesCategory = filterCategory === 'Tous' || p.category === filterCategory;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.title.toLowerCase().includes(q);
+    return matchesCategory && matchesSearch;
+  });
 
   // Custom persona creation state
   const [customModalOpen, setCustomModalOpen] = useState(false);
@@ -146,9 +161,49 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
           </p>
         </div>
 
+        {/* Search + filter */}
+        <div className="mb-6 space-y-3 max-w-5xl">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#141414]/25 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher un personnage…"
+              className="w-full bg-white border-2 border-[#141414]/8 focus:border-[#5D7BFF] pl-10 pr-4 py-2.5 text-[12px] font-medium text-[#141414] placeholder:text-[#141414]/25 focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#141414]/25 hover:text-[#141414]/60 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {/* Category chips */}
+          <div className="flex flex-wrap gap-2">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                className={cx(
+                  'px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border-2 transition-all',
+                  filterCategory === cat
+                    ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
+                    : 'bg-white border-[#141414]/10 text-[#141414]/40 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]'
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Persona cards grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl">
-          {DEBATE_PERSONAS_LIST.map((persona, i) => (
+          {visiblePersonas.map((persona, i) => (
             <motion.button
               key={persona.id}
               initial={{ opacity: 0, y: 16 }}
@@ -216,11 +271,11 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
             </motion.button>
           ))}
 
-          {/* ── Carte Opposant Personnalisé ── */}
-          <motion.button
+          {/* ── Carte Opposant Personnalisé — always shown when no search active ── */}
+          {!searchQuery && filterCategory === 'Tous' && <motion.button
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: DEBATE_PERSONAS_LIST.length * 0.07 }}
+            transition={{ delay: visiblePersonas.length * 0.07 }}
             onClick={() => setCustomModalOpen(true)}
             className="text-left bg-white border-2 border-dashed border-[#7C3AED]/30 hover:border-[#7C3AED]/70 hover:bg-[#7C3AED]/[0.02] transition-all group overflow-hidden"
             style={{ boxShadow: '4px 4px 0px 0px rgba(124,58,237,0.08)' }}
@@ -262,7 +317,7 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                 </span>
               </div>
             </div>
-          </motion.button>
+          </motion.button>}
         </div>
       </div>
 
