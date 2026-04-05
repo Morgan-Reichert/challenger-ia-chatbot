@@ -323,9 +323,16 @@ async function processFile(file: File): Promise<Attachment | null> {
       const content = await extractPdfText(file);
       return { id: uid(), name: file.name, type: 'text', mimeType: 'application/pdf', content, size: file.size };
     } catch (e) {
-      console.error('PDF extraction error:', e);
-      alert(`Impossible d'extraire le texte de ce PDF : ${file.name}`);
-      return null;
+      console.error('PDF extraction error, falling back to base64:', e);
+      try {
+        const b64 = await readAsDataURL(file);
+        const content = `[Fichier PDF joint: ${file.name}]\n[Contenu base64: ${b64}]`;
+        return { id: uid(), name: file.name, type: 'text', mimeType: 'application/pdf', content, size: file.size };
+      } catch (e2) {
+        console.error('PDF base64 fallback error:', e2);
+        alert(`Impossible de lire ce PDF : ${file.name}`);
+        return null;
+      }
     }
   }
 
@@ -728,6 +735,7 @@ export default function App() {
     return () => mq.removeEventListener('change', handler);
   }, []);
   const slashNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   // noProfileMode : actif globalement si aucune conv active, sinon stocké sur la conv
   const [noProfileMode, setNoProfileMode] = useState(false);
   const [resumeGenerating, setResumeGenerating] = useState(false);
@@ -3281,7 +3289,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 disabled={sending}
                 title={subscription === 'pro' ? 'Joindre un fichier' : 'Fonctionnalité Pro'}
                 className={cx(
-                  'hidden md:flex flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
+                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
+                  isMobile && inputFocused ? 'hidden' : 'flex',
                   subscription === 'pro'
                     ? 'border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
                     : 'border-[#141414]/10 text-[#141414]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
@@ -3299,7 +3308,10 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 onClick={openVoice}
                 disabled={sending}
                 title="Discussion orale"
-                className="hidden md:flex flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
+                className={cx(
+                  'flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all',
+                  isMobile && inputFocused ? 'hidden' : 'flex'
+                )}
               >
                 <Mic className="w-5 h-5" />
               </button>
@@ -3311,7 +3323,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 disabled={sending}
                 title="Commandes slash"
                 className={cx(
-                  'hidden md:flex flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm',
+                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm',
+                  isMobile && inputFocused ? 'hidden' : 'flex',
                   slashOpen
                     ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
                     : (activeConv?.interviewType || activeConv?.debatePersonaId)
@@ -3329,6 +3342,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKey}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
                   placeholder={
                     pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…'
                     : activeConv?.interviewType
@@ -3337,7 +3352,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                         ? `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`
                         : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`
                   }
-                  rows={1}
+                  rows={isMobile && inputFocused ? 4 : 1}
                   disabled={sending}
                   className={cx(
                     'w-full border-2 px-4 py-3 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-relaxed',
