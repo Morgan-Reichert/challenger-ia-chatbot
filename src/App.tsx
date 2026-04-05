@@ -9,6 +9,7 @@ import {
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Library, Settings,
+  Star, UserMinus, Eraser, Slash,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -66,6 +67,8 @@ interface Conversation {
   debatePersonaCustomData?: DebateDisplayData; // données display pour opposant custom
   interviewType?: InterviewTypeId; // type d'interview (podcast, job, etc.)
   interviewTitle?: string;         // titre de la session interview
+  noProfile?: boolean;             // désactive l'injection du profil pour cette conv
+  memoryResetAt?: string;          // ISO — messages avant cette date exclus du contexte API
 }
 
 interface Project {
@@ -637,6 +640,41 @@ function ConvItem({
   );
 }
 
+// ─── Slash Commands ──────────────────────────────────────────────────────────
+
+const SLASH_COMMANDS = [
+  {
+    id: 'note',
+    label: 'Recevoir une note',
+    desc: "L'IA évalue la conversation et donne des conseils ciblés",
+    icon: Star,
+    shortcut: '/note',
+  },
+  {
+    id: 'oublier',
+    label: 'Oublier la mémoire',
+    desc: "L'IA repart de zéro — historique conservé en affichage uniquement",
+    icon: RotateCcw,
+    shortcut: '/oublier',
+  },
+  {
+    id: 'clear',
+    label: 'Effacer la conversation',
+    desc: 'Supprimer tous les messages de cette session',
+    icon: Eraser,
+    shortcut: '/clear',
+  },
+  {
+    id: 'noprofil',
+    label: 'Ignorer mon profil',
+    desc: "Désactiver / réactiver l'injection du profil personnel pour cette session",
+    icon: UserMinus,
+    shortcut: '/noprofil',
+  },
+] as const;
+
+type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -667,6 +705,9 @@ export default function App() {
 
   // ── User profile (local only)
   const [userProfile, setUserProfile] = useState<UserProfile>(loadProfile);
+
+  // ── Slash commands
+  const [slashIdx, setSlashIdx] = useState(0);
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -711,6 +752,23 @@ export default function App() {
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
 
   const activeConv = conversations.find((c) => c.id === activeId) ?? null;
+
+  // ── Slash commands — valeurs dérivées (computed ici pour être disponibles avant les useEffect)
+  const slashFilter = input.startsWith('/') && !input.includes('\n')
+    ? input.slice(1).toLowerCase()
+    : null;
+  const slashMatches = slashFilter !== null
+    ? SLASH_COMMANDS.filter(
+        (c) =>
+          slashFilter === '' ||
+          c.id.includes(slashFilter) ||
+          c.label.toLowerCase().includes(slashFilter) ||
+          c.desc.toLowerCase().includes(slashFilter)
+      )
+    : [];
+  const slashOpen = slashMatches.length > 0;
+  // Clamp l'index sélectionné pour éviter les out-of-bounds
+  const safeSlashIdx = Math.min(slashIdx, Math.max(0, slashMatches.length - 1));
 
   // ── Chargement des données après consentement confirmé
   const loadUserData = useCallback(async (firebaseUser: FirebaseUser) => {
@@ -1368,10 +1426,18 @@ export default function App() {
         // Utilise le prompt de débat s'il existe, sinon le prompt standard
         const activeConvNow = conversations.find((c) => c.id === convId);
         const basePrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
-        // Profil utilisateur injecté dans tous les modes (débat/interview : déjà baked-in au lancement)
-        const profileCtx = !activeConvNow?.debatePrompt ? buildProfileContext(userProfile) : '';
+        // Profil utilisateur — injecté sauf si désactivé pour cette conv ou mode débat/interview
+        const profileCtx = (!activeConvNow?.debatePrompt && !activeConvNow?.noProfile)
+          ? buildProfileContext(userProfile)
+          : '';
         const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
+
+        // Filtre le contexte selon la date de reset mémoire
+        const memoryResetAt = activeConvNow?.memoryResetAt;
+        const contextMessages = memoryResetAt
+          ? allMessages.filter((m) => new Date(m.timestamp).toISOString() > memoryResetAt)
+          : allMessages;
 
         const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
@@ -1381,7 +1447,7 @@ export default function App() {
             temperature,
             messages: [
               { role: 'system', content: systemPrompt },
-              ...allMessages.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+              ...contextMessages.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
               { role: 'user', content: buildUserContent(userMsg) },
             ],
           }),
@@ -1429,7 +1495,64 @@ export default function App() {
     send(input, pendingAttachments);
   };
 
+  // ── Slash commands — navigation clavier et exécution
+
+  const handleSlashCommand = useCallback(
+    (id: SlashCommandId) => {
+      setInput('');
+      setSlashIdx(0);
+
+      if (id === 'note') {
+        const evalPrompt =
+          'COMMANDE /note — Analyse notre échange et fournis : 1) une note globale sur 10 avec justification, 2) 3 points forts de mes interventions, 3) 3 axes d\'amélioration concrets. Sois direct et constructif.';
+        send(evalPrompt, []);
+        return;
+      }
+
+      if (!activeId) return;
+
+      if (id === 'clear') {
+        setConversations((p) =>
+          p.map((c) =>
+            c.id !== activeId ? c : { ...c, messages: [], memoryResetAt: undefined, updatedAt: new Date() }
+          )
+        );
+      } else if (id === 'oublier') {
+        const resetAt = new Date().toISOString();
+        setConversations((p) =>
+          p.map((c) => (c.id !== activeId ? c : { ...c, memoryResetAt: resetAt, updatedAt: new Date() }))
+        );
+      } else if (id === 'noprofil') {
+        setConversations((p) =>
+          p.map((c) => (c.id !== activeId ? c : { ...c, noProfile: !c.noProfile, updatedAt: new Date() }))
+        );
+      }
+    },
+    [activeId, send, setConversations]
+  );
+
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashIdx((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashIdx((i) => Math.min(Math.max(0, slashMatches.length - 1), i + 1));
+        return;
+      }
+      if (e.key === 'Escape') {
+        setInput('');
+        return;
+      }
+      if ((e.key === 'Enter' || e.key === 'Tab') && slashMatches[safeSlashIdx]) {
+        e.preventDefault();
+        handleSlashCommand(slashMatches[safeSlashIdx].id);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send(input, pendingAttachments);
@@ -2450,9 +2573,15 @@ export default function App() {
             )
           ) : (
             <div className="max-w-3xl mx-auto space-y-5">
-              {activeConv.messages.map((msg) => {
+              {activeConv.messages.map((msg, msgIdx) => {
                 const isInterview = !!activeConv.interviewType;
                 const isDebate = !isInterview && !!activeConv.debatePersonaId;
+
+                // ── Diviseur de reset mémoire
+                const showMemoryDivider = activeConv.memoryResetAt &&
+                  msgIdx > 0 &&
+                  new Date(activeConv.messages[msgIdx - 1].timestamp).toISOString() <= activeConv.memoryResetAt &&
+                  new Date(msg.timestamp).toISOString() > activeConv.memoryResetAt;
                 const dp = isDebate ? getDP(activeConv) : null;
                 const ic = isInterview ? INTERVIEW_TYPES[activeConv.interviewType!] : null;
                 const isUser = msg.role === 'user';
@@ -2476,8 +2605,21 @@ export default function App() {
                       : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
 
                 return (
+                <React.Fragment key={msg.id}>
+                  {showMemoryDivider && (
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="flex-1 border-t border-dashed border-current opacity-20" />
+                      <p className={cx(
+                        'text-[8px] font-black uppercase tracking-widest flex items-center gap-1',
+                        (isInterview || isDebate) ? 'text-white/30' : 'text-[#141414]/30'
+                      )}>
+                        <RotateCcw className="w-2.5 h-2.5" />
+                        Mémoire effacée
+                      </p>
+                      <div className="flex-1 border-t border-dashed border-current opacity-20" />
+                    </div>
+                  )}
                 <motion.div
-                  key={msg.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={cx('flex', isUser ? 'justify-end' : 'justify-start')}
@@ -2591,6 +2733,7 @@ export default function App() {
                     </div>
                   </div>
                 </motion.div>
+                </React.Fragment>
                 );
               })}
 
@@ -2673,7 +2816,7 @@ export default function App() {
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-3xl mx-auto relative">
 
             {/* Pièces jointes en attente */}
             {pendingAttachments.length > 0 && (
@@ -2706,6 +2849,99 @@ export default function App() {
                 })}
               </div>
             )}
+
+            {/* Badge — profil désactivé */}
+            {activeConv?.noProfile && (
+              <div className={cx(
+                'flex items-center gap-1.5 mb-2 text-[8px] font-black uppercase tracking-widest',
+                (activeConv.interviewType || activeConv.debatePersonaId) ? 'text-white/30' : 'text-[#141414]/30'
+              )}>
+                <UserMinus className="w-3 h-3" />
+                Profil personnel ignoré dans cette session
+                <button
+                  type="button"
+                  onClick={() => handleSlashCommand('noprofil')}
+                  className="underline hover:opacity-70 transition-opacity"
+                >
+                  Réactiver
+                </button>
+              </div>
+            )}
+
+            {/* Slash command menu */}
+            <AnimatePresence>
+              {slashOpen && (
+                <motion.div
+                  key="slash-menu"
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                  transition={{ duration: 0.12 }}
+                  className={cx(
+                    'absolute bottom-full mb-2 left-0 right-0 border-2 overflow-hidden z-20',
+                    (activeConv?.interviewType || activeConv?.debatePersonaId)
+                      ? 'bg-[#0d0f1a] border-white/10'
+                      : 'bg-white border-[#5D7BFF]/25'
+                  )}
+                  style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
+                >
+                  <p className={cx(
+                    'text-[8px] font-black uppercase tracking-widest px-3 pt-2.5 pb-1',
+                    (activeConv?.interviewType || activeConv?.debatePersonaId) ? 'text-white/25' : 'text-[#141414]/25'
+                  )}>
+                    Commandes <span className="font-mono">↑↓ naviguer · ↵ exécuter · Esc annuler</span>
+                  </p>
+                  {slashMatches.map((cmd, i) => {
+                    const CmdIcon = cmd.icon;
+                    const isDark = !!(activeConv?.interviewType || activeConv?.debatePersonaId);
+                    const isSelected = i === safeSlashIdx;
+                    return (
+                      <button
+                        key={cmd.id}
+                        type="button"
+                        onMouseEnter={() => setSlashIdx(i)}
+                        onClick={() => handleSlashCommand(cmd.id)}
+                        className={cx(
+                          'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-t',
+                          isDark
+                            ? isSelected
+                              ? 'bg-white/8 border-white/5'
+                              : 'bg-transparent border-white/5 hover:bg-white/5'
+                            : isSelected
+                              ? 'bg-[#5D7BFF]/8 border-[#5D7BFF]/10'
+                              : 'bg-transparent border-[#141414]/5 hover:bg-[#F0F4FF]'
+                        )}
+                      >
+                        <CmdIcon className={cx(
+                          'w-4 h-4 flex-shrink-0',
+                          isDark ? (isSelected ? 'text-white/80' : 'text-white/30') : (isSelected ? 'text-[#5D7BFF]' : 'text-[#141414]/30')
+                        )} />
+                        <div className="flex-1 min-w-0">
+                          <p className={cx(
+                            'text-xs font-bold',
+                            isDark ? (isSelected ? 'text-white' : 'text-white/60') : (isSelected ? 'text-[#141414]' : 'text-[#141414]/70')
+                          )}>
+                            {cmd.label}
+                            {cmd.id === 'noprofil' && activeConv?.noProfile && (
+                              <span className="ml-2 text-[8px] font-black text-amber-500">ACTIF</span>
+                            )}
+                          </p>
+                          <p className={cx('text-[10px]', isDark ? 'text-white/25' : 'text-[#141414]/40')}>
+                            {cmd.desc}
+                          </p>
+                        </div>
+                        <span className={cx(
+                          'flex-shrink-0 text-[9px] font-mono px-1.5 py-0.5 border',
+                          isDark ? 'text-white/20 border-white/10' : 'text-[#141414]/25 border-[#141414]/10'
+                        )}>
+                          {cmd.shortcut}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="flex gap-2 items-end">
               {/* Bouton pièce jointe */}
@@ -2744,6 +2980,24 @@ export default function App() {
                 className="flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
               >
                 <Mic className="w-5 h-5" />
+              </button>
+
+              {/* Bouton slash commandes */}
+              <button
+                type="button"
+                onClick={() => { if (input === '') setInput('/'); else setInput(''); taRef.current?.focus(); }}
+                disabled={sending}
+                title="Commandes slash"
+                className={cx(
+                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm',
+                  slashOpen
+                    ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
+                    : (activeConv?.interviewType || activeConv?.debatePersonaId)
+                      ? 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
+                      : 'border-[#5D7BFF]/20 text-[#141414]/30 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
+                )}
+              >
+                <Slash className="w-5 h-5" />
               </button>
 
               {/* Textarea */}
