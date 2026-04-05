@@ -630,6 +630,7 @@ export default function App() {
   const [subscription, setSubscription] = useState<Plan>('free');
   const [dailyUsage, setDailyUsage] = useState<{ count: number; date: string }>({ count: 0, date: '' });
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
@@ -715,6 +716,33 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // ── Retour depuis Stripe : re-vérification du plan + visibilitychange
+  useEffect(() => {
+    // Détecte ?payment=success dans l'URL au chargement
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      setPaymentSuccess(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'visible' && user) {
+        const plan = await getSubscription(user.uid);
+        setSubscription(plan);
+        if (plan === 'pro') setPaymentSuccess(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [user]);
+
+  // ── Auto-masquage de la notification de paiement
+  useEffect(() => {
+    if (!paymentSuccess) return;
+    const t = setTimeout(() => setPaymentSuccess(false), 6000);
+    return () => clearTimeout(t);
+  }, [paymentSuccess]);
 
   // ── Auto-scroll
   useEffect(() => {
@@ -1736,6 +1764,29 @@ export default function App() {
             </button>
           )}
         </div>
+
+        {/* Bannière succès paiement */}
+        <AnimatePresence>
+          {paymentSuccess && (
+            <motion.div
+              key="payment-success"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex-shrink-0 flex items-center justify-between gap-3 px-6 py-3 bg-[#5D7BFF] border-b-2 border-[#4a68e8]"
+            >
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-white flex-shrink-0" />
+                <p className="text-[11px] font-black uppercase tracking-widest text-white">
+                  Bienvenue dans Challenger Pro ! Ton accès est maintenant actif.
+                </p>
+              </div>
+              <button onClick={() => setPaymentSuccess(false)} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-8">
