@@ -8,6 +8,7 @@ import {
   GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
+  Mic, MicOff, Volume2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -632,6 +633,16 @@ export default function App() {
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
+  // ── Mode vocal
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceSpeaking, setVoiceSpeaking] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const voiceOpenRef = useRef(false);
+  const lastSpokenIdRef = useRef<string | null>(null);
+  const startListeningRef = useRef<() => void>(() => {});
+
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
   const [consentCgu, setConsentCgu] = useState(false);
@@ -681,6 +692,87 @@ export default function App() {
     setDailyUsage(usage.date === todayStr() ? usage : { count: 0, date: todayStr() });
     setSyncing(false);
   }, []);
+
+  // ── Vocal : TTS (retire le markdown avant de parler)
+  const speakText = useCallback((text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const clean = text
+      .replace(/#{1,6}\s/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`{1,3}[\s\S]*?`{1,3}/g, 'code')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/^[-*+]\s/gm, '')
+      .replace(/^\d+\.\s/gm, '')
+      .trim();
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = navigator.language.startsWith('fr') ? 'fr-FR' : navigator.language;
+    utterance.rate = 1.05;
+    utterance.onstart = () => setVoiceSpeaking(true);
+    utterance.onend = () => {
+      setVoiceSpeaking(false);
+      if (voiceOpenRef.current) startListeningRef.current();
+    };
+    utterance.onerror = () => {
+      setVoiceSpeaking(false);
+      if (voiceOpenRef.current) startListeningRef.current();
+    };
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  // ── Vocal : STT
+  const startListening = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (recognitionRef.current) { recognitionRef.current.abort(); recognitionRef.current = null; }
+    const recognition = new SR();
+    recognition.lang = navigator.language.startsWith('fr') ? 'fr-FR' : navigator.language;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onresult = (e: any) => {
+      const transcript = Array.from(e.results as any[])
+        .map((r: any) => r[0].transcript)
+        .join('');
+      setVoiceTranscript(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        recognitionRef.current = null;
+        setVoiceListening(false);
+        setVoiceTranscript('');
+        if (transcript.trim()) send(transcript.trim());
+      }
+    };
+    recognition.onerror = () => { setVoiceListening(false); setVoiceTranscript(''); };
+    recognition.onend = () => setVoiceListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setVoiceListening(true);
+  }, [send]);
+
+  // Toujours à jour dans les closures TTS
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setVoiceListening(false);
+    setVoiceTranscript('');
+  }, []);
+
+  const openVoice = useCallback(() => {
+    voiceOpenRef.current = true;
+    lastSpokenIdRef.current = null;
+    setVoiceOpen(true);
+  }, []);
+
+  const closeVoice = useCallback(() => {
+    stopListening();
+    window.speechSynthesis?.cancel();
+    setVoiceSpeaking(false);
+    setVoiceOpen(false);
+    voiceOpenRef.current = false;
+    lastSpokenIdRef.current = null;
+  }, [stopListening]);
 
   // ── Firebase Auth listener
   useEffect(() => {
@@ -743,6 +835,25 @@ export default function App() {
     const t = setTimeout(() => setPaymentSuccess(false), 6000);
     return () => clearTimeout(t);
   }, [paymentSuccess]);
+
+  // ── Vocal : déclenche le TTS quand l'IA répond en mode vocal
+  useEffect(() => {
+    if (!voiceOpen || sending) return;
+    const msgs = activeConv?.messages ?? [];
+    const last = msgs[msgs.length - 1];
+    if (!last || last.role !== 'assistant') return;
+    if (last.id === lastSpokenIdRef.current) return;
+    lastSpokenIdRef.current = last.id;
+    speakText(last.content);
+  }, [activeConv?.messages, sending, voiceOpen, speakText]);
+
+  // ── Vocal : cleanup au démontage
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
 
   // ── Auto-scroll
   useEffect(() => {
@@ -2076,6 +2187,17 @@ export default function App() {
                 )}
               </button>
 
+              {/* Bouton vocal */}
+              <button
+                type="button"
+                onClick={openVoice}
+                disabled={sending}
+                title="Discussion orale"
+                className="flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+
               {/* Textarea */}
               <div className="flex-1 relative">
                 <textarea
@@ -2124,6 +2246,150 @@ export default function App() {
       </div>
 
       </>)}
+      {/* ── Interface vocale plein écran ────────────────────────────────── */}
+      <AnimatePresence>
+        {voiceOpen && (
+          <motion.div
+            key="voice-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-[#0d0d0f] flex flex-col"
+          >
+            {/* Header */}
+            <div className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                {(() => { const Icon = PERSONAS[persona].icon; return <Icon className="w-4 h-4 text-[#5D7BFF]" />; })()}
+                <span className="text-[11px] font-black uppercase tracking-widest text-white/40">
+                  {PERSONAS[persona].shortName} · Mode vocal
+                </span>
+              </div>
+              <button onClick={closeVoice} className="text-white/25 hover:text-white/70 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Zone centrale */}
+            <div className="flex-1 flex flex-col items-center justify-center gap-8 px-8 overflow-y-auto py-8">
+
+              {/* Cercle animé */}
+              <div className="relative flex items-center justify-center w-40 h-40 flex-shrink-0">
+                {voiceListening && (
+                  <>
+                    <motion.div
+                      className="absolute w-40 h-40 rounded-full bg-[#5D7BFF]/20"
+                      animate={{ scale: [1, 1.55, 1], opacity: [0.7, 0, 0.7] }}
+                      transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+                    />
+                    <motion.div
+                      className="absolute w-40 h-40 rounded-full bg-[#5D7BFF]/10"
+                      animate={{ scale: [1, 2.1, 1], opacity: [0.4, 0, 0.4] }}
+                      transition={{ repeat: Infinity, duration: 1.8, delay: 0.35, ease: 'easeInOut' }}
+                    />
+                  </>
+                )}
+                {voiceSpeaking && (
+                  <motion.div
+                    className="absolute w-40 h-40 rounded-full bg-white/5"
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 0.75, ease: 'easeInOut' }}
+                  />
+                )}
+                <div className={cx(
+                  'w-32 h-32 rounded-full flex items-center justify-center transition-colors duration-300',
+                  voiceListening ? 'bg-[#5D7BFF]' : voiceSpeaking ? 'bg-white/10' : 'bg-white/5'
+                )}>
+                  {voiceSpeaking
+                    ? <Volume2 className="w-12 h-12 text-white/60" />
+                    : <Mic className={cx('w-12 h-12 transition-colors', voiceListening ? 'text-white' : 'text-white/25')} />
+                  }
+                </div>
+              </div>
+
+              {/* État */}
+              <p className="text-[12px] font-black uppercase tracking-widest text-white/30">
+                {voiceListening ? 'En écoute…' : voiceSpeaking ? 'En train de répondre…' : sending ? 'Traitement…' : 'Prêt'}
+              </p>
+
+              {/* Transcript live */}
+              <div className="min-h-[2.5rem] text-center max-w-lg">
+                <AnimatePresence mode="wait">
+                  {voiceTranscript && (
+                    <motion.p
+                      key="transcript"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-white/80 text-base font-medium leading-relaxed"
+                    >
+                      {voiceTranscript}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Dernière réponse IA */}
+              {(() => {
+                const last = [...(activeConv?.messages ?? [])].reverse().find(m => m.role === 'assistant');
+                if (!last) return null;
+                return (
+                  <div className="w-full max-w-lg bg-white/[0.04] border border-white/10 p-5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3 flex items-center gap-2">
+                      {(() => { const Icon = PERSONAS[persona].icon; return <Icon className="w-3 h-3 text-[#5D7BFF]" />; })()}
+                      {PERSONAS[persona].shortName}
+                    </p>
+                    <p className="text-white/55 text-sm leading-relaxed line-clamp-6">
+                      {last.content.replace(/\*\*(.*?)\*\*/g, '$1').replace(/#{1,6}\s/g, '').replace(/`{1,3}[\s\S]*?`{1,3}/g, '[code]')}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Boutons action */}
+              <div className="flex items-center gap-3">
+                {!voiceListening && !voiceSpeaking && !sending && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={startListening}
+                    className="flex items-center gap-2 px-6 py-3.5 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
+                    style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.25)' }}
+                  >
+                    <Mic className="w-4 h-4" />
+                    Parler
+                  </motion.button>
+                )}
+                {voiceListening && (
+                  <button
+                    onClick={stopListening}
+                    className="flex items-center gap-2 px-5 py-3 border-2 border-white/20 text-white/50 hover:border-white/40 hover:text-white/80 text-[11px] font-black uppercase tracking-widest transition-colors"
+                  >
+                    <MicOff className="w-4 h-4" />
+                    Arrêter
+                  </button>
+                )}
+                {voiceSpeaking && (
+                  <button
+                    onClick={() => { window.speechSynthesis?.cancel(); setVoiceSpeaking(false); }}
+                    className="flex items-center gap-2 px-5 py-3 border-2 border-white/20 text-white/50 hover:border-white/40 hover:text-white/80 text-[11px] font-black uppercase tracking-widest transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Couper
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 px-6 py-4 border-t border-white/5 flex items-center justify-center">
+              <p className="text-[9px] text-white/15 font-black uppercase tracking-widest text-center">
+                Discussion retranscrite dans le chat · Fermer pour relire la conversation
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Modal consentement CGU (première connexion) ──────────────────── */}
       <AnimatePresence>
         {consentPending && (
