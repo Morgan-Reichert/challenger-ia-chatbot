@@ -708,6 +708,10 @@ export default function App() {
 
   // ── Slash commands
   const [slashIdx, setSlashIdx] = useState(0);
+  const [slashNotif, setSlashNotif] = useState<{ msg: string; ok: boolean } | null>(null);
+  const slashNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // noProfileMode : actif globalement si aucune conv active, sinon stocké sur la conv
+  const [noProfileMode, setNoProfileMode] = useState(false);
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -1361,6 +1365,7 @@ export default function App() {
           level,
           createdAt: now,
           updatedAt: now,
+          noProfile: noProfileMode || undefined,
         };
         setConversations((p) => [conv, ...p]);
         setActiveId(newId);
@@ -1426,8 +1431,8 @@ export default function App() {
         // Utilise le prompt de débat s'il existe, sinon le prompt standard
         const activeConvNow = conversations.find((c) => c.id === convId);
         const basePrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
-        // Profil utilisateur — injecté sauf si désactivé pour cette conv ou mode débat/interview
-        const profileCtx = (!activeConvNow?.debatePrompt && !activeConvNow?.noProfile)
+        // Profil utilisateur — injecté sauf si désactivé pour cette conv/globalement ou mode débat/interview
+        const profileCtx = (!activeConvNow?.debatePrompt && !activeConvNow?.noProfile && !noProfileMode)
           ? buildProfileContext(userProfile)
           : '';
         const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
@@ -1497,38 +1502,80 @@ export default function App() {
 
   // ── Slash commands — navigation clavier et exécution
 
+  const showSlashNotif = useCallback((msg: string, ok = true) => {
+    if (slashNotifTimer.current) clearTimeout(slashNotifTimer.current);
+    setSlashNotif({ msg, ok });
+    slashNotifTimer.current = setTimeout(() => setSlashNotif(null), 2800);
+  }, []);
+
   const handleSlashCommand = useCallback(
     (id: SlashCommandId) => {
       setInput('');
       setSlashIdx(0);
 
       if (id === 'note') {
+        if (!activeId) {
+          showSlashNotif('Lance d\'abord une conversation pour obtenir une évaluation.', false);
+          return;
+        }
         const evalPrompt =
           'COMMANDE /note — Analyse notre échange et fournis : 1) une note globale sur 10 avec justification, 2) 3 points forts de mes interventions, 3) 3 axes d\'amélioration concrets. Sois direct et constructif.';
         send(evalPrompt, []);
+        showSlashNotif('Évaluation en cours…');
         return;
       }
 
-      if (!activeId) return;
-
       if (id === 'clear') {
+        if (!activeId) {
+          showSlashNotif('Aucun message à effacer dans cette session.', false);
+          return;
+        }
         setConversations((p) =>
           p.map((c) =>
             c.id !== activeId ? c : { ...c, messages: [], memoryResetAt: undefined, updatedAt: new Date() }
           )
         );
-      } else if (id === 'oublier') {
+        showSlashNotif('Conversation effacée.');
+        return;
+      }
+
+      if (id === 'oublier') {
+        if (!activeId) {
+          showSlashNotif('Aucun historique à oublier dans cette session.', false);
+          return;
+        }
         const resetAt = new Date().toISOString();
         setConversations((p) =>
           p.map((c) => (c.id !== activeId ? c : { ...c, memoryResetAt: resetAt, updatedAt: new Date() }))
         );
-      } else if (id === 'noprofil') {
-        setConversations((p) =>
-          p.map((c) => (c.id !== activeId ? c : { ...c, noProfile: !c.noProfile, updatedAt: new Date() }))
-        );
+        showSlashNotif('Mémoire effacée — l\'IA repart de zéro.');
+        return;
+      }
+
+      if (id === 'noprofil') {
+        if (activeId) {
+          // Conv active : toggle sur la conv
+          let nextVal = false;
+          setConversations((p) =>
+            p.map((c) => {
+              if (c.id !== activeId) return c;
+              nextVal = !c.noProfile;
+              return { ...c, noProfile: nextVal, updatedAt: new Date() };
+            })
+          );
+          // On lit l'état actuel depuis conversations pour le message
+          const cur = conversations.find((c) => c.id === activeId);
+          showSlashNotif(cur?.noProfile ? 'Profil réactivé pour cette session.' : 'Profil ignoré pour cette session.');
+        } else {
+          // Pas de conv active : toggle le flag global (affectera la prochaine conv)
+          setNoProfileMode((v) => {
+            showSlashNotif(!v ? 'Profil ignoré — actif pour les prochaines sessions.' : 'Profil réactivé.');
+            return !v;
+          });
+        }
       }
     },
-    [activeId, send, setConversations]
+    [activeId, send, showSlashNotif, setConversations, conversations]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -2850,18 +2897,44 @@ export default function App() {
               </div>
             )}
 
+            {/* Toast notification slash commandes */}
+            <AnimatePresence>
+              {slashNotif && (
+                <motion.div
+                  key="slash-notif"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className={cx(
+                    'mb-2 px-3 py-2 flex items-center gap-2 text-xs font-bold border-2',
+                    slashNotif.ok
+                      ? (activeConv?.interviewType || activeConv?.debatePersonaId)
+                        ? 'bg-white/5 border-white/15 text-white/70'
+                        : 'bg-[#5D7BFF]/8 border-[#5D7BFF]/25 text-[#5D7BFF]'
+                      : 'bg-amber-50 border-amber-300 text-amber-700'
+                  )}
+                >
+                  {slashNotif.ok ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />}
+                  {slashNotif.msg}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Badge — profil désactivé */}
-            {activeConv?.noProfile && (
+            {(activeConv?.noProfile || (!activeConv && noProfileMode)) && (
               <div className={cx(
-                'flex items-center gap-1.5 mb-2 text-[8px] font-black uppercase tracking-widest',
-                (activeConv.interviewType || activeConv.debatePersonaId) ? 'text-white/30' : 'text-[#141414]/30'
+                'flex items-center gap-1.5 mb-2 px-2 py-1 border text-[9px] font-black uppercase tracking-widest',
+                (activeConv?.interviewType || activeConv?.debatePersonaId)
+                  ? 'border-amber-500/30 text-amber-400/70 bg-amber-500/5'
+                  : 'border-amber-400/40 text-amber-600 bg-amber-50'
               )}>
                 <UserMinus className="w-3 h-3" />
                 Profil personnel ignoré dans cette session
                 <button
                   type="button"
                   onClick={() => handleSlashCommand('noprofil')}
-                  className="underline hover:opacity-70 transition-opacity"
+                  className="ml-1 underline hover:opacity-70 transition-opacity"
                 >
                   Réactiver
                 </button>
