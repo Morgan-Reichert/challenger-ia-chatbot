@@ -693,17 +693,11 @@ export default function App() {
             {/* Logo */}
             <div className="px-5 py-4 border-b-2 border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">
-                    Challenger IA
-                  </p>
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-white/20">
-                    Intelligence Critique
-                  </p>
-                </div>
+                <img
+                  src="https://i.postimg.cc/R0wfSKRt/C.png"
+                  alt="Challenger IA"
+                  className="h-10 w-auto flex-shrink-0 object-contain"
+                />
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -1108,11 +1102,18 @@ export default function App() {
               className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto"
             >
               <div className="text-center mb-10">
-                <div
-                  className="w-16 h-16 bg-[#5D7BFF] mx-auto mb-6 flex items-center justify-center"
-                  style={{ boxShadow: '8px 8px 0px 0px rgba(20,20,20,1)' }}
-                >
-                  <CurrentIcon className="w-8 h-8 text-white" />
+                <div className="flex flex-col items-center mb-6 gap-4">
+                  <img
+                    src="https://i.postimg.cc/R0wfSKRt/C.png"
+                    alt="Challenger IA"
+                    className="h-16 w-auto object-contain"
+                  />
+                  <div
+                    className="w-12 h-12 bg-[#5D7BFF] flex items-center justify-center"
+                    style={{ boxShadow: '6px 6px 0px 0px rgba(20,20,20,1)' }}
+                  >
+                    <CurrentIcon className="w-6 h-6 text-white" />
+                  </div>
                 </div>
                 <h1 className="text-3xl font-black uppercase tracking-tighter text-[#141414] mb-3">
                   {PERSONAS[persona].name}
