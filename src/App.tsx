@@ -3273,7 +3273,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               )}
             </AnimatePresence>
 
-            <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+            <form onSubmit={handleSubmit} className={cx('flex gap-2', isMobile && !inputFocused ? 'items-center' : 'items-end')}>
               {/* Bouton pièce jointe */}
               <input
                 ref={fileInputRef}
@@ -3291,6 +3291,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 className={cx(
                   'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
                   isMobile && inputFocused ? 'hidden' : 'flex',
+                  isMobile ? 'rounded-xl' : '',
                   subscription === 'pro'
                     ? 'border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
                     : 'border-[#141414]/10 text-[#141414]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
@@ -3310,7 +3311,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 title="Discussion orale"
                 className={cx(
                   'flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all',
-                  isMobile && inputFocused ? 'hidden' : 'flex'
+                  isMobile && inputFocused ? 'hidden' : 'flex',
+                  isMobile ? 'rounded-xl' : ''
                 )}
               >
                 <Mic className="w-5 h-5" />
@@ -3356,7 +3358,9 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   rows={isMobile && inputFocused ? 4 : 1}
                   disabled={sending}
                   className={cx(
-                    'w-full border-2 px-4 py-3 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-relaxed',
+                    'w-full border-2 px-4 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-normal',
+                    isMobile && !inputFocused ? 'py-2.5 rounded-xl' : 'py-3',
+                    isMobile && inputFocused ? 'rounded-xl' : '',
                     (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
                       : 'bg-[#F0F4FF] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[#141414] placeholder:text-[#141414]/30'
@@ -3387,7 +3391,10 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               <button
                 type="submit"
                 disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
-                className="flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:translate-x-0.5 active:translate-y-0.5"
+                className={cx(
+                  'flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:translate-x-0.5 active:translate-y-0.5',
+                  isMobile ? 'rounded-xl' : ''
+                )}
                 style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.2)' }}
               >
                 {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
