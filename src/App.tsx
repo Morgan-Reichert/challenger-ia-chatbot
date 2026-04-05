@@ -343,6 +343,8 @@ function serializeConv(conv: Conversation) {
     persona: conv.persona,
     level: conv.level,
     projectId: conv.projectId ?? null,
+    debatePersonaId: conv.debatePersonaId ?? null,
+    debatePrompt: conv.debatePrompt ?? null,
     createdAt: conv.createdAt.toISOString(),
     updatedAt: conv.updatedAt.toISOString(),
     messages: conv.messages.map((m) => ({
@@ -369,6 +371,8 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
     persona: data.persona as Persona,
     level: data.level as FrictionLevel,
     projectId: (data.projectId as string | null) ?? undefined,
+    debatePersonaId: (data.debatePersonaId as string | null) ?? undefined,
+    debatePrompt: (data.debatePrompt as string | null) ?? undefined,
     createdAt: new Date(data.createdAt as string),
     updatedAt: new Date(data.updatedAt as string),
     messages: msgs.map((m) => ({
