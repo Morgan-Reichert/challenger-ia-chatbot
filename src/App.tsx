@@ -3316,24 +3316,25 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 <Mic className="w-5 h-5" />
               </button>
 
-              {/* Bouton slash commandes */}
-              <button
-                type="button"
-                onClick={() => { if (input === '') setInput('/'); else setInput(''); taRef.current?.focus(); }}
-                disabled={sending}
-                title="Commandes slash"
-                className={cx(
-                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm',
-                  isMobile && inputFocused ? 'hidden' : 'flex',
-                  slashOpen
-                    ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
-                    : (activeConv?.interviewType || activeConv?.debatePersonaId)
-                      ? 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
-                      : 'border-[#5D7BFF]/20 text-[#141414]/30 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
-                )}
-              >
-                <Slash className="w-5 h-5" />
-              </button>
+              {/* Bouton slash commandes — desktop only */}
+              {!isMobile && (
+                <button
+                  type="button"
+                  onClick={() => { if (input === '') setInput('/'); else setInput(''); taRef.current?.focus(); }}
+                  disabled={sending}
+                  title="Commandes slash"
+                  className={cx(
+                    'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm flex',
+                    slashOpen
+                      ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
+                      : (activeConv?.interviewType || activeConv?.debatePersonaId)
+                        ? 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
+                        : 'border-[#5D7BFF]/20 text-[#141414]/30 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
+                  )}
+                >
+                  <Slash className="w-5 h-5" />
+                </button>
+              )}
 
               {/* Textarea */}
               <div className="flex-1 relative">
@@ -3345,12 +3346,12 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   onFocus={() => setInputFocused(true)}
                   onBlur={() => setInputFocused(false)}
                   placeholder={
-                    pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…'
+                    pendingAttachments.length > 0 ? (isMobile ? 'Message…' : 'Ajoutez un message (optionnel)…')
                     : activeConv?.interviewType
-                      ? 'Votre réponse…'
+                      ? 'Répondre…'
                       : activeConv?.debatePersonaId
-                        ? `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`
-                        : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`
+                        ? (isMobile ? 'Répondre…' : `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`)
+                        : (isMobile ? 'Écrire…' : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`)
                   }
                   rows={isMobile && inputFocused ? 4 : 1}
                   disabled={sending}
