@@ -13,7 +13,7 @@ import {
   CUSTOM_PERSONA_MAX_DESC,
 } from './debatePersonas';
 import { INTERVIEW_TYPES_LIST, type InterviewTypeConfig } from './interviewTypes';
-import { buildProfileContext, type UserProfile } from './userProfile';
+import { buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
 
 // ─── cx helper ──────────────────────────────────────────────────────────────
 function cx(...classes: (string | boolean | undefined | null)[]): string {
@@ -66,6 +66,7 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview, u
   const [interviewRefineDone, setInterviewRefineDone] = useState(false);
   const [interviewTitle, setInterviewTitle] = useState('');
   const [interviewStarting, setInterviewStarting] = useState(false);
+  const [interviewAutofilling, setInterviewAutofilling] = useState(false);
 
   // ─── Debate handlers ─────────────────────────────────────────────────────
 
@@ -177,6 +178,69 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview, u
     } finally {
       setInterviewRefining(false);
     }
+  };
+
+  const handleAutofillFromProfile = async () => {
+    if (!interviewModalType || !userProfile) return;
+    setInterviewAutofilling(true);
+    try {
+      const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
+      const profileLines: string[] = [];
+      if (userProfile.displayName) profileLines.push(`Nom : ${userProfile.displayName}`);
+      if (userProfile.background) profileLines.push(`Parcours : ${userProfile.background}`);
+      if (userProfile.linkedin) profileLines.push(`LinkedIn : ${userProfile.linkedin}`);
+      if (userProfile.cvText) profileLines.push(`CV :\n${userProfile.cvText.slice(0, 800)}`);
+      if (userProfile.mbti) profileLines.push(`MBTI : ${userProfile.mbti}`);
+      if (userProfile.personalityNotes) profileLines.push(`Personnalité : ${userProfile.personalityNotes}`);
+      if (userProfile.neuroTags.length) profileLines.push(`Profil neuro : ${userProfile.neuroTags.join(', ')}`);
+      if (userProfile.interests.length) profileLines.push(`Centres d'intérêt : ${userProfile.interests.join(', ')}`);
+      if (userProfile.interestNotes) profileLines.push(`Détail intérêts : ${userProfile.interestNotes}`);
+
+      const fieldsDesc = interviewModalType.fields
+        .map(f => `- "${f.id}" (${f.label}) : ${f.placeholder}`)
+        .join('\n');
+
+      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'mistral-small-latest',
+          temperature: 0.3,
+          messages: [
+            {
+              role: 'system',
+              content:
+                `Tu préremplis un formulaire de préparation pour une session de type "${interviewModalType.label}" en te basant sur le profil d'un utilisateur.\n` +
+                `Remplis uniquement les champs pour lesquels le profil contient des informations pertinentes. Laisse vide si tu ne sais pas.\n` +
+                `Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans explication. Format strict : {"fieldId": "valeur", ...}`,
+            },
+            {
+              role: 'user',
+              content:
+                `Profil utilisateur :\n${profileLines.join('\n')}\n\n` +
+                `Champs à remplir :\n${fieldsDesc}`,
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      const raw = data.choices?.[0]?.message?.content ?? '{}';
+      // Extract JSON (strip potential markdown code blocks)
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const filled = JSON.parse(jsonMatch[0]) as Record<string, string>;
+        setInterviewFieldValues(prev => {
+          const next = { ...prev };
+          interviewModalType.fields.forEach(f => {
+            if (filled[f.id] && String(filled[f.id]).trim()) {
+              next[f.id] = String(filled[f.id]).slice(0, f.maxLength);
+            }
+          });
+          return next;
+        });
+      }
+    } catch { /* silencieux */ }
+    finally { setInterviewAutofilling(false); }
   };
 
   const handleStartInterview = async () => {
@@ -736,6 +800,27 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview, u
                   <p className="text-[8px] font-black uppercase tracking-widest text-[#141414]/25">Contexte</p>
                   <div className="flex-1 h-px bg-[#141414]/8" />
                 </div>
+
+                {/* Autofill from profile */}
+                {userProfile && isProfileFilled(userProfile) && (
+                  <button
+                    onClick={handleAutofillFromProfile}
+                    disabled={interviewAutofilling}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+                    style={{
+                      borderColor: `${interviewModalType.accentColor}50`,
+                      color: interviewModalType.accentColor,
+                      background: `${interviewModalType.accentColor}06`,
+                    }}
+                  >
+                    {interviewAutofilling ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <span className="text-[13px] leading-none">🪄</span>
+                    )}
+                    {interviewAutofilling ? 'Remplissage en cours…' : 'Remplir depuis mon profil'}
+                  </button>
+                )}
 
                 {/* Specific fields */}
                 {interviewModalType.fields.map(field => (
