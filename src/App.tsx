@@ -5,7 +5,7 @@ import {
   RotateCcw, Zap, Menu, X, ChevronRight, MessageSquare,
   BookOpen, Target, TrendingUp, Brain, LogIn, LogOut, User,
   Cloud, CloudOff, Trash2, FolderPlus, Folder, FolderOpen,
-  GripVertical, Check, Pencil, ChevronDown,
+  GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -586,6 +586,7 @@ export default function App() {
   const [editingProjectName, setEditingProjectName] = useState('');
   const [draggedConvId, setDraggedConvId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null); // project id or 'none'
+  const [deleteProjectModal, setDeleteProjectModal] = useState<{ projectId: string; projectName: string; convCount: number } | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -686,12 +687,39 @@ export default function App() {
     if (user) fsSaveProject(user.uid, p);
   }, [projects, user]);
 
-  const deleteProject = useCallback(async (projectId: string) => {
+  // Ouvre le modal de confirmation de suppression
+  const openDeleteProjectModal = useCallback((projectId: string) => {
+    const proj = projects.find((p) => p.id === projectId);
+    if (!proj) return;
+    const convCount = conversations.filter((c) => c.projectId === projectId).length;
+    setDeleteProjectModal({ projectId, projectName: proj.name, convCount });
+  }, [projects, conversations]);
+
+  // Supprime le projet uniquement — les sessions redeviennent libres
+  const deleteProjectOnly = useCallback(async (projectId: string) => {
     setProjects((p) => p.filter((x) => x.id !== projectId));
-    // Détacher les conversations du projet supprimé
-    setConversations((p) => p.map((c) => c.projectId === projectId ? { ...c, projectId: undefined } : c));
+    setConversations((p) => p.map((c) => {
+      if (c.projectId !== projectId) return c;
+      const updated = { ...c, projectId: undefined };
+      if (user) fsSaveConversation(user.uid, updated);
+      return updated;
+    }));
     if (user) await fsDeleteProject(user.uid, projectId);
+    setDeleteProjectModal(null);
   }, [user]);
+
+  // Supprime le projet ET toutes ses sessions
+  const deleteProjectAndContent = useCallback(async (projectId: string) => {
+    const convIds = conversations.filter((c) => c.projectId === projectId).map((c) => c.id);
+    setProjects((p) => p.filter((x) => x.id !== projectId));
+    setConversations((p) => p.filter((c) => c.projectId !== projectId));
+    if (activeId && convIds.includes(activeId)) setActiveId(null);
+    if (user) {
+      await fsDeleteProject(user.uid, projectId);
+      await Promise.all(convIds.map((id) => fsDeleteConversation(user.uid, id)));
+    }
+    setDeleteProjectModal(null);
+  }, [conversations, activeId, user]);
 
   const renameProject = useCallback((projectId: string, name: string) => {
     if (!name.trim()) return;
@@ -1110,7 +1138,7 @@ export default function App() {
                             <Pencil className="w-2.5 h-2.5" />
                           </button>
                           <button
-                            onClick={() => deleteProject(project.id)}
+                            onClick={() => openDeleteProjectModal(project.id)}
                             className="p-0.5 text-white/25 hover:text-red-400 transition-colors"
                           >
                             <Trash2 className="w-2.5 h-2.5" />
@@ -1611,6 +1639,116 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* ── Modal suppression projet ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {deleteProjectModal && (
+          <motion.div
+            key="delete-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(10,10,10,0.75)' }}
+            onClick={() => setDeleteProjectModal(null)}
+          >
+            <motion.div
+              key="delete-modal-card"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="bg-[#141414] border-4 border-red-500 w-full max-w-md"
+              style={{ boxShadow: '8px 8px 0px 0px rgba(239,68,68,0.35)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b-2 border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-red-500 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-[11px] font-black uppercase tracking-widest text-white">
+                    Supprimer le projet
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDeleteProjectModal(null)}
+                  className="text-white/30 hover:text-white/70 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                {/* Nom du projet */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10">
+                  <Folder className="w-3.5 h-3.5 text-[#5D7BFF] flex-shrink-0" />
+                  <p className="text-sm font-black text-white truncate">
+                    {deleteProjectModal.projectName}
+                  </p>
+                  {deleteProjectModal.convCount > 0 && (
+                    <span className="ml-auto text-[8px] font-black text-white/35 uppercase tracking-wider flex-shrink-0">
+                      {deleteProjectModal.convCount} session{deleteProjectModal.convCount > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Avertissement définitif */}
+                <div className="flex items-start gap-2.5 px-3 py-2.5 bg-red-500/10 border border-red-500/30">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[10px] font-bold text-red-400 leading-relaxed uppercase tracking-wide">
+                    Cette action est définitive et irréversible.
+                  </p>
+                </div>
+
+                {/* Choix */}
+                <div className="space-y-2 pt-1">
+                  {/* Option 1 — projet uniquement */}
+                  <button
+                    onClick={() => deleteProjectOnly(deleteProjectModal.projectId)}
+                    className="w-full text-left px-4 py-3.5 border-2 border-white/15 hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/10 transition-all group"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-wider text-white group-hover:text-[#5D7BFF] transition-colors">
+                      Supprimer le projet uniquement
+                    </p>
+                    <p className="text-[8px] text-white/35 mt-1 leading-relaxed group-hover:text-white/50 transition-colors">
+                      Les sessions restent accessibles — elles redeviennent libres sans projet.
+                    </p>
+                  </button>
+
+                  {/* Option 2 — projet + sessions */}
+                  <button
+                    onClick={() => deleteProjectAndContent(deleteProjectModal.projectId)}
+                    className="w-full text-left px-4 py-3.5 border-2 border-red-500/30 hover:border-red-500 hover:bg-red-500/10 transition-all group"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-wider text-red-400 group-hover:text-red-300 transition-colors">
+                      Supprimer le projet et son contenu
+                    </p>
+                    <p className="text-[8px] text-white/35 mt-1 leading-relaxed group-hover:text-white/50 transition-colors">
+                      {deleteProjectModal.convCount > 0
+                        ? `Le projet et ses ${deleteProjectModal.convCount} session${deleteProjectModal.convCount > 1 ? 's' : ''} seront supprimés définitivement.`
+                        : 'Le projet sera supprimé définitivement.'}
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Footer — annuler */}
+              <div className="px-6 py-4 border-t-2 border-white/10">
+                <button
+                  onClick={() => setDeleteProjectModal(null)}
+                  className="w-full py-2.5 text-center text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white/60 border border-white/10 hover:border-white/25 transition-all"
+                >
+                  Annuler
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
