@@ -1654,7 +1654,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               ? `Débat — ${conv.title}`
               : `Chat — ${PERSONAS[conv.persona]?.name ?? 'Challenger'}`;
 
-          generateSessionPDF(
+          await generateSessionPDF(
             summary,
             sessionTypeLabel,
             new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
