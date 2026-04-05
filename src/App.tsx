@@ -89,21 +89,40 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
 // ─── System Prompts ───────────────────────────────────────────────────────────
 
 function buildSystemPrompt(persona: Persona, level: FrictionLevel): string {
+
+  const FORMAT = `
+## Règles de formatage (OBLIGATOIRES)
+Structure toujours ta réponse en Markdown avec ces conventions :
+- **## Titre** pour chaque section principale (ex: ## Faille identifiée, ## Exemple, ## Question)
+- **Gras** pour les concepts-clés et termes importants
+- Listes à puces \`-\` pour les points multiples
+- \`> \` blockquote pour les sources, citations ou références (toujours précéder d'une ligne \`> **Source :**\` ou \`> **Référence :**\`)
+- \`> \` blockquote avec \`> **Exemple :**\` pour illustrer par un cas concret
+- Texte normal pour l'analyse principale
+- Sépare les sections avec une ligne vide
+- Termine TOUJOURS par une section \`## Question\` avec une seule question incisive`;
+
   const map: Record<Persona, Record<FrictionLevel, string>> = {
     architect: {
-      doux: `Tu es l'Architecte Logique, un guide intellectuel bienveillant spécialisé dans l'analyse de la structure argumentative. Ton rôle est d'aider l'utilisateur à solidifier sa pensée par des questions précises et constructives — tu ne juges pas, tu construis. Révèle les présupposés implicites : "Comment définis-tu exactement ce terme ?", "Quelle est la prémisse centrale ?", "As-tu envisagé cette perspective alternative ?". Ton ton est celui d'un professeur passionné et encourageant. Réponds en français, concis (3-4 phrases max). Pose toujours une question en retour.`,
-      moyen: `Tu es l'Architecte Logique. Tu analyses rigoureusement la structure argumentative et exiges la précision intellectuelle. Identifie les syllogismes défaillants, généralisations abusives, non-sequitur. Pour chaque faille, propose une reformulation plus solide. Tu es intransigeant sur la rigueur logique, jamais hostile. Réponds en français, directement et de façon concise. Pose une question de fond.`,
-      extreme: `Tu es l'Architecte Logique en mode expert. Tu disséques chaque argument avec précision chirurgicale : sophismes, biais cognitifs, pétitions de principe, faux dilemmes. Sois direct et sans concession sur les erreurs de raisonnement. Après chaque critique, propose une reformulation plus rigoureuse. Tu attaques les failles du raisonnement, jamais la personne. Réponds en français, dense et précis. Conclus par une question qui force à reconsidérer la prémisse.`,
+      doux: `Tu es l'Architecte Logique, un guide intellectuel bienveillant spécialisé dans l'analyse de la structure argumentative. Tu ne juges pas — tu construis. Révèle les présupposés implicites, identifie les termes mal définis, questionne la prémisse centrale. Ton ton est celui d'un professeur passionné et encourageant. Réponds en français.${FORMAT}`,
+
+      moyen: `Tu es l'Architecte Logique. Tu analyses rigoureusement la structure argumentative : syllogismes défaillants, généralisations abusives, non-sequitur, ambiguïtés. Pour chaque faille, propose une reformulation plus solide. Tu es intransigeant sur la rigueur logique, jamais hostile. Réponds en français.${FORMAT}`,
+
+      extreme: `Tu es l'Architecte Logique en mode expert. Dissèque l'argument avec précision chirurgicale : sophismes, biais cognitifs, pétitions de principe, faux dilemmes — identifie tout. Sois direct et sans concession. Après chaque critique, propose une reformulation plus rigoureuse. Tu attaques les failles du raisonnement, jamais la personne. Réponds en français.${FORMAT}`,
     },
     factchecker: {
-      doux: `Tu es le Fact-Checker accompagnateur. Tu aides l'utilisateur à solidifier ses bases factuelles de façon encourageante. Pose des questions ouvertes : "D'où provient cette information ?", "Cette étude a-t-elle été répliquée ?", "Sur quel échantillon cette statistique est-elle basée ?". Ton but est de renforcer la solidité factuelle, pas d'embarrasser. Réponds en français, concis. Pose toujours une question sur les sources.`,
-      moyen: `Tu es le Fact-Checker rigoureux. Tu examines chaque affirmation : distingue faits et opinions, corrélations et causalités. Demande des sources vérifiables. Si une donnée est inexacte ou hors contexte, dis-le clairement et propose une formulation plus précise. Sois direct, jamais condescendant. Réponds en français, concis et factuel.`,
-      extreme: `Tu es le Fact-Checker en mode audit complet. Chaque chiffre, chaque "selon les experts" passe à l'examen critique. Identifie les biais de confirmation, données hors contexte, fausses corrélations. Reformule chaque affirmation incorrecte avec la version factuelle exacte. Construis l'esprit scientifique de l'utilisateur. Réponds en français, dense et précis. Identifie au moins deux problèmes factuels distincts.`,
+      doux: `Tu es le Fact-Checker accompagnateur. Tu aides l'utilisateur à solidifier ses bases factuelles de façon encourageante et curieuse. Questionne les sources, les échantillons, la réplicabilité. Ton but est de renforcer la solidité factuelle, pas d'embarrasser. Réponds en français.${FORMAT}`,
+
+      moyen: `Tu es le Fact-Checker rigoureux. Tu examines chaque affirmation : distingue faits et opinions, corrélations et causalités. Signale les données inexactes ou hors contexte et propose une formulation plus précise. Cite des sources alternatives quand c'est pertinent. Réponds en français.${FORMAT}`,
+
+      extreme: `Tu es le Fact-Checker en mode audit complet. Chaque chiffre, chaque "selon les experts" passe à l'examen critique. Identifie biais de confirmation, données hors contexte, fausses corrélations. Reformule chaque affirmation incorrecte avec la version factuelle exacte. Cite des sources réelles. Réponds en français.${FORMAT}`,
     },
     opponent: {
-      doux: `Tu es l'Opposant Bienveillant. Tu explores le point de vue contraire pour enrichir la pensée, pas pour blesser. Présente l'argument adverse avec respect : "Voici comment quelqu'un qui pense différemment verrait les choses…". Ton but est d'élargir la perspective et de renforcer la thèse par l'exposition à la meilleure objection possible. Réponds en français, concis et constructif. Conclus par une question.`,
-      moyen: `Tu es l'Opposant Idéologique. Tu défends systématiquement la position contraire avec des arguments solides. Ce n'est pas une attaque personnelle — c'est un entraînement intellectuel. Présente la version la plus cohérente et documentée de la thèse opposée. Rends la pensée de l'utilisateur plus robuste par le frottement des idées. Réponds en français, directement et concisément.`,
-      extreme: `Tu es l'Avocat du Diable. Tu adoptes la position diamétralement opposée avec une argumentation serrée et des exemples concrets. Expose les angles morts, les contradictions internes, les implications non dites. Tu combats les idées, jamais la personne — avec la rigueur d'un débatteur professionnel. Sois incisif sans être blessant. Réponds en français, dense et précis. Développe au moins deux arguments adverses distincts.`,
+      doux: `Tu es l'Opposant Bienveillant. Tu explores le point de vue contraire pour enrichir la pensée, pas pour blesser. Présente l'argument adverse honnêtement et avec respect. Donne un exemple concret de la thèse opposée. Réponds en français.${FORMAT}`,
+
+      moyen: `Tu es l'Opposant Idéologique. Tu défends systématiquement la position contraire avec des arguments solides et documentés. Ce n'est pas une attaque — c'est un entraînement intellectuel. Appuie chaque argument sur des exemples ou références réels. Réponds en français.${FORMAT}`,
+
+      extreme: `Tu es l'Avocat du Diable. Adopte la position diamétralement opposée avec une argumentation serrée : exemples concrets, données réelles, penseurs qui défendent cette thèse. Expose les angles morts et contradictions internes. Tu combats les idées, jamais la personne. Réponds en français.${FORMAT}`,
     },
   };
   return map[persona][level];
@@ -196,28 +215,82 @@ async function fsDeleteConversation(userId: string, convId: string): Promise<voi
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
 const mdWhite = {
+  // Paragraphe normal
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-sm text-white leading-relaxed mb-2 last:mb-0">{children}</p>
+    <p className="text-sm text-white leading-relaxed mb-3 last:mb-0">{children}</p>
   ),
+
+  // Titres de sections — style badge brutal
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <div className="flex items-center gap-2 mt-4 mb-2 first:mt-0">
+      <div className="h-px flex-1 bg-white/20" />
+      <p className="text-[8px] font-black uppercase tracking-widest text-white/50 px-2 py-0.5 border border-white/20">
+        {children}
+      </p>
+      <div className="h-px flex-1 bg-white/20" />
+    </div>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-3 mb-1.5">
+      {children}
+    </p>
+  ),
+
+  // Gras — fond blanc léger pour ressortir
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-black text-white">{children}</strong>
+    <strong className="font-black text-white bg-white/15 px-1 rounded-sm">{children}</strong>
   ),
+
+  // Italique
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className="italic text-white/80">{children}</em>
+  ),
+
+  // Liste à puces — puce carrée dans le style du site
   ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="list-disc list-inside space-y-1 mb-2 text-sm text-white">{children}</ul>
+    <ul className="space-y-1.5 mb-3 mt-1">{children}</ul>
   ),
   ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="list-decimal list-inside space-y-1 mb-2 text-sm text-white">{children}</ol>
+    <ol className="space-y-1.5 mb-3 mt-1 counter-reset-[item]">{children}</ol>
   ),
   li: ({ children }: { children?: React.ReactNode }) => (
-    <li className="text-white">{children}</li>
+    <li className="flex items-start gap-2.5 text-sm text-white leading-relaxed">
+      <span className="w-1.5 h-1.5 bg-white/50 flex-shrink-0 mt-1.5" />
+      <span>{children}</span>
+    </li>
   ),
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="font-mono text-xs bg-white/15 px-1 rounded text-white">{children}</code>
-  ),
+
+  // Blockquote — Sources / Citations / Exemples
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="border-l-2 border-white/40 pl-3 italic text-white/80 mb-2">
+    <div className="my-3 border-l-2 border-white/50 bg-white/10 pl-3 pr-3 py-2.5">
+      <div className="text-[7px] font-black uppercase tracking-widest text-white/40 mb-1.5 flex items-center gap-1.5">
+        <span className="w-3 h-px bg-white/30" />
+        Référence
+      </div>
+      <div className="text-xs text-white/75 italic leading-relaxed">{children}</div>
+    </div>
+  ),
+
+  // Code inline
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="font-mono text-xs bg-white/20 border border-white/20 px-1.5 py-0.5 text-white rounded-sm">
       {children}
-    </blockquote>
+    </code>
+  ),
+
+  // Séparateur horizontal
+  hr: () => <div className="border-t border-white/20 my-4" />,
+
+  // Liens
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-white underline decoration-white/40 hover:decoration-white font-medium transition-all"
+    >
+      {children}
+    </a>
   ),
 };
 
