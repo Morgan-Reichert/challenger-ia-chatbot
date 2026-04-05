@@ -643,6 +643,7 @@ export default function App() {
   const lastSpokenIdRef = useRef<string | null>(null);
   const startListeningRef = useRef<() => void>(() => {});
   const sendRef = useRef<(text: string) => void>(() => {});
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
@@ -694,7 +695,16 @@ export default function App() {
     setSyncing(false);
   }, []);
 
-  // ── Vocal : TTS (retire le markdown avant de parler)
+  // ── Vocal : charge les voix disponibles (asynchrone dans certains navigateurs)
+  useEffect(() => {
+    if (!window.speechSynthesis) return;
+    const load = () => { voicesRef.current = window.speechSynthesis.getVoices(); };
+    load();
+    window.speechSynthesis.addEventListener('voiceschanged', load);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', load);
+  }, []);
+
+  // ── Vocal : TTS avec sélection de la meilleure voix disponible
   const speakText = useCallback((text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -707,9 +717,28 @@ export default function App() {
       .replace(/^[-*+]\s/gm, '')
       .replace(/^\d+\.\s/gm, '')
       .trim();
+
+    const lang = navigator.language.startsWith('fr') ? 'fr-FR' : navigator.language;
+    const langCode = lang.split('-')[0];
+    const voices = voicesRef.current;
+
+    // Priorité : voix online/neurale > voix locale > défaut système
+    let bestVoice: SpeechSynthesisVoice | null = null;
+    if (voices.length) {
+      const langVoices = voices.filter(v => v.lang.startsWith(langCode));
+      bestVoice = langVoices.find(v => !v.localService)  // neural/online
+        ?? langVoices.find(v => /natural|enhanced|premium/i.test(v.name))
+        ?? langVoices[0]
+        ?? null;
+    }
+
     const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.lang = navigator.language.startsWith('fr') ? 'fr-FR' : navigator.language;
-    utterance.rate = 1.05;
+    utterance.lang = lang;
+    utterance.rate = 0.93;   // légèrement plus lent = plus naturel
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    if (bestVoice) utterance.voice = bestVoice;
+
     utterance.onstart = () => setVoiceSpeaking(true);
     utterance.onend = () => {
       setVoiceSpeaking(false);
@@ -2384,10 +2413,57 @@ export default function App() {
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex-shrink-0 px-6 py-4 border-t border-white/5 flex items-center justify-center">
-              <p className="text-[9px] text-white/15 font-black uppercase tracking-widest text-center">
-                Discussion retranscrite dans le chat · Fermer pour relire la conversation
+            {/* Controls : persona + friction */}
+            <div className="flex-shrink-0 border-t border-white/5 px-6 pt-4 pb-5 space-y-3">
+              {/* Persona */}
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-2">Persona</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(Object.values(PERSONAS) as (typeof PERSONAS[keyof typeof PERSONAS])[]).map((p) => {
+                    const Icon = p.icon;
+                    const active = persona === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setPersona(p.id)}
+                        className={cx(
+                          'flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-black uppercase tracking-wider transition-all',
+                          active
+                            ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
+                            : 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
+                        )}
+                      >
+                        <Icon className="w-3 h-3" />
+                        {p.shortName}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Friction */}
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-2">Friction</p>
+                <div className="flex gap-1.5">
+                  {(Object.entries(FRICTION) as [FrictionLevel, typeof FRICTION[FrictionLevel]][]).map(([key, val]) => (
+                    <button
+                      key={key}
+                      onClick={() => setLevel(key)}
+                      className={cx(
+                        'flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider border transition-all',
+                        level === key
+                          ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
+                          : 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
+                      )}
+                    >
+                      {val.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-[9px] text-white/10 font-black uppercase tracking-widest text-center pt-1">
+                Discussion retranscrite dans le chat · Fermer pour relire
               </p>
             </div>
           </motion.div>
