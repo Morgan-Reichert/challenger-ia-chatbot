@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
 import LibraryPage from './LibraryPage';
 import { DEBATE_PERSONAS, type DebatePersona, type DebateDisplayData } from './debatePersonas';
+import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from './interviewTypes';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
@@ -58,9 +59,11 @@ interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   projectId?: string;
-  debatePrompt?: string;          // system prompt personnalisé pour les débats
+  debatePrompt?: string;          // system prompt pour débats ET interviews
   debatePersonaId?: string;       // id du personnage débat
   debatePersonaCustomData?: DebateDisplayData; // données display pour opposant custom
+  interviewType?: InterviewTypeId; // type d'interview (podcast, job, etc.)
+  interviewTitle?: string;         // titre de la session interview
 }
 
 interface Project {
@@ -356,6 +359,8 @@ function serializeConv(conv: Conversation) {
     debatePersonaId: conv.debatePersonaId ?? null,
     debatePrompt: conv.debatePrompt ?? null,
     debatePersonaCustomData: conv.debatePersonaCustomData ?? null,
+    interviewType: conv.interviewType ?? null,
+    interviewTitle: conv.interviewTitle ?? null,
     createdAt: conv.createdAt.toISOString(),
     updatedAt: conv.updatedAt.toISOString(),
     messages: conv.messages.map((m) => ({
@@ -385,6 +390,8 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
     debatePersonaId: (data.debatePersonaId as string | null) ?? undefined,
     debatePrompt: (data.debatePrompt as string | null) ?? undefined,
     debatePersonaCustomData: (data.debatePersonaCustomData as DebateDisplayData | null) ?? undefined,
+    interviewType: (data.interviewType as InterviewTypeId | null) ?? undefined,
+    interviewTitle: (data.interviewTitle as string | null) ?? undefined,
     createdAt: new Date(data.createdAt as string),
     updatedAt: new Date(data.updatedAt as string),
     messages: msgs.map((m) => ({
@@ -877,6 +884,67 @@ export default function App() {
     setActiveId(convId);
     if (user) fsSaveConversation(user.uid, conv);
     setCurrentPage('chat');
+  }, [user]);
+
+  // ── Start Interview ───────────────────────────────────────────────────────
+  const startInterview = useCallback(async (
+    config: InterviewTypeConfig,
+    systemPrompt: string,
+    title: string
+  ) => {
+    const convId = uid();
+    const now = new Date();
+    const conv: Conversation = {
+      id: convId,
+      title,
+      messages: [],
+      persona: 'opponent',
+      level: 'moyen',
+      createdAt: now,
+      updatedAt: now,
+      debatePrompt: systemPrompt,
+      interviewType: config.id,
+      interviewTitle: title,
+    };
+    setConversations(p => [conv, ...p]);
+    setActiveId(convId);
+    setCurrentPage('chat');
+
+    // L'IA ouvre la session avec sa première question
+    setSending(true);
+    try {
+      const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
+      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'mistral-large-latest',
+          temperature: 0.7,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: '[DÉBUT DE SESSION]' },
+          ],
+        }),
+      });
+      const data = await res.json();
+      const reply = data.choices?.[0]?.message?.content ?? '…';
+      const openingMsg: Message = {
+        id: uid(),
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date(),
+        persona: 'opponent',
+        level: 'moyen',
+      };
+      const updated: Conversation = {
+        ...conv,
+        messages: [openingMsg],
+        updatedAt: new Date(),
+      };
+      setConversations(p => p.map(c => c.id === convId ? updated : c));
+      if (user) fsSaveConversation(user.uid, updated);
+    } catch { /* silencieux — l'utilisateur peut quand même répondre */ }
+    finally { setSending(false); }
   }, [user]);
 
   // ── Firebase Auth listener
@@ -1624,8 +1692,27 @@ export default function App() {
                 <ChevronRight className="w-3 h-3 opacity-50" />
               </button>
 
-              {/* Persona selector — masqué en mode débat */}
-              {activeConv?.debatePersonaId ? (
+              {/* Persona selector — masqué en mode débat / interview */}
+              {activeConv?.interviewType ? (
+                <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
+                  {(() => {
+                    const ic = INTERVIEW_TYPES[activeConv.interviewType!];
+                    const IIcon = ic?.icon;
+                    return (
+                      <>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-1">Mode interview</p>
+                        <div className="flex items-center gap-2">
+                          {IIcon && <IIcon className="w-4 h-4" style={{ color: ic.accentColor }} />}
+                          <div>
+                            <p className="text-[11px] font-black text-white/70">{ic?.label}</p>
+                            <p className="text-[9px] text-white/30">{ic?.interviewerRole}</p>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : activeConv?.debatePersonaId ? (
                 <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
                   {(() => {
                     const dp = getDP(activeConv);
@@ -1990,6 +2077,7 @@ export default function App() {
         <LibraryPage
           onBack={() => setCurrentPage('chat')}
           onStartDebate={startDebate}
+          onStartInterview={startInterview}
         />
       )}
 
@@ -2012,7 +2100,24 @@ export default function App() {
             <CurrentIcon className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0">
-            {activeConv?.debatePersonaId ? (
+            {activeConv?.interviewType ? (() => {
+              const ic = INTERVIEW_TYPES[activeConv.interviewType!];
+              return (
+                <>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
+                      {activeConv.interviewTitle ?? ic?.label}
+                    </p>
+                    <span className="flex-shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 text-white" style={{ backgroundColor: ic?.accentColor ?? '#94A3B8' }}>
+                      INTERVIEW
+                    </span>
+                  </div>
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
+                    {ic?.interviewerRole}
+                  </p>
+                </>
+              );
+            })() : activeConv?.debatePersonaId ? (
               <>
                 <div className="flex items-center gap-2">
                   <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
@@ -2071,8 +2176,46 @@ export default function App() {
           )}
         </AnimatePresence>
 
+        {/* ── Bannière session interview ── */}
+        {activeConv?.interviewType && (() => {
+          const ic = INTERVIEW_TYPES[activeConv.interviewType!];
+          if (!ic) return null;
+          const IIcon = ic.icon;
+          const turns = activeConv.messages.filter(m => m.role === 'user').length;
+          return (
+            <div className="flex-shrink-0 border-b border-white/5" style={{ background: ic.bgColor }}>
+              <div className="flex items-center px-6 py-4 gap-4" style={{ borderBottom: `1px solid ${ic.accentColor}20` }}>
+                {/* Icon */}
+                <div className="w-10 h-10 flex items-center justify-center flex-shrink-0" style={{ background: `${ic.accentColor}18`, border: `1.5px solid ${ic.accentColor}30` }}>
+                  <IIcon className="w-5 h-5" style={{ color: ic.accentColor }} />
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: `${ic.accentColor}80` }}>
+                    Session en cours
+                  </p>
+                  <p className="text-[13px] font-black text-white truncate">
+                    {activeConv.interviewTitle ?? ic.label}
+                  </p>
+                </div>
+                {/* Role + turns */}
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: `${ic.accentColor}80` }}>
+                    {ic.interviewerRole}
+                  </p>
+                  {turns > 0 && (
+                    <p className="text-[9px] font-bold text-white/30 mt-0.5">
+                      {turns} réponse{turns > 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Bannière arène de débat ── */}
-        {activeConv?.debatePersonaId && (() => {
+        {!activeConv?.interviewType && activeConv?.debatePersonaId && (() => {
           const dp = getDP(activeConv);
           if (!dp) return null;
           const rounds = Math.ceil(activeConv.messages.length / 2);
@@ -2108,12 +2251,29 @@ export default function App() {
         })()}
 
         {/* Messages */}
-        <div className={cx(
-          'flex-1 overflow-y-auto px-6 py-8 transition-colors',
-          activeConv?.debatePersonaId ? 'bg-[#0a0c14]' : ''
-        )}>
+        {(() => {
+          const interviewCfg = activeConv?.interviewType ? INTERVIEW_TYPES[activeConv.interviewType] : null;
+          return (
+        <div
+          className={cx('flex-1 overflow-y-auto px-6 py-8 transition-colors', (activeConv?.debatePersonaId || interviewCfg) ? '' : '')}
+          style={interviewCfg ? { background: interviewCfg.bgColor } : activeConv?.debatePersonaId ? { background: '#0a0c14' } : undefined}
+        >
           {!activeConv || activeConv.messages.length === 0 ? (
-            activeConv?.debatePersonaId ? (() => {
+            activeConv?.interviewType ? (
+              // Interview empty state — IA is generating first message
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <div className="flex items-center gap-2 justify-center mb-3">
+                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: INTERVIEW_TYPES[activeConv.interviewType!]?.accentColor, animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: INTERVIEW_TYPES[activeConv.interviewType!]?.accentColor, animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: INTERVIEW_TYPES[activeConv.interviewType!]?.accentColor, animationDelay: '300ms' }} />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/25">
+                    {INTERVIEW_TYPES[activeConv.interviewType!]?.interviewerRole} prépare sa première question…
+                  </p>
+                </div>
+              </div>
+            ) : activeConv?.debatePersonaId ? (() => {
               const dp2 = getDP(activeConv);
               const SUGGESTION_ICONS = [Target, Brain, TrendingUp];
               const personaFromLib = activeConv.debatePersonaId !== 'custom'
@@ -2245,26 +2405,29 @@ export default function App() {
           ) : (
             <div className="max-w-3xl mx-auto space-y-5">
               {activeConv.messages.map((msg) => {
-                const isDebate = !!activeConv.debatePersonaId;
+                const isInterview = !!activeConv.interviewType;
+                const isDebate = !isInterview && !!activeConv.debatePersonaId;
                 const dp = isDebate ? getDP(activeConv) : null;
+                const ic = isInterview ? INTERVIEW_TYPES[activeConv.interviewType!] : null;
                 const isUser = msg.role === 'user';
 
                 // ── Styles selon mode
-                const bubbleBg = isDebate
-                  ? isUser
-                    ? 'border-2'
-                    : 'border-2'
+                const bubbleBg = (isInterview || isDebate) ? 'border-2'
                   : isUser
                     ? 'bg-white border-[#5D7BFF]/25'
                     : 'bg-[#5D7BFF] border-[#5D7BFF] text-white';
 
-                const bubbleStyle = isDebate
+                const bubbleStyle = isInterview
                   ? isUser
-                    ? { background: 'rgba(34,197,94,0.1)', borderColor: 'rgba(74,222,128,0.25)', boxShadow: '0 0 20px rgba(34,197,94,0.08)' }
-                    : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
-                  : isUser
-                    ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
-                    : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
+                    ? { background: `${ic!.accentColor}12`, borderColor: `${ic!.accentColor}35`, boxShadow: `0 0 20px ${ic!.accentColor}08` }
+                    : { background: 'rgba(255,255,255,0.04)', borderColor: `${ic!.accentColor}25`, borderLeftWidth: '3px', borderLeftColor: ic!.accentColor, boxShadow: `0 0 20px ${ic!.accentColor}10` }
+                  : isDebate
+                    ? isUser
+                      ? { background: 'rgba(34,197,94,0.1)', borderColor: 'rgba(74,222,128,0.25)', boxShadow: '0 0 20px rgba(34,197,94,0.08)' }
+                      : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
+                    : isUser
+                      ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
+                      : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
 
                 return (
                 <motion.div
@@ -2280,35 +2443,39 @@ export default function App() {
                     <div
                       className={cx(
                         'px-3 py-1 border-b flex items-center justify-between gap-4',
-                        isDebate
-                          ? isUser ? 'border-white/5' : 'border-white/5'
+                        (isInterview || isDebate) ? 'border-white/5'
                           : isUser ? 'border-[#5D7BFF]/10' : 'border-white/20'
                       )}
                     >
                       <div className="flex items-center gap-1.5">
-                        {!isUser && !isDebate && (() => {
+                        {!isUser && isInterview && ic && (() => {
+                          const IIcon = ic.icon;
+                          return <IIcon className="w-2.5 h-2.5" style={{ color: `${ic.accentColor}90` }} />;
+                        })()}
+                        {!isUser && !isInterview && !isDebate && (() => {
                           const MsgIcon = PERSONAS[msg.persona ?? persona].icon;
                           return <MsgIcon className="w-2.5 h-2.5 text-white/50" />;
                         })()}
-                        {!isUser && isDebate && dp && (
+                        {!isUser && !isInterview && isDebate && dp && (
                           <span className="text-[10px]">{dp.flag}</span>
                         )}
                         <p className={cx(
                           'text-[7px] font-black uppercase tracking-widest',
-                          isDebate
+                          (isInterview || isDebate)
                             ? isUser ? 'text-white/30' : 'text-white/50'
                             : isUser ? 'text-[#141414]/30' : 'text-white/60'
                         )}>
                           {isUser ? 'Vous'
+                            : isInterview && ic ? ic.interviewerRole
                             : isDebate && dp ? dp.shortName
                             : PERSONAS[msg.persona ?? persona].shortName}
                         </p>
-                        {!isUser && !isDebate && msg.level && (
+                        {!isUser && !isInterview && !isDebate && msg.level && (
                           <span className="text-[6px] font-black uppercase tracking-widest text-white/25 border border-white/15 px-1 py-px">
                             {FRICTION[msg.level ?? level].label}
                           </span>
                         )}
-                        {!isUser && isDebate && (
+                        {!isUser && !isInterview && isDebate && (
                           <span className="text-[6px] font-black uppercase tracking-widest border px-1 py-px"
                             style={{ color: dp?.color, borderColor: `${dp?.color}40` }}>
                             {FRICTION[msg.level ?? level].label}
@@ -2317,7 +2484,7 @@ export default function App() {
                       </div>
                       <p className={cx(
                         'text-[7px] font-mono',
-                        isDebate ? 'text-white/20' : isUser ? 'text-[#141414]/25' : 'text-white/40'
+                        (isInterview || isDebate) ? 'text-white/20' : isUser ? 'text-[#141414]/25' : 'text-white/40'
                       )}>
                         {fmtTime(msg.timestamp)}
                       </p>
@@ -2364,12 +2531,12 @@ export default function App() {
 
                     <div className="px-4 py-3">
                       {msg.role === 'assistant' ? (
-                        <ReactMarkdown components={isDebate ? mdWhite : mdWhite}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown components={(isInterview || isDebate) ? mdWhite : mdWhite}>{msg.content}</ReactMarkdown>
                       ) : (
                         msg.content ? (
                           <p className={cx(
                             'text-sm leading-relaxed whitespace-pre-wrap',
-                            isDebate ? 'text-white/80' : 'text-[#141414]'
+                            (isInterview || isDebate) ? 'text-white/80' : 'text-[#141414]'
                           )}>
                             {msg.content}
                           </p>
@@ -2383,7 +2550,9 @@ export default function App() {
 
               {/* Typing indicator */}
               {sending && (() => {
-                const dp = activeConv?.debatePersonaId ? getDP(activeConv) : null;
+                const isInterviewMode = !!activeConv?.interviewType;
+                const ic2 = isInterviewMode ? INTERVIEW_TYPES[activeConv!.interviewType!] : null;
+                const dp = !isInterviewMode && activeConv?.debatePersonaId ? getDP(activeConv) : null;
                 return (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
@@ -2391,15 +2560,21 @@ export default function App() {
                     className="flex justify-start"
                   >
                     <div
-                      className={cx('border-2 px-4 py-3', dp ? 'bg-[#12141f] border-l-4 border-t-0 border-r-0 border-b-0' : 'bg-[#5D7BFF] border-[#5D7BFF] text-white')}
-                      style={dp
-                        ? { borderLeftColor: dp.color, borderTopColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'transparent' }
-                        : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
+                      className={cx('border-2 px-4 py-3',
+                        (ic2 || dp) ? 'border-l-4 border-t-0 border-r-0 border-b-0' : 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
+                      )}
+                      style={ic2
+                        ? { background: `${ic2.accentColor}08`, borderLeftColor: ic2.accentColor, borderTopColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'transparent' }
+                        : dp
+                          ? { background: '#12141f', borderLeftColor: dp.color, borderTopColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'transparent' }
+                          : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
                     >
                       <div className="flex items-center gap-3">
                         <Loader2 className="w-4 h-4 animate-spin text-white/50" />
                         <p className="text-[9px] font-black uppercase tracking-widest text-white/40">
-                          {dp ? `${dp.flag} ${dp.shortName} formule sa réponse…` : `${PERSONAS[persona].shortName} analyse…`}
+                          {ic2 ? `${ic2.interviewerRole} formule sa question…`
+                            : dp ? `${dp.flag} ${dp.shortName} formule sa réponse…`
+                            : `${PERSONAS[persona].shortName} analyse…`}
                         </p>
                       </div>
                     </div>
@@ -2433,18 +2608,22 @@ export default function App() {
             </div>
           )}
         </div>
+          );
+        })()}
 
         {/* Input */}
         <div
           className={cx(
             'flex-shrink-0 border-t-4 px-6 py-4 transition-colors',
-            activeConv?.debatePersonaId
+            (activeConv?.interviewType || activeConv?.debatePersonaId)
               ? 'bg-[#0d0f1a] border-t-2 border-t-0'
               : 'bg-white border-[#5D7BFF]'
           )}
-          style={activeConv?.debatePersonaId
-            ? { borderTop: `2px solid ${getDP(activeConv)?.color ?? '#5D7BFF'}` }
-            : undefined}
+          style={activeConv?.interviewType
+            ? { borderTop: `2px solid ${INTERVIEW_TYPES[activeConv.interviewType]?.accentColor ?? '#5D7BFF'}40` }
+            : activeConv?.debatePersonaId
+              ? { borderTop: `2px solid ${getDP(activeConv)?.color ?? '#5D7BFF'}` }
+              : undefined}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
@@ -2530,15 +2709,17 @@ export default function App() {
                   onKeyDown={handleKey}
                   placeholder={
                     pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…'
-                    : activeConv?.debatePersonaId
-                      ? `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`
-                      : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`
+                    : activeConv?.interviewType
+                      ? 'Votre réponse…'
+                      : activeConv?.debatePersonaId
+                        ? `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`
+                        : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`
                   }
                   rows={1}
                   disabled={sending}
                   className={cx(
                     'w-full border-2 px-4 py-3 text-sm font-medium focus:outline-none resize-none transition-all leading-relaxed',
-                    activeConv?.debatePersonaId
+                    (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
                       : 'bg-[#F0F4FF] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[#141414] placeholder:text-[#141414]/30'
                   )}
