@@ -13,6 +13,7 @@ import {
   CUSTOM_PERSONA_MAX_DESC,
 } from './debatePersonas';
 import { INTERVIEW_TYPES_LIST, type InterviewTypeConfig } from './interviewTypes';
+import { buildProfileContext, type UserProfile } from './userProfile';
 
 // ─── cx helper ──────────────────────────────────────────────────────────────
 function cx(...classes: (string | boolean | undefined | null)[]): string {
@@ -24,6 +25,7 @@ type Props = {
   onBack: () => void;
   onStartDebate: (persona: DebatePersona) => Promise<void>;
   onStartInterview: (config: InterviewTypeConfig, systemPrompt: string, title: string) => Promise<void>;
+  userProfile?: UserProfile;
 };
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
@@ -33,7 +35,7 @@ const TABS = [
 ];
 
 // ─── Component ──────────────────────────────────────────────────────────────
-export default function LibraryPage({ onBack, onStartDebate, onStartInterview }: Props) {
+export default function LibraryPage({ onBack, onStartDebate, onStartInterview, userProfile }: Props) {
   // ── Tab navigation
   const [activeTab, setActiveTab] = useState<'debat' | 'interview'>('debat');
 
@@ -190,7 +192,11 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview }:
     const currentDate = new Date().toLocaleDateString('fr-FR', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
-    const systemPrompt = interviewModalType.buildSystemPrompt(context, currentDate);
+    let systemPrompt = interviewModalType.buildSystemPrompt(context, currentDate);
+    if (userProfile) {
+      const profileCtx = buildProfileContext(userProfile);
+      if (profileCtx) systemPrompt += '\n\n' + profileCtx;
+    }
     const title = interviewTitle.trim() || interviewModalType.label;
 
     setInterviewStarting(true);

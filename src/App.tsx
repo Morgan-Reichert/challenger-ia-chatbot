@@ -8,13 +8,15 @@ import {
   GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
-  Mic, MicOff, Volume2, Library,
+  Mic, MicOff, Volume2, Library, Settings,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
 import LibraryPage from './LibraryPage';
+import SettingsPage from './SettingsPage';
 import { DEBATE_PERSONAS, type DebatePersona, type DebateDisplayData } from './debatePersonas';
 import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from './interviewTypes';
+import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
@@ -661,7 +663,10 @@ export default function App() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library'>('chat');
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings'>('chat');
+
+  // ── User profile (local only)
+  const [userProfile, setUserProfile] = useState<UserProfile>(loadProfile);
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -854,7 +859,9 @@ export default function App() {
     const currentDate = new Date().toLocaleDateString('fr-FR', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
-    const systemPrompt = debatePersona.buildSystemPrompt(webContext, currentDate);
+    const profileCtx = buildProfileContext(userProfile);
+    const systemPrompt = debatePersona.buildSystemPrompt(webContext, currentDate) +
+      (profileCtx ? '\n\n' + profileCtx : '');
 
     // 3. Créer une nouvelle conversation de débat
     const convId = uid();
@@ -1692,6 +1699,23 @@ export default function App() {
                 <ChevronRight className="w-3 h-3 opacity-50" />
               </button>
 
+              {/* Profil IA */}
+              <button
+                onClick={() => setCurrentPage('settings')}
+                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings className="w-4 h-4" />
+                  <span className="text-[11px] font-black uppercase tracking-widest">Profil IA</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {isProfileFilled(userProfile) && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  )}
+                  <ChevronRight className="w-3 h-3 opacity-50" />
+                </div>
+              </button>
+
               {/* Persona selector — masqué en mode débat / interview */}
               {activeConv?.interviewType ? (
                 <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
@@ -2078,6 +2102,16 @@ export default function App() {
           onBack={() => setCurrentPage('chat')}
           onStartDebate={startDebate}
           onStartInterview={startInterview}
+          userProfile={userProfile}
+        />
+      )}
+
+      {/* ── Réglages / Profil IA ─────────────────────────────────────────────── */}
+      {currentPage === 'settings' && (
+        <SettingsPage
+          onBack={() => setCurrentPage('chat')}
+          profile={userProfile}
+          onSave={(p) => { setUserProfile(p); saveProfile(p); }}
         />
       )}
 
