@@ -690,6 +690,39 @@ const SLASH_COMMANDS = [
 
 type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
 
+// ─── Web Search (Tavily) ──────────────────────────────────────────────────────
+async function searchWeb(query: string): Promise<string> {
+  const apiKey = import.meta.env.VITE_TAVILY_API_KEY;
+  if (!apiKey) return '';
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        max_results: 5,
+        include_answer: true,
+        include_raw_content: false,
+      }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    let out = '';
+    if (data.answer) out += `Synthèse web : ${data.answer}\n\n`;
+    if (data.results?.length) {
+      out += 'Sources récentes :\n';
+      data.results.slice(0, 4).forEach((r: any) => {
+        out += `• ${r.title}\n  ${(r.content ?? '').slice(0, 250)}\n  Source : ${r.url}\n\n`;
+      });
+    }
+    return out.trim();
+  } catch {
+    return '';
+  }
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -1466,6 +1499,14 @@ export default function App() {
         const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
 
+        // ─── Inject real-time date + Tavily web search ────────────────────────
+        const currentDateStr = new Date().toLocaleDateString('fr-FR', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+        const webResults = await searchWeb(text);
+        const contextBlock = `\n\n## Contexte temps réel\nDate actuelle : ${currentDateStr}\n${webResults ? `\n## Résultats web récents\n${webResults}` : ''}`;
+        const enrichedSystemPrompt = systemPrompt + contextBlock;
+
         // Filtre le contexte selon la date de reset mémoire
         const memoryResetAt = activeConvNow?.memoryResetAt;
         const contextMessages = memoryResetAt
@@ -1479,7 +1520,7 @@ export default function App() {
             model: debateModel,
             temperature,
             messages: [
-              { role: 'system', content: systemPrompt },
+              { role: 'system', content: enrichedSystemPrompt },
               ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
               { role: 'user', content: buildUserContent(userMsg) },
             ],
