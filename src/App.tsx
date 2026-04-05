@@ -1996,11 +1996,11 @@ export default function App() {
                 })}
 
                 {/* Sessions sans projet — zone de dépôt "retirer du projet" */}
-                {conversations.filter((c) => !c.projectId).length > 0 && (
+                {(conversations.filter((c) => !c.projectId).length > 0 || !!draggedConvId) && (
                   <div
                     className={cx(
-                      'rounded transition-all',
-                      dragOverId === 'none' && draggedConvId ? 'bg-white/5 border border-dashed border-white/20' : ''
+                      'transition-all',
+                      dragOverId === 'none' && draggedConvId ? 'bg-white/5 border border-dashed border-white/20 rounded' : ''
                     )}
                     onDragOver={(e) => { e.preventDefault(); setDragOverId('none'); }}
                     onDragLeave={() => setDragOverId(null)}
@@ -2014,6 +2014,15 @@ export default function App() {
                     {projects.length > 0 && (
                       <p className="text-[10px] font-black uppercase tracking-widest text-white/15 px-2 py-1">
                         Sans projet
+                      </p>
+                    )}
+                    {/* Hint visible quand on glisse et qu'il n'y a aucune session libre */}
+                    {draggedConvId && conversations.filter((c) => !c.projectId).length === 0 && (
+                      <p className={cx(
+                        'text-[9px] italic px-2 py-2 transition-colors',
+                        dragOverId === 'none' ? 'text-white/50' : 'text-white/20'
+                      )}>
+                        {dragOverId === 'none' ? 'Déposez pour retirer du projet…' : 'Déposer ici pour retirer du projet'}
                       </p>
                     )}
                     <div className="space-y-0.5">
