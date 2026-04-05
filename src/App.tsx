@@ -13,8 +13,9 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
-  collection, doc, setDoc, getDocs, deleteDoc, query, orderBy,
+  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
+import { subscribeToNewsletter } from './supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -403,6 +404,25 @@ async function fsDeleteConversation(userId: string, convId: string): Promise<voi
   } catch { /* silent */ }
 }
 
+// ─── Firestore: Consentement CGU ─────────────────────────────────────────────
+
+async function fsGetConsent(userId: string): Promise<boolean> {
+  if (!db) return true; // Pas de Firebase → mode local, pas de modal
+  try {
+    const ref = doc(db, 'users', userId, 'meta', 'consent');
+    const snap = await getDoc(ref);
+    return snap.exists() && snap.data()?.cguAccepted === true;
+  } catch { return false; }
+}
+
+async function fsSaveConsent(userId: string): Promise<void> {
+  if (!db) return;
+  try {
+    const ref = doc(db, 'users', userId, 'meta', 'consent');
+    await setDoc(ref, { cguAccepted: true, acceptedAt: new Date().toISOString() });
+  } catch { /* silent */ }
+}
+
 // ─── Firestore: Projects ──────────────────────────────────────────────────────
 
 function serializeProject(p: Project) {
@@ -578,6 +598,12 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // ── Consentement (affiché à la première connexion uniquement)
+  const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
+  const [consentCgu, setConsentCgu] = useState(false);
+  const [consentNewsletter, setConsentNewsletter] = useState(true); // pré-coché
+  const [consentLoading, setConsentLoading] = useState(false);
+
   // ── Projects state
   const [projects, setProjects] = useState<Project[]>([]);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -595,25 +621,41 @@ export default function App() {
 
   const activeConv = conversations.find((c) => c.id === activeId) ?? null;
 
+  // ── Chargement des données après consentement confirmé
+  const loadUserData = useCallback(async (firebaseUser: FirebaseUser) => {
+    setUser(firebaseUser);
+    setSyncing(true);
+    const [remote, remoteProjects] = await Promise.all([
+      fsLoadConversations(firebaseUser.uid),
+      fsLoadProjects(firebaseUser.uid),
+    ]);
+    setConversations(remote);
+    setProjects(remoteProjects);
+    setSyncing(false);
+  }, []);
+
   // ── Firebase Auth listener
   useEffect(() => {
     if (!auth || !FIREBASE_ENABLED) return;
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
       setAuthLoading(false);
-      if (firebaseUser) {
-        setSyncing(true);
-        const [remote, remoteProjects] = await Promise.all([
-          fsLoadConversations(firebaseUser.uid),
-          fsLoadProjects(firebaseUser.uid),
-        ]);
-        setConversations(remote);
-        setProjects(remoteProjects);
-        setSyncing(false);
-      } else {
+      if (!firebaseUser) {
+        setUser(null);
+        setConsentPending(null);
         setConversations([]);
         setProjects([]);
         setActiveId(null);
+        return;
+      }
+      // Vérifier si l'utilisateur a déjà accepté les CGU
+      const hasConsent = await fsGetConsent(firebaseUser.uid);
+      if (hasConsent) {
+        await loadUserData(firebaseUser);
+      } else {
+        // Première connexion → afficher le modal de consentement
+        setConsentCgu(false);
+        setConsentNewsletter(true);
+        setConsentPending(firebaseUser);
       }
     });
     return () => unsub();
@@ -646,8 +688,40 @@ export default function App() {
   const handleSignOut = async () => {
     if (!auth) return;
     await fbSignOut(auth);
+    setUser(null);
     setConversations([]);
+    setProjects([]);
     setActiveId(null);
+  };
+
+  // ── Consentement — confirmer
+  const handleConsentAccept = async () => {
+    if (!consentPending || !consentCgu) return;
+    setConsentLoading(true);
+    try {
+      await fsSaveConsent(consentPending.uid);
+      if (consentNewsletter && consentPending.email) {
+        await subscribeToNewsletter(consentPending.email);
+      }
+      const u = consentPending;
+      setConsentPending(null);
+      await loadUserData(u);
+    } catch {
+      // En cas d'erreur Firestore, on laisse quand même entrer
+      const u = consentPending;
+      setConsentPending(null);
+      await loadUserData(u);
+    } finally {
+      setConsentLoading(false);
+    }
+  };
+
+  // ── Consentement — refuser / annuler
+  const handleConsentDecline = async () => {
+    if (auth) await fbSignOut(auth);
+    setConsentPending(null);
+    setConsentCgu(false);
+    setConsentNewsletter(true);
   };
 
   // ── New conversation
@@ -1639,6 +1713,172 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* ── Modal consentement CGU (première connexion) ──────────────────── */}
+      <AnimatePresence>
+        {consentPending && (
+          <motion.div
+            key="consent-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(10,10,10,0.82)' }}
+          >
+            <motion.div
+              key="consent-card"
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="bg-[#141414] border-4 border-[#5D7BFF] w-full max-w-md"
+              style={{ boxShadow: '8px 8px 0px 0px rgba(93,123,255,0.3)' }}
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b-2 border-white/10">
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className="w-9 h-9 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
+                    style={{ boxShadow: '3px 3px 0px 0px rgba(255,255,255,0.08)' }}
+                  >
+                    <img
+                      src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                      alt="Challenger IA"
+                      className="h-6 w-auto object-contain"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-white">
+                      Bienvenue sur Challenger IA
+                    </p>
+                    <p className="text-[8px] text-white/35 uppercase tracking-widest mt-0.5">
+                      Avant de continuer
+                    </p>
+                  </div>
+                </div>
+
+                {/* Compte Google */}
+                <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 border border-white/10">
+                  {consentPending.photoURL ? (
+                    <img src={consentPending.photoURL} alt="" className="w-8 h-8 rounded-full border-2 border-[#5D7BFF]/40 flex-shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 bg-[#5D7BFF]/30 rounded-full flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-[#5D7BFF]" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black text-white truncate">
+                      {consentPending.displayName ?? consentPending.email}
+                    </p>
+                    <p className="text-[8px] text-white/35 truncate">{consentPending.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Corps — cases à cocher */}
+              <div className="px-6 py-5 space-y-3">
+
+                {/* CGU — obligatoire */}
+                <label className={cx(
+                  'flex items-start gap-3 px-4 py-3.5 border-2 cursor-pointer transition-all group',
+                  consentCgu
+                    ? 'border-[#5D7BFF] bg-[#5D7BFF]/10'
+                    : 'border-white/15 hover:border-white/30'
+                )}>
+                  {/* Checkbox custom */}
+                  <div className={cx(
+                    'w-4 h-4 border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all',
+                    consentCgu ? 'bg-[#5D7BFF] border-[#5D7BFF]' : 'bg-transparent border-white/30'
+                  )}>
+                    {consentCgu && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={consentCgu}
+                    onChange={(e) => setConsentCgu(e.target.checked)}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-white leading-snug">
+                      J'accepte les conditions générales d'utilisation{' '}
+                      <span className="text-red-400">*</span>
+                    </p>
+                    <p className="text-[8px] text-white/35 mt-1 leading-relaxed">
+                      En continuant, vous acceptez nos{' '}
+                      <a
+                        href="https://challengeria.fr/cgu"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[#5D7BFF] underline hover:text-white transition-colors"
+                      >
+                        conditions générales d'utilisation
+                      </a>{' '}
+                      et notre politique de confidentialité.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Newsletter — optionnel, pré-coché */}
+                <label className={cx(
+                  'flex items-start gap-3 px-4 py-3.5 border-2 cursor-pointer transition-all group',
+                  consentNewsletter
+                    ? 'border-[#5D7BFF] bg-[#5D7BFF]/10'
+                    : 'border-white/15 hover:border-white/30'
+                )}>
+                  <div className={cx(
+                    'w-4 h-4 border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all',
+                    consentNewsletter ? 'bg-[#5D7BFF] border-[#5D7BFF]' : 'bg-transparent border-white/30'
+                  )}>
+                    {consentNewsletter && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={consentNewsletter}
+                    onChange={(e) => setConsentNewsletter(e.target.checked)}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-white leading-snug">
+                      Je m'inscris à la newsletter Challenger IA
+                    </p>
+                    <p className="text-[8px] text-white/35 mt-1 leading-relaxed">
+                      Nouveautés, mises à jour et contenus exclusifs. Désinscription possible à tout moment.
+                    </p>
+                  </div>
+                </label>
+
+                <p className="text-[7px] text-white/20 uppercase tracking-widest text-center pt-1">
+                  <span className="text-red-400">*</span> Champ obligatoire
+                </p>
+              </div>
+
+              {/* Footer — actions */}
+              <div className="px-6 pb-6 space-y-2">
+                <button
+                  onClick={handleConsentAccept}
+                  disabled={!consentCgu || consentLoading}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest transition-all hover:bg-[#4a68e8] disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ boxShadow: consentCgu ? '4px 4px 0px 0px rgba(255,255,255,0.08)' : 'none' }}
+                >
+                  {consentLoading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Enregistrement…</>
+                    : <><Check className="w-4 h-4" /> Continuer</>
+                  }
+                </button>
+                <button
+                  onClick={handleConsentDecline}
+                  disabled={consentLoading}
+                  className="w-full py-2.5 text-[8px] font-black uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors disabled:opacity-40"
+                >
+                  Annuler et se déconnecter
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Modal suppression projet ─────────────────────────────────────── */}
       <AnimatePresence>
