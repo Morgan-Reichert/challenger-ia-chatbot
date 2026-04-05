@@ -1596,7 +1596,26 @@ export default function App() {
                 <ChevronRight className="w-3 h-3 opacity-50" />
               </button>
 
-              {/* Persona selector */}
+              {/* Persona selector — masqué en mode débat */}
+              {activeConv?.debatePersonaId ? (
+                <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
+                  {(() => {
+                    const dp = DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS];
+                    return (
+                      <>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-1">Mode débat</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{dp?.flag}</span>
+                          <div>
+                            <p className="text-[11px] font-black text-white/70">{dp?.name}</p>
+                            <p className="text-[9px] text-white/30">{dp?.category}</p>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : (
               <div>
                 <p className="text-[11px] font-black uppercase tracking-widest text-white/25 mb-3">
                   Persona
@@ -1634,6 +1653,7 @@ export default function App() {
                   )}
                 </div>
               </div>
+              )} {/* fin persona selector conditionnel */}
 
               {/* Friction level */}
               <div>
@@ -2023,8 +2043,40 @@ export default function App() {
           )}
         </AnimatePresence>
 
+        {/* ── Bannière arène de débat ── */}
+        {activeConv?.debatePersonaId && (() => {
+          const dp = DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS];
+          if (!dp) return null;
+          const rounds = Math.ceil(activeConv.messages.length / 2);
+          return (
+            <div className="flex-shrink-0 bg-[#0a0c14] border-b border-white/5 px-6 py-3">
+              <div className="max-w-3xl mx-auto flex items-center justify-between">
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-white/25 mb-0.5">Vous</p>
+                  <p className="text-[12px] font-black text-white">Challenger</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[22px] font-black text-white/10 leading-none">VS</p>
+                  <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{ color: dp.color }}>
+                    {rounds > 0 ? `Round ${rounds}` : 'Prêt'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-white/25 mb-0.5">
+                    {dp.country} {dp.flag}
+                  </p>
+                  <p className="text-[12px] font-black text-white">{dp.shortName}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-8">
+        <div className={cx(
+          'flex-1 overflow-y-auto px-6 py-8 transition-colors',
+          activeConv?.debatePersonaId ? 'bg-[#0a0c14]' : ''
+        )}>
           {!activeConv || activeConv.messages.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -2084,59 +2136,81 @@ export default function App() {
             </motion.div>
           ) : (
             <div className="max-w-3xl mx-auto space-y-5">
-              {activeConv.messages.map((msg) => (
+              {activeConv.messages.map((msg) => {
+                const isDebate = !!activeConv.debatePersonaId;
+                const dp = isDebate ? DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS] : null;
+                const isUser = msg.role === 'user';
+
+                // ── Styles selon mode
+                const bubbleBg = isDebate
+                  ? isUser
+                    ? 'bg-[#1a1d2e] border-white/10'
+                    : 'bg-[#12141f] border-l-4 border-t-0 border-r-0 border-b-0'
+                  : isUser
+                    ? 'bg-white border-[#5D7BFF]/25'
+                    : 'bg-[#5D7BFF] border-[#5D7BFF] text-white';
+
+                const bubbleStyle = isDebate
+                  ? isUser
+                    ? { borderColor: 'rgba(255,255,255,0.08)' }
+                    : { borderLeftColor: dp?.color ?? '#5D7BFF', boxShadow: `4px 0 0 0 ${dp?.color ?? '#5D7BFF'}33` }
+                  : isUser
+                    ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
+                    : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
+
+                return (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={cx('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}
+                  className={cx('flex', isUser ? 'justify-end' : 'justify-start')}
                 >
                   <div
-                    className={cx(
-                      'max-w-[78%] border-2',
-                      msg.role === 'user'
-                        ? 'bg-white border-[#5D7BFF]/25'
-                        : 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
-                    )}
-                    style={
-                      msg.role === 'assistant'
-                        ? { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }
-                        : { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
-                    }
+                    className={cx('max-w-[78%] border-2', bubbleBg)}
+                    style={bubbleStyle}
                   >
                     <div
                       className={cx(
                         'px-3 py-1 border-b flex items-center justify-between gap-4',
-                        msg.role === 'user' ? 'border-[#5D7BFF]/10' : 'border-white/20'
+                        isDebate
+                          ? isUser ? 'border-white/5' : 'border-white/5'
+                          : isUser ? 'border-[#5D7BFF]/10' : 'border-white/20'
                       )}
                     >
                       <div className="flex items-center gap-1.5">
-                        {msg.role === 'assistant' && (() => {
+                        {!isUser && !isDebate && (() => {
                           const MsgIcon = PERSONAS[msg.persona ?? persona].icon;
                           return <MsgIcon className="w-2.5 h-2.5 text-white/50" />;
                         })()}
-                        <p
-                          className={cx(
-                            'text-[7px] font-black uppercase tracking-widest',
-                            msg.role === 'user' ? 'text-[#141414]/30' : 'text-white/60'
-                          )}
-                        >
-                          {msg.role === 'user'
-                            ? 'Vous'
+                        {!isUser && isDebate && dp && (
+                          <span className="text-[10px]">{dp.flag}</span>
+                        )}
+                        <p className={cx(
+                          'text-[7px] font-black uppercase tracking-widest',
+                          isDebate
+                            ? isUser ? 'text-white/30' : 'text-white/50'
+                            : isUser ? 'text-[#141414]/30' : 'text-white/60'
+                        )}>
+                          {isUser ? 'Vous'
+                            : isDebate && dp ? dp.shortName
                             : PERSONAS[msg.persona ?? persona].shortName}
                         </p>
-                        {msg.role === 'assistant' && msg.level && (
+                        {!isUser && !isDebate && msg.level && (
                           <span className="text-[6px] font-black uppercase tracking-widest text-white/25 border border-white/15 px-1 py-px">
                             {FRICTION[msg.level ?? level].label}
                           </span>
                         )}
-                      </div>
-                      <p
-                        className={cx(
-                          'text-[7px] font-mono',
-                          msg.role === 'user' ? 'text-[#141414]/25' : 'text-white/40'
+                        {!isUser && isDebate && (
+                          <span className="text-[6px] font-black uppercase tracking-widest border px-1 py-px"
+                            style={{ color: dp?.color, borderColor: `${dp?.color}40` }}>
+                            {FRICTION[msg.level ?? level].label}
+                          </span>
                         )}
-                      >
+                      </div>
+                      <p className={cx(
+                        'text-[7px] font-mono',
+                        isDebate ? 'text-white/20' : isUser ? 'text-[#141414]/25' : 'text-white/40'
+                      )}>
                         {fmtTime(msg.timestamp)}
                       </p>
                     </div>
@@ -2182,10 +2256,13 @@ export default function App() {
 
                     <div className="px-4 py-3">
                       {msg.role === 'assistant' ? (
-                        <ReactMarkdown components={mdWhite}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown components={isDebate ? mdWhite : mdWhite}>{msg.content}</ReactMarkdown>
                       ) : (
                         msg.content ? (
-                          <p className="text-sm text-[#141414] leading-relaxed whitespace-pre-wrap">
+                          <p className={cx(
+                            'text-sm leading-relaxed whitespace-pre-wrap',
+                            isDebate ? 'text-white/80' : 'text-[#141414]'
+                          )}>
                             {msg.content}
                           </p>
                         ) : null
@@ -2193,28 +2270,36 @@ export default function App() {
                     </div>
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
 
               {/* Typing indicator */}
-              {sending && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex justify-start"
-                >
-                  <div
-                    className="bg-[#5D7BFF] border-2 border-[#5D7BFF] px-4 py-3 text-white"
-                    style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
+              {sending && (() => {
+                const dp = activeConv?.debatePersonaId
+                  ? DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]
+                  : null;
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-start"
                   >
-                    <div className="flex items-center gap-3">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <p className="text-[9px] font-black uppercase tracking-widest opacity-70">
-                        {PERSONAS[persona].shortName} analyse…
-                      </p>
+                    <div
+                      className={cx('border-2 px-4 py-3', dp ? 'bg-[#12141f] border-l-4 border-t-0 border-r-0 border-b-0' : 'bg-[#5D7BFF] border-[#5D7BFF] text-white')}
+                      style={dp
+                        ? { borderLeftColor: dp.color, borderTopColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'transparent' }
+                        : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                        <p className="text-[9px] font-black uppercase tracking-widest text-white/40">
+                          {dp ? `${dp.flag} ${dp.shortName} formule sa réponse…` : `${PERSONAS[persona].shortName} analyse…`}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                );
+              })()}
 
               {/* Error */}
               {chatError && (
@@ -2245,7 +2330,15 @@ export default function App() {
 
         {/* Input */}
         <div
-          className="flex-shrink-0 bg-white border-t-4 border-[#5D7BFF] px-6 py-4"
+          className={cx(
+            'flex-shrink-0 border-t-4 px-6 py-4 transition-colors',
+            activeConv?.debatePersonaId
+              ? 'bg-[#0d0f1a] border-t-2 border-t-0'
+              : 'bg-white border-[#5D7BFF]'
+          )}
+          style={activeConv?.debatePersonaId
+            ? { borderTop: `2px solid ${DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.color ?? '#5D7BFF'}` }
+            : undefined}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
@@ -2329,10 +2422,20 @@ export default function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKey}
-                  placeholder={pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…' : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`}
+                  placeholder={
+                    pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…'
+                    : activeConv?.debatePersonaId
+                      ? `Défendez votre position face à ${DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.shortName ?? 'l\'adversaire'}…`
+                      : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`
+                  }
                   rows={1}
                   disabled={sending}
-                  className="w-full bg-[#F0F4FF] border-2 border-[#5D7BFF]/20 focus:border-[#5D7BFF] px-4 py-3 text-sm font-medium text-[#141414] placeholder:text-[#141414]/30 focus:outline-none resize-none transition-all leading-relaxed"
+                  className={cx(
+                    'w-full border-2 px-4 py-3 text-sm font-medium focus:outline-none resize-none transition-all leading-relaxed',
+                    activeConv?.debatePersonaId
+                      ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
+                      : 'bg-[#F0F4FF] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[#141414] placeholder:text-[#141414]/30'
+                  )}
                 />
                 {subscription === 'free' && FIREBASE_ENABLED && (() => {
                   const today = todayStr();
