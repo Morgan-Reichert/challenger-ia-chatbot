@@ -40,7 +40,12 @@ export default async function handler(req, res) {
       let periodEnd = null;
       if (subscriptionId) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        periodEnd = new Date(sub.current_period_end * 1000).toISOString();
+        // current_period_end a été déplacé dans l'API dahlia (2026-03-25)
+        // on cherche dans plusieurs emplacements possibles
+        const ts = sub.current_period_end
+          ?? sub.items?.data?.[0]?.current_period_end
+          ?? null;
+        if (ts) periodEnd = new Date(ts * 1000).toISOString();
       }
 
       await supabase.from('subscriptions').upsert({
@@ -58,11 +63,14 @@ export default async function handler(req, res) {
     if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object;
       const isActive = sub.status === 'active' || sub.status === 'trialing';
+      const ts = sub.current_period_end
+        ?? sub.items?.data?.[0]?.current_period_end
+        ?? null;
       await supabase.from('subscriptions')
         .update({
           plan: isActive ? 'pro' : 'free',
           status: sub.status,
-          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+          current_period_end: ts ? new Date(ts * 1000).toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .eq('stripe_subscription_id', sub.id);
@@ -75,7 +83,7 @@ export default async function handler(req, res) {
         .eq('stripe_subscription_id', sub.id);
     }
   } catch (err) {
-    console.error('Webhook processing error:', err);
+    console.error('Webhook processing error:', err.message, err.stack);
     return res.status(500).end();
   }
 
