@@ -731,6 +731,7 @@ export default function App() {
   // noProfileMode : actif globalement si aucune conv active, sinon stocké sur la conv
   const [noProfileMode, setNoProfileMode] = useState(false);
   const [resumeGenerating, setResumeGenerating] = useState(false);
+  const [showSharePopup, setShowSharePopup] = useState(false);
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -2460,12 +2461,14 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               {sidebarOpen && isMobile ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           )}
-          <div
-            className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
+          <button
+            onClick={() => setShowSharePopup(true)}
+            className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity active:scale-95"
             style={{ boxShadow: '3px 3px 0px 0px rgba(20,20,20,0.15)' }}
+            title="Partager Challenger IA"
           >
             <CurrentIcon className="w-4 h-4 text-white" />
-          </div>
+          </button>
           <div className="min-w-0">
             {activeConv?.interviewType ? (() => {
               const ic = INTERVIEW_TYPES[activeConv.interviewType!];
@@ -2519,6 +2522,66 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             </button>
           )}
         </div>
+
+        {/* ── Share popup ───────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {showSharePopup && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                key="share-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+                onClick={() => setShowSharePopup(false)}
+              />
+              {/* Modal */}
+              <motion.div
+                key="share-modal"
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
+              >
+                <div className="pointer-events-auto w-full max-w-xs bg-[#141414] border-2 border-[#5D7BFF]/30 p-6 flex flex-col items-center gap-5" style={{ boxShadow: '6px 6px 0px 0px rgba(93,123,255,0.25)' }}>
+                  {/* Close */}
+                  <div className="w-full flex items-center justify-between">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white/40">Challenger IA</p>
+                    <button onClick={() => setShowSharePopup(false)} className="text-white/30 hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* QR code */}
+                  <img
+                    src="https://i.postimg.cc/L5trkZXw/Untitled.png"
+                    alt="QR Code Challenger IA"
+                    className="w-44 h-44 object-contain border border-white/10"
+                  />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 text-center">
+                    Scanne pour accéder à Challenger IA
+                  </p>
+                  {/* Share button */}
+                  <button
+                    onClick={() => {
+                      const url = window.location.href;
+                      if (navigator.share) {
+                        navigator.share({ title: 'Challenger IA', text: "L'outil de pensée analytique qui questionne vos certitudes.", url });
+                      } else {
+                        navigator.clipboard.writeText(url);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#5D7BFF] hover:bg-[#4a68e8] transition-colors text-white text-[9px] font-black uppercase tracking-widest active:scale-95"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                    Partager l'application
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Bannière succès paiement */}
         <AnimatePresence>
