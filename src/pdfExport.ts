@@ -14,64 +14,52 @@ export type SessionSummary = {
   mots_cles: string[];
 };
 
+// ─── Couleurs ─────────────────────────────────────────────────────────────────
+
+const BLUE   = [93, 123, 255] as const;
+const DARK   = [20, 20, 20]   as const;
+const LIGHT  = [240, 244, 255] as const;
+const WHITE  = [255, 255, 255] as const;
+const GREY   = [120, 120, 130] as const;
+const GREEN  = [16, 185, 129]  as const;
+const AMBER  = [200, 130, 10]  as const;
+const PURPLE = [139, 92, 246]  as const;
+const RED    = [220, 60, 60]   as const;
+const BLUE_ACCENT = [110, 140, 255] as const; // nuance claire pour accents header
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BLUE = [93, 123, 255] as const;
-const DARK = [20, 20, 20] as const;
-const LIGHT_BG = [240, 244, 255] as const;
-const WHITE = [255, 255, 255] as const;
-const GREY = [120, 120, 130] as const;
-const GREEN = [16, 185, 129] as const;
-const AMBER = [245, 158, 11] as const;
-const PURPLE = [139, 92, 246] as const;
-const RED = [239, 68, 68] as const;
+const rgb = (doc: jsPDF, c: readonly [number,number,number]) =>
+  doc.setTextColor(c[0], c[1], c[2]);
+const fill = (doc: jsPDF, c: readonly [number,number,number]) =>
+  doc.setFillColor(c[0], c[1], c[2]);
+const draw = (doc: jsPDF, c: readonly [number,number,number]) =>
+  doc.setDrawColor(c[0], c[1], c[2]);
 
-function setRgb(doc: jsPDF, color: readonly [number, number, number]) {
-  doc.setTextColor(color[0], color[1], color[2]);
-}
-function setFillRgb(doc: jsPDF, color: readonly [number, number, number]) {
-  doc.setFillColor(color[0], color[1], color[2]);
-}
-function setDrawRgb(doc: jsPDF, color: readonly [number, number, number]) {
-  doc.setDrawColor(color[0], color[1], color[2]);
+function wrap(doc: jsPDF, text: string, maxW: number): string[] {
+  return doc.splitTextToSize(text, maxW) as string[];
 }
 
-/** Split text to lines within maxWidth, return array of lines */
-function splitLines(doc: jsPDF, text: string, maxWidth: number): string[] {
-  return doc.splitTextToSize(text, maxWidth);
+function textBlock(doc: jsPDF, text: string, x: number, y: number, maxW: number, lh = 5.5): number {
+  const lines = wrap(doc, text, maxW);
+  lines.forEach((l: string, i: number) => doc.text(l, x, y + i * lh));
+  return y + lines.length * lh;
 }
 
-/** Draw wrapped text and return new Y position */
-function drawText(
-  doc: jsPDF,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  lineHeight = 5.5
-): number {
-  const lines = splitLines(doc, text, maxWidth);
-  lines.forEach((line: string, i: number) => {
-    doc.text(line, x, y + i * lineHeight);
-  });
-  return y + lines.length * lineHeight;
-}
-
-/** Add a new page if content would overflow */
 function checkPage(doc: jsPDF, y: number, needed: number, margin: number): number {
-  const pageH = doc.internal.pageSize.getHeight();
-  if (y + needed > pageH - margin) {
+  if (y + needed > doc.internal.pageSize.getHeight() - margin) {
     doc.addPage();
     return margin + 10;
   }
   return y;
 }
 
-// ─── Image loader (canvas, CORS-safe) ─────────────────────────────────────────
+// ─── Image loader ─────────────────────────────────────────────────────────────
 
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error('fetch failed');
     const blob = await res.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -80,17 +68,15 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
       reader.readAsDataURL(blob);
     });
   } catch {
-    // Fallback: try via Image element (may still work if CORS headers present)
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          canvas.getContext('2d')?.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          c.getContext('2d')?.drawImage(img, 0, 0);
+          resolve(c.toDataURL('image/png'));
         } catch { resolve(null); }
       };
       img.onerror = () => resolve(null);
@@ -101,7 +87,7 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
 
 const QR_URL = 'https://i.postimg.cc/L5trkZXw/Untitled.png';
 
-// ─── Main export function ─────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function generateSessionPDF(
   summary: SessionSummary,
@@ -109,215 +95,202 @@ export async function generateSessionPDF(
   sessionDate: string,
   userName?: string
 ): Promise<void> {
-  // Pre-load QR code (non-blocking — PDF is generated even if it fails)
+
   const qrDataUrl = await loadImageAsDataUrl(QR_URL);
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  const margin = 18;
-  const contentW = W - margin * 2;
+  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W     = doc.internal.pageSize.getWidth();   // 210
+  const H     = doc.internal.pageSize.getHeight();  // 297
+  const M     = 18;  // margin
+  const CW    = W - M * 2;
+  const HDR   = 52;  // header height
 
-  // ── Cover / Header block (56mm to fit QR + score) ─────────────────────────
-  const headerH = 56;
-  setFillRgb(doc, BLUE);
-  doc.rect(0, 0, W, headerH, 'F');
+  // ── Header ────────────────────────────────────────────────────────────────
+  fill(doc, BLUE);
+  doc.rect(0, 0, W, HDR, 'F');
 
-  // Accents géométriques
-  setFillRgb(doc, [255, 255, 255]);
-  doc.setGState(new (doc as any).GState({ opacity: 0.04 }));
-  doc.rect(W - 28, 0, 28, headerH, 'F');
-  doc.rect(W - 56, 10, 28, headerH - 10, 'F');
-  doc.setGState(new (doc as any).GState({ opacity: 1 }));
+  // Geometric accent strips (solid, slightly lighter)
+  fill(doc, BLUE_ACCENT);
+  doc.rect(W - 30, 0, 30, HDR, 'F');
+  doc.rect(W - 58, 8, 26, HDR - 8, 'F');
 
-  // App name
-  setRgb(doc, WHITE);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setLetterSpacing(2);
-  doc.text('CHALLENGER IA', margin, 14);
-  doc.setLetterSpacing(0);
-
-  // Titre
-  doc.setFontSize(18);
-  doc.text('RÉSUMÉ DE SESSION', margin, 25);
-
-  // Sous-titre
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  setRgb(doc, [200, 210, 255]);
-  doc.text(`${sessionType}  ·  ${sessionDate}${userName ? `  ·  ${userName}` : ''}`, margin, 34);
-
-  // ── QR code (top-right of header) ─────────────────────────────────────────
-  const qrSize = 28;
-  const qrX = W - margin - qrSize;
-  const qrY = 4;
+  // QR code top-right
+  const QR = 26;
+  const qrX = W - M - QR;
+  const qrY = 5;
   if (qrDataUrl) {
-    // White background behind QR
-    setFillRgb(doc, WHITE);
-    doc.roundedRect(qrX - 2, qrY - 2, qrSize + 4, qrSize + 4, 1.5, 1.5, 'F');
-    doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+    fill(doc, WHITE);
+    doc.roundedRect(qrX - 2, qrY - 2, QR + 4, QR + 4, 1.5, 1.5, 'F');
+    doc.addImage(qrDataUrl, 'PNG', qrX, qrY, QR, QR);
   }
-  // QR label below
+  rgb(doc, [190, 205, 255]);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5.5);
-  setRgb(doc, [200, 210, 255]);
-  doc.text('Challenger IA', W - margin - qrSize / 2, qrY + qrSize + 6, { align: 'center' });
+  doc.text('Challenger IA', qrX + QR / 2, qrY + QR + 5.5, { align: 'center' });
 
-  // ── Score badge (cercle + note) — straddles header bottom ────────────────
-  const scoreColor = summary.score >= 8 ? GREEN : summary.score >= 6 ? AMBER : RED;
-  const cx = W - margin - 14;
-  const cy = headerH + 10;   // centre du badge, à cheval sur le bas du header
-  setFillRgb(doc, WHITE);
-  setDrawRgb(doc, scoreColor);
-  doc.setLineWidth(1.5);
-  doc.circle(cx, cy, 13, 'FD');
-  setRgb(doc, scoreColor);
+  // App label
+  rgb(doc, WHITE);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(`${summary.score}`, cx, cy + 1.5, { align: 'center' });
-  doc.setFontSize(6);
+  doc.setFontSize(7.5);
+  doc.text('CHALLENGER IA', M, 13);
+
+  // Title
+  doc.setFontSize(17);
+  doc.text('RÉSUMÉ DE SESSION', M, 24);
+
+  // Subtitle
   doc.setFont('helvetica', 'normal');
-  setRgb(doc, GREY);
-  doc.text('/10', cx, cy + 7, { align: 'center' });
+  doc.setFontSize(8);
+  rgb(doc, [190, 205, 255]);
+  doc.text(
+    `${sessionType}  ·  ${sessionDate}${userName ? `  ·  ${userName}` : ''}`,
+    M, 34
+  );
 
-  // Content starts below score badge bottom
-  let y = cy + 18;
+  // Thin separator line at bottom of header
+  draw(doc, BLUE_ACCENT);
+  doc.setLineWidth(0.3);
+  doc.line(0, HDR, W, HDR);
 
-  // ── Titre de la session ────────────────────────────────────────────────────
-  setFillRgb(doc, LIGHT_BG);
-  doc.roundedRect(margin, y, contentW, 18, 2, 2, 'F');
-  setRgb(doc, DARK);
+  // ── Score badge (floats on header/content boundary) ────────────────────────
+  const scoreColor = summary.score >= 8 ? GREEN : summary.score >= 6 ? AMBER : RED;
+  const bx = W - M - 13;
+  const by = HDR + 14;
+  fill(doc, WHITE);
+  draw(doc, scoreColor);
+  doc.setLineWidth(1.5);
+  doc.circle(bx, by, 12, 'FD');
+  rgb(doc, scoreColor);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(`${summary.score}`, bx, by + 1.5, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  rgb(doc, GREY);
+  doc.text('/10', bx, by + 7, { align: 'center' });
+
+  let y = HDR + 34;
+
+  // ── Session title block ────────────────────────────────────────────────────
+  fill(doc, LIGHT);
+  draw(doc, [210, 220, 255]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(M, y, CW, 20, 2, 2, 'FD');
+  rgb(doc, DARK);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text(summary.titre, margin + 5, y + 7);
+  doc.text(summary.titre.slice(0, 55), M + 5, y + 8);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  setRgb(doc, GREY);
-  const justifLines = splitLines(doc, summary.score_justification, contentW - 10);
-  justifLines.slice(0, 1).forEach((l: string) => doc.text(l, margin + 5, y + 13));
-  y += 24;
+  doc.setFontSize(8);
+  rgb(doc, GREY);
+  const justif = wrap(doc, summary.score_justification, CW - 12);
+  doc.text(justif[0] ?? '', M + 5, y + 15);
+  y += 28;
 
   // ── Vue d'ensemble ─────────────────────────────────────────────────────────
-  y = checkPage(doc, y, 28, margin);
+  y = checkPage(doc, y, 30, M);
+  rgb(doc, BLUE);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  setRgb(doc, BLUE);
-  doc.setLetterSpacing(1.5);
-  doc.text('VUE D\'ENSEMBLE', margin, y);
-  doc.setLetterSpacing(0);
-  y += 5;
-  setDrawRgb(doc, BLUE);
+  doc.setFontSize(8.5);
+  doc.text('VUE D\'ENSEMBLE', M, y);
+  y += 3;
+  draw(doc, BLUE);
   doc.setLineWidth(0.4);
-  doc.line(margin, y, margin + 36, y);
+  doc.line(M, y, M + 38, y);
   y += 5;
+  rgb(doc, DARK);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
-  setRgb(doc, DARK);
-  y = drawText(doc, summary.vue_ensemble, margin, y, contentW, 5.5);
+  y = textBlock(doc, summary.vue_ensemble, M, y, CW, 5.5);
   y += 10;
 
-  // ── Section helper ─────────────────────────────────────────────────────────
-  const drawSection = (
+  // ── Section renderer ───────────────────────────────────────────────────────
+  const section = (
     title: string,
     items: string[],
-    color: readonly [number, number, number],
-    bullet: string,
-    icon: string
+    color: readonly [number,number,number],
+    prefix: string
   ) => {
-    y = checkPage(doc, y, 20 + items.length * 10, margin);
+    if (!items?.length) return;
+    y = checkPage(doc, y, 18 + items.length * 10, M);
 
-    // Section title bar
-    setFillRgb(doc, color);
-    doc.rect(margin, y - 4, 3, 10, 'F');
+    // Color bar + title
+    fill(doc, color);
+    doc.rect(M, y - 3, 3, 9, 'F');
+    rgb(doc, color);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    setRgb(doc, color);
-    doc.setLetterSpacing(1.5);
-    doc.text(`${icon}  ${title}`, margin + 6, y + 2);
-    doc.setLetterSpacing(0);
+    doc.setFontSize(8.5);
+    doc.text(`${prefix}  ${title}`, M + 6, y + 2);
     y += 10;
 
     items.forEach((item) => {
-      y = checkPage(doc, y, 12, margin);
-
-      // Bullet dot
-      setFillRgb(doc, color);
-      doc.circle(margin + 3, y - 1.5, 1.2, 'F');
-
-      // Item text
+      y = checkPage(doc, y, 10, M);
+      fill(doc, color);
+      doc.circle(M + 3, y - 1.5, 1.1, 'F');
+      rgb(doc, DARK);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      setRgb(doc, DARK);
-      const lines = splitLines(doc, item, contentW - 12);
-      lines.forEach((line: string, i: number) => {
-        doc.text(line, margin + 8, y + i * 5.2);
-      });
-      y += lines.length * 5.2 + 2;
+      const lines = wrap(doc, item, CW - 12);
+      lines.forEach((l: string, i: number) => doc.text(l, M + 8, y + i * 5.2));
+      y += lines.length * 5.2 + 2.5;
     });
-
-    y += 8;
+    y += 7;
   };
 
-  drawSection('POINTS FORTS', summary.points_forts, GREEN, '✓', '✦');
-  drawSection('AXES D\'AMÉLIORATION', summary.axes_amelioration, AMBER, '↑', '↑');
-  drawSection('CONSEILS PRATIQUES', summary.conseils, PURPLE, '→', '✧');
+  section('POINTS FORTS',          summary.points_forts,      GREEN,  '✦');
+  section('AXES D\'AMÉLIORATION',  summary.axes_amelioration, AMBER,  '↑');
+  section('CONSEILS PRATIQUES',    summary.conseils,           PURPLE, '✧');
 
-  // ── Citations notables ─────────────────────────────────────────────────────
-  if (summary.citations.length > 0) {
-    y = checkPage(doc, y, 20 + summary.citations.length * 16, margin);
-    setFillRgb(doc, BLUE);
-    doc.rect(margin, y - 4, 3, 10, 'F');
+  // ── Citations ──────────────────────────────────────────────────────────────
+  if (summary.citations?.length > 0) {
+    y = checkPage(doc, y, 24, M);
+    fill(doc, BLUE);
+    doc.rect(M, y - 3, 3, 9, 'F');
+    rgb(doc, BLUE);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    setRgb(doc, BLUE);
-    doc.setLetterSpacing(1.5);
-    doc.text('❝  EXTRAITS NOTABLES', margin + 6, y + 2);
-    doc.setLetterSpacing(0);
+    doc.setFontSize(8.5);
+    doc.text('EXTRAITS NOTABLES', M + 6, y + 2);
     y += 10;
 
     summary.citations.forEach((cite) => {
-      y = checkPage(doc, y, 18, margin);
-      setFillRgb(doc, LIGHT_BG);
-      setDrawRgb(doc, BLUE);
+      y = checkPage(doc, y, 16, M);
+      const lines = wrap(doc, `\u00ab ${cite} \u00bb`, CW - 16);
+      const bh = lines.length * 5.5 + 8;
+      fill(doc, LIGHT);
+      draw(doc, BLUE);
       doc.setLineWidth(0.3);
-      const lines = splitLines(doc, `« ${cite} »`, contentW - 14);
-      const boxH = lines.length * 5.5 + 8;
-      doc.roundedRect(margin + 2, y - 4, contentW - 4, boxH, 1.5, 1.5, 'FD');
-      setFillRgb(doc, BLUE);
-      doc.rect(margin + 2, y - 4, 2.5, boxH, 'F');
+      doc.roundedRect(M + 2, y - 4, CW - 4, bh, 1.5, 1.5, 'FD');
+      fill(doc, BLUE);
+      doc.rect(M + 2, y - 4, 2.5, bh, 'F');
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8.5);
-      setRgb(doc, [60, 80, 160]);
-      lines.forEach((line: string, i: number) => {
-        doc.text(line, margin + 8, y + i * 5.5);
-      });
-      y += boxH + 4;
+      rgb(doc, [50, 70, 160]);
+      lines.forEach((l: string, i: number) => doc.text(l, M + 8, y + i * 5.5));
+      y += bh + 4;
     });
     y += 6;
   }
 
   // ── Mots-clés ──────────────────────────────────────────────────────────────
-  if (summary.mots_cles.length > 0) {
-    y = checkPage(doc, y, 20, margin);
+  if (summary.mots_cles?.length > 0) {
+    y = checkPage(doc, y, 18, M);
+    rgb(doc, GREY);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    setRgb(doc, GREY);
-    doc.setLetterSpacing(1.5);
-    doc.text('MOTS-CLÉS', margin, y);
-    doc.setLetterSpacing(0);
-    y += 6;
-
-    let kx = margin;
-    summary.mots_cles.forEach((kw) => {
-      doc.setFontSize(7.5);
+    doc.setFontSize(7.5);
+    doc.text('MOTS-CLÉS', M, y);
+    y += 5;
+    let kx = M;
+    doc.setFontSize(7.5);
+    summary.mots_cles.forEach((rawKw) => {
+      const kw = String(rawKw);
       const kw_w = doc.getTextWidth(kw) + 8;
-      if (kx + kw_w > W - margin) { kx = margin; y += 8; }
-      setFillRgb(doc, LIGHT_BG);
-      setDrawRgb(doc, BLUE);
+      if (kx + kw_w > W - M) { kx = M; y += 8; }
+      y = checkPage(doc, y, 10, M);
+      fill(doc, LIGHT);
+      draw(doc, BLUE);
       doc.setLineWidth(0.3);
       doc.roundedRect(kx, y - 4, kw_w, 7, 1, 1, 'FD');
-      setRgb(doc, BLUE);
+      rgb(doc, BLUE);
       doc.setFont('helvetica', 'bold');
       doc.text(kw, kx + 4, y);
       kx += kw_w + 3;
@@ -325,20 +298,19 @@ export async function generateSessionPDF(
     y += 12;
   }
 
-  // ── Footer sur chaque page ─────────────────────────────────────────────────
-  const totalPages = (doc as any).internal.getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
+  // ── Footer (every page) ────────────────────────────────────────────────────
+  const total = (doc as any).internal.getNumberOfPages() as number;
+  for (let p = 1; p <= total; p++) {
     doc.setPage(p);
-    setFillRgb(doc, DARK);
-    doc.rect(0, H - 10, W, 10, 'F');
+    fill(doc, DARK);
+    doc.rect(0, H - 9, W, 9, 'F');
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    setRgb(doc, GREY);
-    doc.text('CHALLENGER IA — STARIAX GROUP © 2026', margin, H - 4);
-    doc.text(`${p} / ${totalPages}`, W - margin, H - 4, { align: 'right' });
+    doc.setFontSize(6.5);
+    rgb(doc, GREY);
+    doc.text('CHALLENGER IA — STARIAX GROUP © 2026', M, H - 3.5);
+    doc.text(`${p} / ${total}`, W - M, H - 3.5, { align: 'right' });
   }
 
-  // ── Download ───────────────────────────────────────────────────────────────
-  const filename = `challenger-resume-${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(filename);
+  // ── Save ───────────────────────────────────────────────────────────────────
+  doc.save(`challenger-resume-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
