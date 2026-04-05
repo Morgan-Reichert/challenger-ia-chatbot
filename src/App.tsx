@@ -595,7 +595,7 @@ function ConvItem({
         )}
       >
         <MessageSquare className="w-3 h-3 flex-shrink-0" />
-        <span className="text-[9px] font-medium truncate">{conv.title}</span>
+        <span className="text-[11px] font-medium truncate">{conv.title}</span>
       </button>
       <button
         onClick={onDelete}
@@ -1350,7 +1350,7 @@ export default function App() {
             <div className="px-5 py-4 border-b-2 border-white/10">
               <button
                 onClick={startNewConv}
-                className="w-full flex items-center justify-between px-4 py-3 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 bg-[#5D7BFF] text-white text-xs font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
                 style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.06)' }}
               >
                 <span>Nouvelle Session</span>
@@ -1361,7 +1361,7 @@ export default function App() {
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
               {/* Persona selector */}
               <div>
-                <p className="text-[8px] font-black uppercase tracking-widest text-white/25 mb-3">
+                <p className="text-[11px] font-black uppercase tracking-widest text-white/25 mb-3">
                   Persona
                 </p>
                 <div className="space-y-2">
@@ -1385,10 +1385,10 @@ export default function App() {
                         >
                           <Icon className="w-4 h-4 flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-[9px] font-black uppercase tracking-wider">
+                            <p className="text-[11px] font-black uppercase tracking-wider">
                               {p.shortName}
                             </p>
-                            <p className="text-[8px] opacity-60 truncate">{p.desc}</p>
+                            <p className="text-[10px] opacity-60 truncate">{p.desc}</p>
                           </div>
                           {active && <ChevronRight className="w-3 h-3 ml-auto flex-shrink-0" />}
                         </button>
@@ -1400,7 +1400,7 @@ export default function App() {
 
               {/* Friction level */}
               <div>
-                <p className="text-[8px] font-black uppercase tracking-widest text-white/25 mb-3">
+                <p className="text-[11px] font-black uppercase tracking-widest text-white/25 mb-3">
                   Niveau de Friction
                 </p>
                 <div className="grid grid-cols-3 gap-1">
@@ -1417,21 +1417,36 @@ export default function App() {
                           : 'bg-transparent border-white/10 text-white/35 hover:border-white/25 hover:text-white/60'
                       )}
                     >
-                      <p className="text-[9px] font-black uppercase tracking-wider leading-none">
+                      <p className="text-[11px] font-black uppercase tracking-wider leading-none">
                         {val.label}
                       </p>
                     </button>
                   ))}
                 </div>
-                <p className="mt-2 text-center text-[8px] text-white/20">{FRICTION[level].hint}</p>
+                <p className="mt-2 text-center text-[10px] text-white/20">{FRICTION[level].hint}</p>
               </div>
+
+              {/* ── Upgrade CTA (free users only) ── */}
+              {subscription === 'free' && (
+                <button
+                  onClick={() => {
+                    const link = import.meta.env.VITE_STRIPE_PAYMENT_LINK;
+                    if (link) window.open(`${link}?client_reference_id=${user?.uid ?? ''}`, '_blank');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#5D7BFF]/15 border-2 border-[#5D7BFF]/40 text-[#5D7BFF] text-[11px] font-black uppercase tracking-widest hover:bg-[#5D7BFF]/25 hover:border-[#5D7BFF]/70 transition-all"
+                  style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.1)' }}
+                >
+                  <Crown className="w-4 h-4" />
+                  Passer à Pro
+                </button>
+              )}
 
               {/* ── Projets + Sessions ── */}
               <div className="space-y-1">
 
                 {/* Header sessions */}
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-white/25">Sessions</p>
+                  <p className="text-[11px] font-black uppercase tracking-widest text-white/25">Sessions</p>
                   <div className="flex items-center gap-2">
                     {syncing && <Loader2 className="w-2.5 h-2.5 animate-spin text-white/20" />}
                     {user && !syncing && <Cloud className="w-2.5 h-2.5 text-white/15" />}
@@ -1463,7 +1478,7 @@ export default function App() {
                         if (e.key === 'Escape') setCreatingProject(false);
                       }}
                       placeholder="Nom du projet…"
-                      className="flex-1 bg-white/10 border border-[#5D7BFF]/40 text-white text-[9px] px-2 py-1.5 focus:outline-none focus:border-[#5D7BFF] placeholder:text-white/25"
+                      className="flex-1 bg-white/10 border border-[#5D7BFF]/40 text-white text-[11px] px-2 py-1.5 focus:outline-none focus:border-[#5D7BFF] placeholder:text-white/25"
                     />
                     <button
                       onClick={() => { createProject(newProjectName); setCreatingProject(false); }}
@@ -1518,16 +1533,16 @@ export default function App() {
                               if (e.key === 'Escape') setEditingProjectId(null);
                             }}
                             onBlur={() => { renameProject(project.id, editingProjectName); setEditingProjectId(null); }}
-                            className="flex-1 bg-transparent text-[9px] text-white font-bold focus:outline-none border-b border-white/30"
+                            className="flex-1 bg-transparent text-[11px] text-white font-bold focus:outline-none border-b border-white/30"
                           />
                         ) : (
                           <button
                             onClick={() => toggleProjectCollapse(project.id)}
-                            className="flex-1 text-left text-[9px] font-black uppercase tracking-wider text-white/60 hover:text-white/90 transition-colors truncate"
+                            className="flex-1 text-left text-[11px] font-black uppercase tracking-wider text-white/60 hover:text-white/90 transition-colors truncate"
                           >
                             {project.name}
                             {projectConvs.length > 0 && (
-                              <span className="ml-1 text-[7px] text-white/25 font-bold normal-case tracking-normal">
+                              <span className="ml-1 text-[9px] text-white/25 font-bold normal-case tracking-normal">
                                 ({projectConvs.length})
                               </span>
                             )}
@@ -1559,7 +1574,7 @@ export default function App() {
                       {!project.collapsed && (
                         <div className="ml-3 border-l border-white/10 pl-2 space-y-0.5 mb-1">
                           {projectConvs.length === 0 ? (
-                            <p className="text-[7px] text-white/15 italic px-2 py-1">
+                            <p className="text-[9px] text-white/15 italic px-2 py-1">
                               {isOver ? 'Déposez ici…' : 'Aucune session'}
                             </p>
                           ) : (
@@ -1598,7 +1613,7 @@ export default function App() {
                     }}
                   >
                     {projects.length > 0 && (
-                      <p className="text-[7px] font-black uppercase tracking-widest text-white/15 px-2 py-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white/15 px-2 py-1">
                         Sans projet
                       </p>
                     )}
@@ -1650,7 +1665,7 @@ export default function App() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-[9px] font-black text-white/70 truncate">
+                        <p className="text-[11px] font-black text-white/70 truncate">
                           {user.displayName ?? user.email}
                         </p>
                         {subscription === 'pro' && (
@@ -1660,7 +1675,7 @@ export default function App() {
                           </span>
                         )}
                       </div>
-                      <p className="text-[7px] text-white/25 uppercase tracking-widest truncate">
+                      <p className="text-[9px] text-white/25 uppercase tracking-widest truncate">
                         {user.email}
                       </p>
                     </div>
@@ -1670,13 +1685,13 @@ export default function App() {
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-white/10 hover:border-white/25 transition-colors text-white/30 hover:text-white/60"
                   >
                     <LogOut className="w-3 h-3" />
-                    <span className="text-[8px] font-black uppercase tracking-widest">
+                    <span className="text-[11px] font-black uppercase tracking-widest">
                       Déconnexion
                     </span>
                   </button>
                 </div>
               ) : (
-                <p className="text-center text-[7px] font-black uppercase tracking-widest text-white/15">
+                <p className="text-center text-[10px] font-black uppercase tracking-widest text-white/15">
                   Stariax Group © 2026
                 </p>
               )}
@@ -2290,17 +2305,18 @@ export default function App() {
 
               {/* CTA */}
               <div className="px-6 pb-6 space-y-2">
-                <a
-                  href={`${import.meta.env.VITE_STRIPE_PAYMENT_LINK}?client_reference_id=${user?.uid ?? ''}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
                   className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
                   style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.08)' }}
-                  onClick={() => setUpgradeModal(null)}
+                  onClick={() => {
+                    const link = import.meta.env.VITE_STRIPE_PAYMENT_LINK;
+                    if (link) window.open(`${link}?client_reference_id=${user?.uid ?? ''}`, '_blank');
+                    setUpgradeModal(null);
+                  }}
                 >
                   <Crown className="w-4 h-4" />
                   Passer à Pro — 9,99€ / mois
-                </a>
+                </button>
                 <button
                   onClick={() => setUpgradeModal(null)}
                   className="w-full py-2 text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-white/50 transition-colors"
