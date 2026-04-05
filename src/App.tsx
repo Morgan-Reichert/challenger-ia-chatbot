@@ -4,7 +4,8 @@ import {
   Scale, Search, Swords, Plus, Send, Loader2, AlertCircle,
   RotateCcw, Zap, Menu, X, ChevronRight, MessageSquare,
   BookOpen, Target, TrendingUp, Brain, LogIn, LogOut, User,
-  Cloud, CloudOff, Trash2,
+  Cloud, CloudOff, Trash2, FolderPlus, Folder, FolderOpen,
+  GripVertical, Check, Pencil, ChevronDown,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -36,7 +37,20 @@ interface Conversation {
   level: FrictionLevel;
   createdAt: Date;
   updatedAt: Date;
+  projectId?: string;
 }
+
+interface Project {
+  id: string;
+  name: string;
+  color: string;
+  collapsed: boolean;
+  createdAt: Date;
+}
+
+const PROJECT_COLORS = ['#5D7BFF', '#818CF8', '#34D399', '#F472B6', '#FB923C'];
+const getNextColor = (existing: Project[]) =>
+  PROJECT_COLORS[existing.length % PROJECT_COLORS.length];
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -211,9 +225,36 @@ async function fsDeleteConversation(userId: string, convId: string): Promise<voi
   if (!db) return;
   try {
     await deleteDoc(doc(db, 'users', userId, 'conversations', convId));
-  } catch {
-    // Silent fail
-  }
+  } catch { /* silent */ }
+}
+
+// ─── Firestore: Projects ──────────────────────────────────────────────────────
+
+function serializeProject(p: Project) {
+  return { id: p.id, name: p.name, color: p.color, collapsed: p.collapsed, createdAt: p.createdAt.toISOString() };
+}
+
+async function fsLoadProjects(userId: string): Promise<Project[]> {
+  if (!db) return [];
+  try {
+    const snap = await getDocs(query(collection(db, 'users', userId, 'projects'), orderBy('createdAt', 'asc')));
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return { id: data.id, name: data.name, color: data.color ?? '#5D7BFF', collapsed: data.collapsed ?? false, createdAt: new Date(data.createdAt) };
+    });
+  } catch { return []; }
+}
+
+async function fsSaveProject(userId: string, project: Project): Promise<void> {
+  if (!db) return;
+  try { await setDoc(doc(db, 'users', userId, 'projects', project.id), serializeProject(project)); }
+  catch { /* silent */ }
+}
+
+async function fsDeleteProject(userId: string, projectId: string): Promise<void> {
+  if (!db) return;
+  try { await deleteDoc(doc(db, 'users', userId, 'projects', projectId)); }
+  catch { /* silent */ }
 }
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
@@ -300,6 +341,51 @@ const mdWhite = {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
+// ─── ConvItem — session draggable ────────────────────────────────────────────
+
+function ConvItem({
+  conv, isActive, onSelect, onDelete, onDragStart, onDragEnd,
+}: {
+  conv: Conversation;
+  isActive: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      className={cx(
+        'flex items-center gap-1 group border-l-2 transition-all cursor-grab active:cursor-grabbing',
+        isActive ? 'border-[#5D7BFF]' : 'border-transparent hover:border-white/15'
+      )}
+    >
+      <GripVertical className="w-3 h-3 flex-shrink-0 text-white/10 group-hover:text-white/25 ml-1 transition-colors" />
+      <button
+        onClick={onSelect}
+        className={cx(
+          'flex-1 flex items-center gap-2 px-2 py-1.5 text-left transition-all min-w-0',
+          isActive ? 'bg-[#5D7BFF]/15 text-white' : 'text-white/35 hover:text-white/60 hover:bg-white/5'
+        )}
+      >
+        <MessageSquare className="w-3 h-3 flex-shrink-0" />
+        <span className="text-[9px] font-medium truncate">{conv.title}</span>
+      </button>
+      <button
+        onClick={onDelete}
+        className="flex-shrink-0 mr-1 text-white/0 group-hover:text-white/25 hover:!text-red-400 transition-colors p-1"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
 export default function App() {
   // ── Chat state
   const [persona, setPersona] = useState<Persona>('architect');
@@ -317,6 +403,15 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // ── Projects state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectName, setEditingProjectName] = useState('');
+  const [draggedConvId, setDraggedConvId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null); // project id or 'none'
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -330,11 +425,16 @@ export default function App() {
       setAuthLoading(false);
       if (firebaseUser) {
         setSyncing(true);
-        const remote = await fsLoadConversations(firebaseUser.uid);
+        const [remote, remoteProjects] = await Promise.all([
+          fsLoadConversations(firebaseUser.uid),
+          fsLoadProjects(firebaseUser.uid),
+        ]);
         setConversations(remote);
+        setProjects(remoteProjects);
         setSyncing(false);
       } else {
         setConversations([]);
+        setProjects([]);
         setActiveId(null);
       }
     });
@@ -400,6 +500,43 @@ export default function App() {
     },
     [activeId, user]
   );
+
+  // ── Project callbacks
+  const createProject = useCallback((name: string) => {
+    if (!name.trim()) return;
+    const p: Project = { id: uid(), name: name.trim(), color: getNextColor(projects), collapsed: false, createdAt: new Date() };
+    setProjects((prev) => [...prev, p]);
+    if (user) fsSaveProject(user.uid, p);
+  }, [projects, user]);
+
+  const deleteProject = useCallback(async (projectId: string) => {
+    setProjects((p) => p.filter((x) => x.id !== projectId));
+    // Détacher les conversations du projet supprimé
+    setConversations((p) => p.map((c) => c.projectId === projectId ? { ...c, projectId: undefined } : c));
+    if (user) await fsDeleteProject(user.uid, projectId);
+  }, [user]);
+
+  const renameProject = useCallback((projectId: string, name: string) => {
+    if (!name.trim()) return;
+    setProjects((p) => p.map((x) => x.id === projectId ? { ...x, name: name.trim() } : x));
+    if (user) {
+      const proj = projects.find((x) => x.id === projectId);
+      if (proj) fsSaveProject(user.uid, { ...proj, name: name.trim() });
+    }
+  }, [projects, user]);
+
+  const toggleProjectCollapse = useCallback((projectId: string) => {
+    setProjects((p) => p.map((x) => x.id === projectId ? { ...x, collapsed: !x.collapsed } : x));
+  }, []);
+
+  const assignToProject = useCallback((convId: string, projectId: string | null) => {
+    setConversations((p) => p.map((c) => {
+      if (c.id !== convId) return c;
+      const updated = { ...c, projectId: projectId ?? undefined };
+      if (user) fsSaveConversation(user.uid, updated);
+      return updated;
+    }));
+  }, [user]);
 
   // ── Send message
   const send = useCallback(
@@ -656,65 +793,192 @@ export default function App() {
                 <p className="mt-2 text-center text-[8px] text-white/20">{FRICTION[level].hint}</p>
               </div>
 
-              {/* Sessions history */}
-              {conversations.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-white/25">
-                      Sessions
-                    </p>
-                    {syncing && (
-                      <div className="flex items-center gap-1 text-white/20">
-                        <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                        <span className="text-[7px] uppercase tracking-widest">Sync…</span>
-                      </div>
-                    )}
-                    {user && !syncing && (
-                      <div className="flex items-center gap-1 text-white/20">
-                        <Cloud className="w-2.5 h-2.5" />
-                        <span className="text-[7px] uppercase tracking-widest">Sauvegardé</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-0.5">
-                    {conversations.map((conv) => (
-                      <div
-                        key={conv.id}
-                        className={cx(
-                          'flex items-center gap-1 group border-l-2 transition-all',
-                          conv.id === activeId
-                            ? 'border-[#5D7BFF]'
-                            : 'border-transparent hover:border-white/15'
-                        )}
-                      >
-                        <button
-                          onClick={() => {
-                            setActiveId(conv.id);
-                            setPersona(conv.persona);
-                            setLevel(conv.level);
-                          }}
-                          className={cx(
-                            'flex-1 flex items-center gap-2 px-3 py-2 text-left transition-all min-w-0',
-                            conv.id === activeId
-                              ? 'bg-[#5D7BFF]/15 text-white'
-                              : 'text-white/35 hover:text-white/60 hover:bg-white/5'
-                          )}
-                        >
-                          <MessageSquare className="w-3 h-3 flex-shrink-0" />
-                          <span className="text-[9px] font-medium truncate">{conv.title}</span>
-                        </button>
-                        <button
-                          onClick={() => deleteConv(conv.id)}
-                          className="flex-shrink-0 mr-1 text-white/0 group-hover:text-white/25 hover:!text-red-400 transition-colors p-1"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+              {/* ── Projets + Sessions ── */}
+              <div className="space-y-1">
+
+                {/* Header sessions */}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-white/25">Sessions</p>
+                  <div className="flex items-center gap-2">
+                    {syncing && <Loader2 className="w-2.5 h-2.5 animate-spin text-white/20" />}
+                    {user && !syncing && <Cloud className="w-2.5 h-2.5 text-white/15" />}
+                    <button
+                      onClick={() => { setCreatingProject(true); setNewProjectName(''); }}
+                      title="Nouveau projet"
+                      className="text-white/25 hover:text-[#5D7BFF] transition-colors"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-              )}
+
+                {/* Champ création projet */}
+                {creatingProject && (
+                  <div className="flex items-center gap-1 mb-2">
+                    <input
+                      autoFocus
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { createProject(newProjectName); setCreatingProject(false); }
+                        if (e.key === 'Escape') setCreatingProject(false);
+                      }}
+                      placeholder="Nom du projet…"
+                      className="flex-1 bg-white/10 border border-[#5D7BFF]/40 text-white text-[9px] px-2 py-1.5 focus:outline-none focus:border-[#5D7BFF] placeholder:text-white/25"
+                    />
+                    <button
+                      onClick={() => { createProject(newProjectName); setCreatingProject(false); }}
+                      className="p-1.5 bg-[#5D7BFF] text-white hover:bg-[#4a68e8] transition-colors"
+                    >
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => setCreatingProject(false)} className="p-1.5 text-white/30 hover:text-white/60">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Projets */}
+                {projects.map((project) => {
+                  const projectConvs = conversations.filter((c) => c.projectId === project.id);
+                  const isOver = dragOverId === project.id;
+                  return (
+                    <div key={project.id}>
+                      {/* En-tête du projet */}
+                      <div
+                        className={cx(
+                          'flex items-center gap-1.5 px-2 py-1.5 border transition-all group/proj',
+                          isOver
+                            ? 'border-dashed bg-white/10'
+                            : 'border-transparent hover:border-white/10'
+                        )}
+                        style={{ borderColor: isOver ? project.color : undefined }}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverId(project.id); }}
+                        onDragLeave={() => setDragOverId(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedConvId) assignToProject(draggedConvId, project.id);
+                          setDragOverId(null);
+                          setDraggedConvId(null);
+                        }}
+                      >
+                        <button onClick={() => toggleProjectCollapse(project.id)} className="flex-shrink-0">
+                          {project.collapsed
+                            ? <Folder className="w-3.5 h-3.5" style={{ color: project.color }} />
+                            : <FolderOpen className="w-3.5 h-3.5" style={{ color: project.color }} />}
+                        </button>
+
+                        {/* Nom / renommage */}
+                        {editingProjectId === project.id ? (
+                          <input
+                            autoFocus
+                            value={editingProjectName}
+                            onChange={(e) => setEditingProjectName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { renameProject(project.id, editingProjectName); setEditingProjectId(null); }
+                              if (e.key === 'Escape') setEditingProjectId(null);
+                            }}
+                            onBlur={() => { renameProject(project.id, editingProjectName); setEditingProjectId(null); }}
+                            className="flex-1 bg-transparent text-[9px] text-white font-bold focus:outline-none border-b border-white/30"
+                          />
+                        ) : (
+                          <button
+                            onClick={() => toggleProjectCollapse(project.id)}
+                            className="flex-1 text-left text-[9px] font-black uppercase tracking-wider text-white/60 hover:text-white/90 transition-colors truncate"
+                          >
+                            {project.name}
+                            {projectConvs.length > 0 && (
+                              <span className="ml-1 text-[7px] text-white/25 font-bold normal-case tracking-normal">
+                                ({projectConvs.length})
+                              </span>
+                            )}
+                          </button>
+                        )}
+
+                        <ChevronDown
+                          className={cx('w-2.5 h-2.5 text-white/20 flex-shrink-0 transition-transform', project.collapsed && '-rotate-90')}
+                        />
+
+                        {/* Actions projet */}
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover/proj:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => { setEditingProjectId(project.id); setEditingProjectName(project.name); }}
+                            className="p-0.5 text-white/25 hover:text-white/60 transition-colors"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteProject(project.id)}
+                            className="p-0.5 text-white/25 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Sessions du projet */}
+                      {!project.collapsed && (
+                        <div className="ml-3 border-l border-white/10 pl-2 space-y-0.5 mb-1">
+                          {projectConvs.length === 0 ? (
+                            <p className="text-[7px] text-white/15 italic px-2 py-1">
+                              {isOver ? 'Déposez ici…' : 'Aucune session'}
+                            </p>
+                          ) : (
+                            projectConvs.map((conv) => (
+                              <ConvItem
+                                key={conv.id}
+                                conv={conv}
+                                isActive={conv.id === activeId}
+                                onSelect={() => { setActiveId(conv.id); setPersona(conv.persona); setLevel(conv.level); }}
+                                onDelete={() => deleteConv(conv.id)}
+                                onDragStart={() => setDraggedConvId(conv.id)}
+                                onDragEnd={() => setDraggedConvId(null)}
+                              />
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Sessions sans projet — zone de dépôt "retirer du projet" */}
+                {conversations.filter((c) => !c.projectId).length > 0 && (
+                  <div
+                    className={cx(
+                      'rounded transition-all',
+                      dragOverId === 'none' && draggedConvId ? 'bg-white/5 border border-dashed border-white/20' : ''
+                    )}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverId('none'); }}
+                    onDragLeave={() => setDragOverId(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedConvId) assignToProject(draggedConvId, null);
+                      setDragOverId(null);
+                      setDraggedConvId(null);
+                    }}
+                  >
+                    {projects.length > 0 && (
+                      <p className="text-[7px] font-black uppercase tracking-widest text-white/15 px-2 py-1">
+                        Sans projet
+                      </p>
+                    )}
+                    <div className="space-y-0.5">
+                      {conversations.filter((c) => !c.projectId).map((conv) => (
+                        <ConvItem
+                          key={conv.id}
+                          conv={conv}
+                          isActive={conv.id === activeId}
+                          onSelect={() => { setActiveId(conv.id); setPersona(conv.persona); setLevel(conv.level); }}
+                          onDelete={() => deleteConv(conv.id)}
+                          onDragStart={() => setDraggedConvId(conv.id)}
+                          onDragEnd={() => setDraggedConvId(null)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* No Firebase info */}
               {!FIREBASE_ENABLED && (
@@ -722,7 +986,7 @@ export default function App() {
                   <div className="flex items-start gap-2">
                     <CloudOff className="w-3 h-3 text-white/20 flex-shrink-0 mt-0.5" />
                     <p className="text-[8px] text-white/20 leading-relaxed">
-                      Configurez Firebase pour activer la sauvegarde des sessions.
+                      Configurez Firebase pour activer la sauvegarde.
                     </p>
                   </div>
                 </div>
