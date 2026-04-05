@@ -649,24 +649,32 @@ export default function App() {
   useEffect(() => {
     if (!auth || !FIREBASE_ENABLED) return;
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      setAuthLoading(false);
+      // Pas d'utilisateur → écran de connexion immédiat
       if (!firebaseUser) {
         setUser(null);
         setConsentPending(null);
         setConversations([]);
         setProjects([]);
         setActiveId(null);
+        setAuthLoading(false);
         return;
       }
-      // Vérifier si l'utilisateur a déjà accepté les CGU
-      const hasConsent = await fsGetConsent(firebaseUser.uid);
-      if (hasConsent) {
-        await loadUserData(firebaseUser);
-      } else {
-        // Première connexion → afficher le modal de consentement
-        setConsentCgu(false);
-        setConsentNewsletter(true);
-        setConsentPending(firebaseUser);
+
+      // Utilisateur présent → garder le loading screen le temps de vérifier le consentement
+      // (évite le flash de l'écran de connexion entre la création de compte et le modal CGU)
+      setAuthLoading(true);
+      try {
+        const hasConsent = await fsGetConsent(firebaseUser.uid);
+        if (hasConsent) {
+          await loadUserData(firebaseUser);
+        } else {
+          // Première connexion → modal de consentement
+          setConsentCgu(false);
+          setConsentNewsletter(true);
+          setConsentPending(firebaseUser);
+        }
+      } finally {
+        setAuthLoading(false);
       }
     });
     return () => unsub();
@@ -1063,7 +1071,7 @@ export default function App() {
     >
 
       {/* ── Chargement initial Firebase ───────────────────────────────────── */}
-      {FIREBASE_ENABLED && authLoading && (
+      {FIREBASE_ENABLED && authLoading && !consentPending && (
         <div className="flex-1 bg-[#141414] flex flex-col items-center justify-center gap-5">
           <img
             src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
@@ -1078,7 +1086,7 @@ export default function App() {
       )}
 
       {/* ── Écran de connexion / inscription ─────────────────────────────── */}
-      {FIREBASE_ENABLED && !user && !authLoading && (
+      {FIREBASE_ENABLED && !user && !authLoading && !consentPending && (
         <div className="flex-1 bg-[#141414] overflow-y-auto flex items-center justify-center p-6">
           <div className="w-full max-w-sm">
 
