@@ -24,6 +24,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  persona: Persona;
+  level: FrictionLevel;
 }
 
 interface Conversation {
@@ -175,6 +177,8 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
       role: m.role as 'user' | 'assistant',
       content: m.content as string,
       timestamp: new Date(m.timestamp as string),
+      persona: (m.persona as Persona) ?? 'architect',
+      level: (m.level as FrictionLevel) ?? 'moyen',
     })),
   };
 }
@@ -402,11 +406,17 @@ export default function App() {
     async (text: string) => {
       if (!text.trim() || sending) return;
 
+      // Capture persona + level au moment de l'envoi — immuable pour ce message
+      const activePersona = persona;
+      const activeLevel = level;
+
       const userMsg: Message = {
         id: uid(),
         role: 'user',
         content: text,
         timestamp: new Date(),
+        persona: activePersona,
+        level: activeLevel,
       };
 
       let convId = activeId;
@@ -461,7 +471,7 @@ export default function App() {
             'Clé API manquante. Renommez la variable en VITE_MISTRAL_API_KEY dans Vercel (avec le préfixe VITE_) puis redéployez.'
           );
 
-        const temperature = level === 'extreme' ? 0.9 : level === 'moyen' ? 0.7 : 0.5;
+        const temperature = activeLevel === 'extreme' ? 0.9 : activeLevel === 'moyen' ? 0.7 : 0.5;
 
         const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
@@ -473,7 +483,7 @@ export default function App() {
             model: 'mistral-small-latest',
             temperature,
             messages: [
-              { role: 'system', content: buildSystemPrompt(persona, level) },
+              { role: 'system', content: buildSystemPrompt(activePersona, activeLevel) },
               ...allMessages.map((m) => ({ role: m.role, content: m.content })),
             ],
           }),
@@ -491,6 +501,8 @@ export default function App() {
           role: 'assistant',
           content: reply,
           timestamp: new Date(),
+          persona: activePersona,
+          level: activeLevel,
         };
 
         setConversations((p) =>
@@ -910,14 +922,27 @@ export default function App() {
                         msg.role === 'user' ? 'border-[#5D7BFF]/10' : 'border-white/20'
                       )}
                     >
-                      <p
-                        className={cx(
-                          'text-[7px] font-black uppercase tracking-widest',
-                          msg.role === 'user' ? 'text-[#141414]/30' : 'text-white/60'
+                      <div className="flex items-center gap-1.5">
+                        {msg.role === 'assistant' && (() => {
+                          const MsgIcon = PERSONAS[msg.persona ?? persona].icon;
+                          return <MsgIcon className="w-2.5 h-2.5 text-white/50" />;
+                        })()}
+                        <p
+                          className={cx(
+                            'text-[7px] font-black uppercase tracking-widest',
+                            msg.role === 'user' ? 'text-[#141414]/30' : 'text-white/60'
+                          )}
+                        >
+                          {msg.role === 'user'
+                            ? 'Vous'
+                            : PERSONAS[msg.persona ?? persona].shortName}
+                        </p>
+                        {msg.role === 'assistant' && msg.level && (
+                          <span className="text-[6px] font-black uppercase tracking-widest text-white/25 border border-white/15 px-1 py-px">
+                            {FRICTION[msg.level ?? level].label}
+                          </span>
                         )}
-                      >
-                        {msg.role === 'user' ? 'Vous' : PERSONAS[persona].shortName}
-                      </p>
+                      </div>
                       <p
                         className={cx(
                           'text-[7px] font-mono',
