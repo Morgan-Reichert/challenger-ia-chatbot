@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
-  Trash2, Check, X, Sparkles, FileText, Zap,
+  Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
 } from 'lucide-react';
 import {
   type UserProfile, type NeuroTag, type BigFiveResult,
@@ -77,11 +77,14 @@ function Section({
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({ label, hint, action, children }: { label: string; hint?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
       <div className="mb-1.5">
-        <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/50">{label}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/50">{label}</p>
+          {action}
+        </div>
         {hint && <p className="text-[10px] text-[#141414]/30 mt-0.5 leading-relaxed">{hint}</p>}
       </div>
       {children}
@@ -103,6 +106,9 @@ type Props = {
 export default function SettingsPage({ onBack, profile: initialProfile, onSave }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
+
+  // MBTI info modal
+  const [mbtiInfoOpen, setMbtiInfoOpen] = useState(false);
 
   // Quiz state
   const [quizOpen, setQuizOpen]     = useState(false);
@@ -313,7 +319,19 @@ export default function SettingsPage({ onBack, profile: initialProfile, onSave }
 
           {/* ── PERSONNALITÉ */}
           <Section icon={Brain} title="Personnalité" accent="#8B5CF6">
-            <Field label="Type MBTI" hint="Sélectionnez votre type si vous le connaissez. Cliquez à nouveau pour désélectionner.">
+            <Field
+              label="Type MBTI"
+              hint="Sélectionnez votre type si vous le connaissez. Cliquez à nouveau pour désélectionner."
+              action={
+                <button
+                  onClick={() => setMbtiInfoOpen(true)}
+                  className="text-[#141414]/25 hover:text-[#8B5CF6] transition-colors"
+                  title="En savoir plus sur les types MBTI"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+              }
+            >
               <div className="grid grid-cols-4 gap-1.5">
                 {MBTI_TYPES.map(type => (
                   <button
@@ -678,6 +696,153 @@ export default function SettingsPage({ onBack, profile: initialProfile, onSave }
                   </button>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── MBTI Info Modal ─────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {mbtiInfoOpen && (
+          <motion.div
+            key="mbti-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4"
+            onClick={() => setMbtiInfoOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 24 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 24 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white border-4 border-[#141414] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+              style={{ boxShadow: '8px 8px 0px 0px rgba(20,20,20,1)' }}
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b-2 border-[#141414]/8 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-[#141414]/30 mb-0.5">Personnalité</p>
+                  <h2 className="text-[13px] font-black uppercase tracking-widest text-[#141414]">Guide MBTI</h2>
+                </div>
+                <button onClick={() => setMbtiInfoOpen(false)} className="text-[#141414]/30 hover:text-[#141414]/70 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+
+                {/* 4 critères */}
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/35 mb-3">Les 4 dimensions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { letters: 'E / I', title: 'Énergie', desc: 'Extraversion — l\'énergie vient du monde extérieur, des interactions. Introversion — l\'énergie vient du monde intérieur, de la réflexion.' },
+                      { letters: 'S / N', title: 'Information', desc: 'Sensation — focus sur les faits concrets, le présent, les détails. Intuition — focus sur les patterns, le futur, les abstractions.' },
+                      { letters: 'T / F', title: 'Décision', desc: 'Pensée — décisions basées sur la logique et l\'objectivité. Sentiment — décisions basées sur les valeurs et l\'harmonie.' },
+                      { letters: 'J / P', title: 'Organisation', desc: 'Jugement — préfère la structure, la planification, la clôture. Perception — préfère la flexibilité, l\'adaptation, la spontanéité.' },
+                    ].map(({ letters, title, desc }) => (
+                      <div key={letters} className="p-3 border border-[#141414]/8 bg-[#FAFAFA]">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[11px] font-black text-[#8B5CF6]">{letters}</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[#141414]/40">{title}</span>
+                        </div>
+                        <p className="text-[10px] text-[#141414]/50 leading-relaxed">{desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 16 types by group */}
+                {[
+                  {
+                    group: 'Analystes', color: '#8B5CF6', bg: '#8B5CF620',
+                    desc: 'Rationnels stratégiques, tournés vers les systèmes et les idées.',
+                    types: [
+                      { type: 'INTJ', name: 'L\'Architecte', desc: 'Stratège visionnaire, indépendant et déterminé.' },
+                      { type: 'INTP', name: 'Le Penseur',    desc: 'Analyste inventif, assoiffé de logique et de connaissance.' },
+                      { type: 'ENTJ', name: 'Le Commandant', desc: 'Leader né, direct, stratégique et ambitieux.' },
+                      { type: 'ENTP', name: 'Le Débatteur',  desc: 'Curieux provocateur, aime challenger les idées reçues.' },
+                    ],
+                  },
+                  {
+                    group: 'Diplomates', color: '#10B981', bg: '#10B98120',
+                    desc: 'Empathiques et idéalistes, centrés sur les valeurs humaines.',
+                    types: [
+                      { type: 'INFJ', name: 'L\'Avocat',      desc: 'Idéaliste discret, profond, animé par sa mission.' },
+                      { type: 'INFP', name: 'Le Médiateur',   desc: 'Créatif et empathique, cherche authenticité et sens.' },
+                      { type: 'ENFJ', name: 'Le Protagoniste',desc: 'Charismatique et inspirant, naturellement leader.' },
+                      { type: 'ENFP', name: 'Le Militant',    desc: 'Enthousiaste et créatif, explore toutes les possibilités.' },
+                    ],
+                  },
+                  {
+                    group: 'Sentinelles', color: '#3B82F6', bg: '#3B82F620',
+                    desc: 'Fiables et organisés, piliers de stabilité et de tradition.',
+                    types: [
+                      { type: 'ISTJ', name: 'L\'Inspecteur', desc: 'Méthodique et fiable, respecte les règles et engagements.' },
+                      { type: 'ISFJ', name: 'Le Défenseur',  desc: 'Attentionné et dévoué, protège ceux qui lui sont chers.' },
+                      { type: 'ESTJ', name: 'L\'Exécutif',   desc: 'Organisateur direct, applique les règles avec fermeté.' },
+                      { type: 'ESFJ', name: 'Le Consul',     desc: 'Sociable et loyal, crée du lien et veille à l\'harmonie.' },
+                    ],
+                  },
+                  {
+                    group: 'Explorateurs', color: '#F59E0B', bg: '#F59E0B20',
+                    desc: 'Pragmatiques et spontanés, maîtres de l\'action et du moment présent.',
+                    types: [
+                      { type: 'ISTP', name: 'Le Virtuose',    desc: 'Observateur logique, expert en résolution de problèmes.' },
+                      { type: 'ISFP', name: 'L\'Aventurier',  desc: 'Artiste sensible, vit pleinement dans le présent.' },
+                      { type: 'ESTP', name: 'L\'Entrepreneur',desc: 'Énergique et pragmatique, aime le risque et l\'action.' },
+                      { type: 'ESFP', name: 'L\'Animateur',   desc: 'Spontané et enthousiaste, centre de l\'attention.' },
+                    ],
+                  },
+                ].map(({ group, color, bg, desc, types }) => (
+                  <div key={group}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>{group}</span>
+                      <span className="text-[9px] text-[#141414]/35">— {desc}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {types.map(({ type, name, desc: tdesc }) => (
+                        <button
+                          key={type}
+                          onClick={() => { updateProfile({ mbti: profile.mbti === type ? '' : type }); setMbtiInfoOpen(false); }}
+                          className={cx(
+                            'flex items-start gap-2.5 p-3 border-2 text-left transition-all',
+                            profile.mbti === type
+                              ? 'border-2 text-white'
+                              : 'border-[#141414]/8 hover:border-opacity-60',
+                          )}
+                          style={
+                            profile.mbti === type
+                              ? { background: color, borderColor: color }
+                              : { background: bg, borderColor: `${color}30` }
+                          }
+                        >
+                          <span
+                            className="text-[11px] font-black flex-shrink-0 mt-px"
+                            style={{ color: profile.mbti === type ? 'white' : color }}
+                          >
+                            {type}
+                          </span>
+                          <div className="min-w-0">
+                            <p className={cx('text-[10px] font-black leading-tight', profile.mbti === type ? 'text-white' : 'text-[#141414]')}>
+                              {name}
+                            </p>
+                            <p className={cx('text-[9px] leading-relaxed mt-0.5', profile.mbti === type ? 'text-white/70' : 'text-[#141414]/40')}>
+                              {tdesc}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                <p className="text-[9px] text-[#141414]/25 text-center pb-2">
+                  Cliquez sur un type pour le sélectionner directement.
+                </p>
+              </div>
             </motion.div>
           </motion.div>
         )}
