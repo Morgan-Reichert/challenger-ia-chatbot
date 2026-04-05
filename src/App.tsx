@@ -2115,11 +2115,16 @@ export default function App() {
           {!activeConv || activeConv.messages.length === 0 ? (
             activeConv?.debatePersonaId ? (() => {
               const dp2 = getDP(activeConv);
-              const debateSuggestions = [
-                { text: `La France devrait adopter une politique d'immigration beaucoup plus restrictive.`, icon: Target },
-                { text: `L'Union européenne est un frein à la souveraineté des nations.`, icon: Brain },
-                { text: `La croissance économique est incompatible avec la transition écologique.`, icon: TrendingUp },
+              const SUGGESTION_ICONS = [Target, Brain, TrendingUp];
+              const personaFromLib = activeConv.debatePersonaId !== 'custom'
+                ? DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]
+                : undefined;
+              const rawTopics = personaFromLib?.suggestedTopics ?? [
+                `La liberté d'expression doit-elle avoir des limites dans une démocratie ?`,
+                `L'égalité parfaite entre les individus est-elle possible ?`,
+                `La technologie nous rend-elle plus libres ou plus dépendants ?`,
               ];
+              const debateSuggestions = rawTopics.map((text, i) => ({ text, icon: SUGGESTION_ICONS[i] }));
               return (
                 <motion.div
                   initial={{ opacity: 0, y: 16 }}

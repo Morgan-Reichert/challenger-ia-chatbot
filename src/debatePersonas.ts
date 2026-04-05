@@ -35,6 +35,7 @@ export type DebatePersona = {
   keyFacts: string[];
   wikiSlug: string;
   wikiLang: string;
+  suggestedTopics: [string, string, string];
   buildSystemPrompt: (wikiContext: string, currentDate: string) => string;
 };
 
@@ -78,6 +79,11 @@ const macron: DebatePersona = {
   ],
   wikiSlug: 'Emmanuel_Macron',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La réforme des retraites à 64 ans était-elle vraiment nécessaire ?',
+    'La France a-t-elle encore les moyens d\'une politique européenne ambitieuse ?',
+    'Le "en même temps" est-il une vision politique ou une absence de cap ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Emmanuel Macron, Président de la République française. Tu débates.
 
 Date du jour : ${currentDate}
@@ -116,6 +122,11 @@ const le_pen: DebatePersona = {
   ],
   wikiSlug: 'Marine_Le_Pen',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La France devrait-elle instaurer une préférence nationale dans l\'accès aux aides sociales ?',
+    'Sortir de l\'euro est-il la condition de la souveraineté française ?',
+    'L\'immigration est-elle la principale cause de l\'insécurité en France ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Marine Le Pen, présidente du groupe RN à l'Assemblée nationale. Tu débates.
 
 Date du jour : ${currentDate}
@@ -152,6 +163,11 @@ const bardella: DebatePersona = {
   ],
   wikiSlug: 'Jordan_Bardella',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'Le pouvoir d\'achat des Français est-il la priorité politique numéro un ?',
+    'Les réseaux sociaux ont-ils changé la manière de faire de la politique ?',
+    'La jeunesse française a-t-elle été trahie par les partis traditionnels ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Jordan Bardella, président du Rassemblement National. Tu débates.
 
 Date du jour : ${currentDate}
@@ -187,6 +203,11 @@ const melenchon: DebatePersona = {
   ],
   wikiSlug: 'Jean-Luc_Mélenchon',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La 6e République est-elle la seule issue à la crise démocratique française ?',
+    'Faut-il taxer les super-profits et les grandes fortunes pour financer les services publics ?',
+    'La sortie du capitalisme est-elle possible dans le cadre de l\'Union européenne ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Jean-Luc Mélenchon, fondateur de La France Insoumise. Tu débates.
 
 Date du jour : ${currentDate}
@@ -227,6 +248,11 @@ const trump: DebatePersona = {
   ],
   wikiSlug: 'Donald_Trump',
   wikiLang: 'en',
+  suggestedTopics: [
+    'L\'OTAN devrait-il être dissous si l\'Europe ne paie pas sa part ?',
+    'Les droits de douane massifs sont-ils le meilleur outil pour protéger l\'économie américaine ?',
+    'La frontière mexicaine est-elle vraiment une menace pour les États-Unis ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Donald Trump, 45e et 47e Président des États-Unis. Tu débates — en français, avec ton style américain direct.
 
 Date du jour : ${currentDate}
@@ -263,6 +289,11 @@ const poutine: DebatePersona = {
   ],
   wikiSlug: 'Vladimir_Putin',
   wikiLang: 'en',
+  suggestedTopics: [
+    'L\'élargissement de l\'OTAN est-il la véritable cause de la guerre en Ukraine ?',
+    'L\'Occident a-t-il le droit d\'imposer ses valeurs au reste du monde ?',
+    'La Russie défend-elle sa souveraineté ou poursuit-elle un empire ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Vladimir Poutine, Président de la Fédération de Russie. Tu débates — en français, avec ta froideur habituelle.
 
 Date du jour : ${currentDate}
@@ -299,6 +330,11 @@ const zelensky: DebatePersona = {
   ],
   wikiSlug: 'Volodymyr_Zelensky',
   wikiLang: 'en',
+  suggestedTopics: [
+    'L\'Ukraine peut-elle gagner la guerre sans l\'aide militaire occidentale ?',
+    'Un cessez-le-feu avec abandon de territoire est-il acceptable pour sauver des vies ?',
+    'L\'Ukraine a-t-elle vocation à intégrer l\'OTAN et l\'Union européenne ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Volodymyr Zelensky, Président de l'Ukraine. Tu débates — en français.
 
 Date du jour : ${currentDate}
@@ -335,6 +371,11 @@ const merkel: DebatePersona = {
   ],
   wikiSlug: 'Angela_Merkel',
   wikiLang: 'en',
+  suggestedTopics: [
+    'La politique d\'accueil des réfugiés de 2015 était-elle une erreur stratégique ?',
+    'L\'Europe peut-elle exister sans une Allemagne forte économiquement ?',
+    'La dépendance au gaz russe était-elle une faute géopolitique impardonnable ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Angela Merkel, ancienne chancelière d'Allemagne (2005-2021). Tu débates — en français.
 
 Date du jour : ${currentDate}
@@ -371,6 +412,11 @@ const meloni: DebatePersona = {
   ],
   wikiSlug: 'Giorgia_Meloni',
   wikiLang: 'en',
+  suggestedTopics: [
+    'L\'immigration clandestine en Méditerranée menace-t-elle la stabilité de l\'Europe ?',
+    'Peut-on être conservateur, catholique et démocrate en 2024 ?',
+    'L\'identité culturelle européenne est-elle en danger ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Giorgia Meloni, Présidente du Conseil d'Italie. Tu débates — en français.
 
 Date du jour : ${currentDate}
@@ -411,6 +457,11 @@ const degaulle: DebatePersona = {
   ],
   wikiSlug: 'Charles_de_Gaulle',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La France peut-elle encore prétendre à une politique de grandeur dans le monde actuel ?',
+    'L\'indépendance vis-à-vis de l\'OTAN est-elle toujours d\'actualité ?',
+    'La Ve République est-elle encore adaptée aux défis du XXIe siècle ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Charles de Gaulle, général et homme d'État français. Tu parles depuis ta perspective historique (1890-1970). Tu ignores les événements postérieurs à 1970.
 
 Date du jour : ${currentDate}
@@ -447,6 +498,11 @@ const churchill: DebatePersona = {
   ],
   wikiSlug: 'Winston_Churchill',
   wikiLang: 'en',
+  suggestedTopics: [
+    'Peut-on négocier avec un régime totalitaire ou faut-il toujours résister ?',
+    'La démocratie est-elle vraiment le moins mauvais des systèmes politiques ?',
+    'L\'empire britannique a-t-il apporté la civilisation ou l\'oppression ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Winston Churchill, ancien Premier ministre britannique. Tu parles depuis ta perspective historique (1874-1965). Tu ignores les événements postérieurs à 1965.
 
 Date du jour : ${currentDate}
@@ -483,6 +539,11 @@ const napoleon: DebatePersona = {
   ],
   wikiSlug: 'Napoléon_Ier',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La centralisation du pouvoir est-elle la condition de l\'efficacité d\'un État ?',
+    'La guerre est-elle parfois le seul moyen d\'imposer la justice ?',
+    'Le mérite doit-il primer sur la naissance dans l\'accès aux responsabilités ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Napoléon Bonaparte, Empereur des Français. Tu parles depuis ta perspective historique (1769-1821). Tu ignores les événements postérieurs à 1821.
 
 Date du jour : ${currentDate}
@@ -519,6 +580,11 @@ const lincoln: DebatePersona = {
   ],
   wikiSlug: 'Abraham_Lincoln',
   wikiLang: 'en',
+  suggestedTopics: [
+    'L\'unité nationale justifie-t-elle des mesures d\'exception en temps de guerre ?',
+    'L\'esclavage économique moderne est-il comparable à l\'esclavage historique ?',
+    'La démocratie peut-elle survivre à de profondes divisions morales dans la société ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Abraham Lincoln, 16e président des États-Unis. Tu parles depuis ta perspective historique (1809-1865). Tu ignores les événements postérieurs à 1865.
 
 Date du jour : ${currentDate}
@@ -555,6 +621,11 @@ const mandela: DebatePersona = {
   ],
   wikiSlug: 'Nelson_Mandela',
   wikiLang: 'en',
+  suggestedTopics: [
+    'La réconciliation est-elle possible sans justice pour les crimes du passé ?',
+    'Le racisme systémique existe-t-il toujours dans les démocraties modernes ?',
+    'L\'éducation est-elle suffisante pour briser les cycles d\'oppression ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Nelson Mandela. Tu parles avec l'autorité morale de quelqu'un qui a sacrifié 27 ans pour ses convictions.
 
 Date du jour : ${currentDate}
@@ -595,6 +666,11 @@ const voltaire: DebatePersona = {
   ],
   wikiSlug: 'Voltaire',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La religion est-elle source de fanatisme ou de morale universelle ?',
+    'La liberté d\'expression doit-elle avoir des limites dans une société civile ?',
+    'Le progrès de la raison peut-il éliminer l\'obscurantisme ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Voltaire, philosophe des Lumières. Tu parles depuis ta perspective historique (1694-1778). Tu ignores les événements postérieurs à 1778.
 
 Date du jour : ${currentDate}
@@ -631,6 +707,11 @@ const rousseau: DebatePersona = {
   ],
   wikiSlug: 'Jean-Jacques_Rousseau',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La propriété privée est-elle la source de toutes les inégalités sociales ?',
+    'La démocratie directe est-elle supérieure à la démocratie représentative ?',
+    'L\'homme naturellement bon est-il corrompu par la société moderne ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Jean-Jacques Rousseau, philosophe genevois. Tu parles depuis ta perspective historique (1712-1778). Tu ignores les événements postérieurs à 1778.
 
 Date du jour : ${currentDate}
@@ -667,6 +748,11 @@ const marx: DebatePersona = {
   ],
   wikiSlug: 'Karl_Marx',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'Le capitalisme contient-il les germes de sa propre destruction ?',
+    'La lutte des classes est-elle toujours le moteur de l\'histoire ?',
+    'Peut-on réformer le capitalisme ou faut-il le renverser ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Karl Marx, philosophe et économiste. Tu parles depuis ta perspective historique (1818-1883). Tu ignores les événements postérieurs à 1883.
 
 Date du jour : ${currentDate}
@@ -703,6 +789,11 @@ const nietzsche: DebatePersona = {
   ],
   wikiSlug: 'Friedrich_Nietzsche',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La morale chrétienne est-elle une idéologie des faibles contre les forts ?',
+    'Dieu est mort — comment l\'humanité construit-elle de nouvelles valeurs ?',
+    'L\'excellence individuelle prime-t-elle sur l\'égalité collective ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Friedrich Nietzsche, philosophe. Tu parles depuis ta perspective historique (1844-1889, avant ta folie). Tu ignores les événements postérieurs.
 
 Date du jour : ${currentDate}
@@ -739,6 +830,11 @@ const beauvoir: DebatePersona = {
   ],
   wikiSlug: 'Simone_de_Beauvoir',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'Le genre est-il une construction sociale ou une réalité biologique ?',
+    'La maternité est-elle un choix libre ou une pression sociale imposée aux femmes ?',
+    'L\'égalité entre les sexes nécessite-t-elle une révolution structurelle de la société ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Simone de Beauvoir, philosophe existentialiste et féministe. Tu parles depuis ta perspective (1908-1986). Tu ignores les événements postérieurs à 1986.
 
 Date du jour : ${currentDate}
@@ -775,6 +871,11 @@ const sartre: DebatePersona = {
   ],
   wikiSlug: 'Jean-Paul_Sartre',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'L\'homme est-il condamné à être libre même s\'il ne le veut pas ?',
+    'L\'intellectuel a-t-il le devoir de s\'engager politiquement ?',
+    'La mauvaise foi est-elle une forme universelle d\'auto-tromperie ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Jean-Paul Sartre, philosophe existentialiste. Tu parles depuis ta perspective (1905-1980). Tu ignores les événements postérieurs à 1980.
 
 Date du jour : ${currentDate}
@@ -815,6 +916,11 @@ const musk: DebatePersona = {
   ],
   wikiSlug: 'Elon_Musk',
   wikiLang: 'en',
+  suggestedTopics: [
+    'L\'intelligence artificielle représente-t-elle le plus grand danger pour l\'humanité ?',
+    'La liberté d\'expression absolue sur les réseaux sociaux est-elle possible ?',
+    'Coloniser Mars est-il une nécessité existentielle ou une fuite des problèmes terrestres ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Elon Musk. Tu débates — en français avec ton style anglophone direct.
 
 Date du jour : ${currentDate}
@@ -851,6 +957,11 @@ const zuckerberg: DebatePersona = {
   ],
   wikiSlug: 'Mark_Zuckerberg',
   wikiLang: 'en',
+  suggestedTopics: [
+    'Les réseaux sociaux détruisent-ils la démocratie ou la renforcent-ils ?',
+    'Qui doit contrôler la modération du contenu sur les plateformes mondiales ?',
+    'Le métavers est-il l\'avenir d\'Internet ou un mirage technologique ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Mark Zuckerberg, CEO de Meta. Tu débates — en français avec ta précision technique habituelle.
 
 Date du jour : ${currentDate}
@@ -887,6 +998,11 @@ const bezos: DebatePersona = {
   ],
   wikiSlug: 'Jeff_Bezos',
   wikiLang: 'en',
+  suggestedTopics: [
+    'Amazon a-t-il tué le commerce local ou rendu service aux consommateurs ?',
+    'L\'exploration spatiale privée est-elle la prochaine révolution industrielle ?',
+    'Les géants du e-commerce exploitent-ils leurs travailleurs ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Jeff Bezos, fondateur d'Amazon et de Blue Origin. Tu débates — en français.
 
 Date du jour : ${currentDate}
@@ -923,6 +1039,11 @@ const gates: DebatePersona = {
   ],
   wikiSlug: 'Bill_Gates',
   wikiLang: 'en',
+  suggestedTopics: [
+    'La philanthropie des milliardaires peut-elle remplacer les politiques publiques de santé ?',
+    'Les vaccins sont-ils le meilleur investissement en santé mondiale ?',
+    'L\'intelligence artificielle va-t-elle créer plus d\'emplois qu\'elle n\'en détruira ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Bill Gates, co-fondateur de Microsoft et philanthrope. Tu débates — en français.
 
 Date du jour : ${currentDate}
@@ -959,6 +1080,11 @@ const jobs: DebatePersona = {
   ],
   wikiSlug: 'Steve_Jobs',
   wikiLang: 'en',
+  suggestedTopics: [
+    'Le design prime-t-il sur la fonctionnalité dans la création de produits ?',
+    'L\'innovation radicale nécessite-t-elle d\'ignorer ce que veulent les utilisateurs ?',
+    'Apple a-t-il créé un écosystème de liberté ou une prison dorée ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Steve Jobs. Tu parles depuis ta perspective (1955-2011). Tu ignores les événements postérieurs à octobre 2011.
 
 Date du jour : ${currentDate}
@@ -999,6 +1125,11 @@ const thunberg: DebatePersona = {
   ],
   wikiSlug: 'Greta_Thunberg',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La croissance économique est-elle compatible avec la survie de la planète ?',
+    'La désobéissance civile est-elle légitime face à l\'urgence climatique ?',
+    'Les gouvernements mentent-ils sur leurs engagements climatiques ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Greta Thunberg, activiste pour le climat. Tu débates — en français.
 
 Date du jour : ${currentDate}
@@ -1035,6 +1166,11 @@ const mlk: DebatePersona = {
   ],
   wikiSlug: 'Martin_Luther_King_Jr.',
   wikiLang: 'en',
+  suggestedTopics: [
+    'La désobéissance civile non-violente peut-elle vaincre l\'injustice institutionnelle ?',
+    'Le racisme systémique est-il encore présent dans les sociétés occidentales ?',
+    'Le rêve américain est-il accessible à tous, quelle que soit leur couleur de peau ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Martin Luther King Jr. Tu parles depuis ta perspective historique (1929-1968). Tu ignores les événements postérieurs à 1968.
 
 Date du jour : ${currentDate}
@@ -1071,6 +1207,11 @@ const veil: DebatePersona = {
   ],
   wikiSlug: 'Simone_Veil',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'Le droit à l\'avortement est-il un droit fondamental inaliénable ?',
+    'La mémoire de la Shoah est-elle suffisamment transmise aux jeunes générations ?',
+    'L\'Europe est-elle encore le meilleur rempart contre les totalitarismes ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Simone Veil. Tu parles avec la dignité et la gravité de quelqu'un qui a survécu à l'innommable et construit sa vie en acte de résistance.
 
 Date du jour : ${currentDate}
@@ -1107,6 +1248,11 @@ const guevara: DebatePersona = {
   ],
   wikiSlug: 'Che_Guevara',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'La révolution armée est-elle encore le seul moyen de changer un système injuste ?',
+    'L\'impérialisme américain est-il la principale cause du sous-développement en Amérique latine ?',
+    'Le socialisme révolutionnaire a-t-il trahi ses idéaux là où il a pris le pouvoir ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Che Guevara, révolutionnaire marxiste. Tu parles depuis ta perspective historique (1928-1967). Tu ignores les événements postérieurs à 1967.
 
 Date du jour : ${currentDate}
@@ -1147,6 +1293,11 @@ const freud: DebatePersona = {
   ],
   wikiSlug: 'Sigmund_Freud',
   wikiLang: 'fr',
+  suggestedTopics: [
+    'L\'inconscient gouverne-t-il vraiment nos décisions politiques et sociales ?',
+    'La religion est-elle une névrose collective ou un besoin psychologique légitime ?',
+    'La sexualité est-elle au cœur de toutes les motivations humaines ?',
+  ],
   buildSystemPrompt: (wikiContext, currentDate) => `Tu es Sigmund Freud, fondateur de la psychanalyse. Tu parles depuis ta perspective historique (1856-1939). Tu ignores les événements postérieurs à 1939.
 
 Date du jour : ${currentDate}
