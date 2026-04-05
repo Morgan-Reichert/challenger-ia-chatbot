@@ -1437,7 +1437,7 @@ export default function App() {
                   style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.1)' }}
                 >
                   <Crown className="w-4 h-4" />
-                  Passer à Pro
+                  7 jours gratuits — Pro
                 </button>
               )}
 
@@ -2315,8 +2315,11 @@ export default function App() {
                   }}
                 >
                   <Crown className="w-4 h-4" />
-                  Passer à Pro — 9,99€ / mois
+                  Essai gratuit 7 jours — 9,99€ / mois
                 </button>
+                <p className="text-center text-[9px] text-white/25">
+                  7 jours gratuits · Aucune carte débitée avant la fin · Annulable à tout moment
+                </p>
                 <button
                   onClick={() => setUpgradeModal(null)}
                   className="w-full py-2 text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-white/50 transition-colors"
