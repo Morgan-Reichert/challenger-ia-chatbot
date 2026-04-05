@@ -2049,23 +2049,30 @@ export default function App() {
           if (!dp) return null;
           const rounds = Math.ceil(activeConv.messages.length / 2);
           return (
-            <div className="flex-shrink-0 bg-[#0a0c14] border-b border-white/5 px-6 py-3">
-              <div className="max-w-3xl mx-auto flex items-center justify-between">
-                <div>
-                  <p className="text-[8px] font-black uppercase tracking-widest text-white/25 mb-0.5">Vous</p>
-                  <p className="text-[12px] font-black text-white">Challenger</p>
+            <div className="flex-shrink-0 border-b border-white/5" style={{ background: 'linear-gradient(90deg, #091a10 0%, #0a0c14 35%, #0a0c14 65%, #1a0909 100%)' }}>
+              <div className="flex items-stretch" style={{ minHeight: '72px' }}>
+                {/* Gauche — Challenger (vert) */}
+                <div className="flex-1 flex flex-col justify-center px-6 py-3" style={{ background: 'linear-gradient(90deg, rgba(34,197,94,0.18) 0%, transparent 100%)' }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'rgba(74,222,128,0.65)' }}>Vous</p>
+                  <p className="text-[15px] font-black text-white leading-tight">Challenger</p>
+                  <div className="mt-1.5 w-10 h-0.5 rounded-full" style={{ background: 'rgba(74,222,128,0.5)' }} />
                 </div>
-                <div className="text-center">
-                  <p className="text-[22px] font-black text-white/10 leading-none">VS</p>
-                  <p className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{ color: dp.color }}>
+
+                {/* Centre — VS */}
+                <div className="flex flex-col items-center justify-center px-10 relative">
+                  <div className="absolute inset-y-0 left-0 w-px" style={{ background: 'linear-gradient(180deg, transparent, rgba(74,222,128,0.3), transparent)' }} />
+                  <div className="absolute inset-y-0 right-0 w-px" style={{ background: 'linear-gradient(180deg, transparent, rgba(239,68,68,0.3), transparent)' }} />
+                  <p className="text-[30px] font-black leading-none text-white" style={{ textShadow: '0 0 40px rgba(255,255,255,0.2)' }}>VS</p>
+                  <p className="text-[8px] font-black uppercase tracking-widest mt-1" style={{ color: dp.color }}>
                     {rounds > 0 ? `Round ${rounds}` : 'Prêt'}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-white/25 mb-0.5">
-                    {dp.country} {dp.flag}
-                  </p>
-                  <p className="text-[12px] font-black text-white">{dp.shortName}</p>
+
+                {/* Droite — Persona (rouge) */}
+                <div className="flex-1 flex flex-col justify-center items-end px-6 py-3" style={{ background: 'linear-gradient(270deg, rgba(239,68,68,0.18) 0%, transparent 100%)' }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'rgba(248,113,113,0.65)' }}>{dp.country} {dp.flag}</p>
+                  <p className="text-[15px] font-black text-white leading-tight">{dp.shortName}</p>
+                  <div className="mt-1.5 w-10 h-0.5 rounded-full ml-auto" style={{ background: 'rgba(239,68,68,0.5)' }} />
                 </div>
               </div>
             </div>
@@ -2078,6 +2085,73 @@ export default function App() {
           activeConv?.debatePersonaId ? 'bg-[#0a0c14]' : ''
         )}>
           {!activeConv || activeConv.messages.length === 0 ? (
+            activeConv?.debatePersonaId ? (() => {
+              const dp2 = DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS];
+              const debateSuggestions = [
+                { text: `La France devrait adopter une politique d'immigration beaucoup plus restrictive.`, icon: Target },
+                { text: `L'Union européenne est un frein à la souveraineté des nations.`, icon: Brain },
+                { text: `La croissance économique est incompatible avec la transition écologique.`, icon: TrendingUp },
+              ];
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto"
+                >
+                  {/* Arena header */}
+                  <div className="w-full flex items-center gap-0 mb-8" style={{ maxWidth: '560px' }}>
+                    <div className="flex-1 flex flex-col items-center py-5 px-4 border border-green-400/20" style={{ background: 'rgba(34,197,94,0.08)' }}>
+                      <div className="w-10 h-10 flex items-center justify-center mb-2" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(74,222,128,0.3)' }}>
+                        <span className="text-[18px]">🧑</span>
+                      </div>
+                      <p className="text-[8px] font-black uppercase tracking-widest text-green-400/60 mb-0.5">Vous</p>
+                      <p className="text-[13px] font-black text-white">Challenger</p>
+                    </div>
+                    <div className="flex flex-col items-center justify-center px-6 py-5 border-y border-white/5" style={{ background: 'rgba(10,12,20,0.8)' }}>
+                      <p className="text-[26px] font-black text-white leading-none" style={{ textShadow: '0 0 30px rgba(255,255,255,0.15)' }}>VS</p>
+                    </div>
+                    <div className="flex-1 flex flex-col items-center py-5 px-4 border border-red-400/20" style={{ background: 'rgba(239,68,68,0.08)' }}>
+                      <div className="w-10 h-10 flex items-center justify-center mb-2 text-[18px]" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(248,113,113,0.3)' }}>
+                        {dp2?.flag ?? '🌍'}
+                      </div>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'rgba(248,113,113,0.65)' }}>{dp2?.country}</p>
+                      <p className="text-[13px] font-black text-white">{dp2?.shortName}</p>
+                    </div>
+                  </div>
+
+                  {/* Suggestions */}
+                  <div className="w-full space-y-3" style={{ maxWidth: '560px' }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-white/25 text-center mb-4">
+                      Lancez le débat
+                    </p>
+                    {debateSuggestions.map((s, i) => {
+                      const SIcon = s.icon;
+                      return (
+                        <motion.button
+                          key={i}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.08 }}
+                          onClick={() => send(s.text)}
+                          disabled={sending}
+                          className="w-full text-left px-5 py-4 border transition-all group disabled:opacity-40"
+                          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.08)' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(74,222,128,0.4)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(34,197,94,0.07)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <SIcon className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" style={{ color: 'rgba(74,222,128,0.8)' }} />
+                            <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">
+                              {s.text}
+                            </p>
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            })() : (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -2134,6 +2208,7 @@ export default function App() {
                 })}
               </div>
             </motion.div>
+            )
           ) : (
             <div className="max-w-3xl mx-auto space-y-5">
               {activeConv.messages.map((msg) => {
@@ -2144,16 +2219,16 @@ export default function App() {
                 // ── Styles selon mode
                 const bubbleBg = isDebate
                   ? isUser
-                    ? 'bg-[#1a1d2e] border-white/10'
-                    : 'bg-[#12141f] border-l-4 border-t-0 border-r-0 border-b-0'
+                    ? 'border-2'
+                    : 'border-2'
                   : isUser
                     ? 'bg-white border-[#5D7BFF]/25'
                     : 'bg-[#5D7BFF] border-[#5D7BFF] text-white';
 
                 const bubbleStyle = isDebate
                   ? isUser
-                    ? { borderColor: 'rgba(255,255,255,0.08)' }
-                    : { borderLeftColor: dp?.color ?? '#5D7BFF', boxShadow: `4px 0 0 0 ${dp?.color ?? '#5D7BFF'}33` }
+                    ? { background: 'rgba(34,197,94,0.1)', borderColor: 'rgba(74,222,128,0.25)', boxShadow: '0 0 20px rgba(34,197,94,0.08)' }
+                    : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
                   : isUser
                     ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
                     : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
