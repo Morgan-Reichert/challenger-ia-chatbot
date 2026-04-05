@@ -642,6 +642,7 @@ export default function App() {
   const voiceOpenRef = useRef(false);
   const lastSpokenIdRef = useRef<string | null>(null);
   const startListeningRef = useRef<() => void>(() => {});
+  const sendRef = useRef<(text: string) => void>(() => {});
 
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
@@ -739,7 +740,7 @@ export default function App() {
         recognitionRef.current = null;
         setVoiceListening(false);
         setVoiceTranscript('');
-        if (transcript.trim()) send(transcript.trim());
+        if (transcript.trim()) sendRef.current(transcript.trim());
       }
     };
     recognition.onerror = () => { setVoiceListening(false); setVoiceTranscript(''); };
@@ -747,7 +748,7 @@ export default function App() {
     recognitionRef.current = recognition;
     recognition.start();
     setVoiceListening(true);
-  }, [send]);
+  }, []);
 
   // Toujours à jour dans les closures TTS
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
@@ -1232,6 +1233,9 @@ export default function App() {
     },
     [activeId, conversations, sending, persona, level, user, subscription, dailyUsage]
   );
+
+  // Garde sendRef à jour pour startListening (défini avant send dans le composant)
+  useEffect(() => { sendRef.current = send; }, [send]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
