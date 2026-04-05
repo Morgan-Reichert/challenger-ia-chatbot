@@ -7,7 +7,7 @@ import {
   Cloud, CloudOff, Trash2, FolderPlus, Folder, FolderOpen,
   GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
-  Mail, Lock, Eye, EyeOff,
+  Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -17,7 +17,10 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
-import { subscribeToNewsletter } from './supabase';
+import { subscribeToNewsletter, getSubscription, type Plan } from './supabase';
+
+// ─── Constantes abonnement ────────────────────────────────────────────────────
+const FREE_DAILY_LIMIT = 20;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -406,6 +409,29 @@ async function fsDeleteConversation(userId: string, convId: string): Promise<voi
   } catch { /* silent */ }
 }
 
+// ─── Firestore: Usage quotidien ──────────────────────────────────────────────
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function fsGetUsage(userId: string): Promise<{ count: number; date: string }> {
+  if (!db) return { count: 0, date: '' };
+  try {
+    const snap = await getDoc(doc(db, 'users', userId, 'meta', 'usage'));
+    if (!snap.exists()) return { count: 0, date: '' };
+    const d = snap.data();
+    return { count: d.count ?? 0, date: d.date ?? '' };
+  } catch { return { count: 0, date: '' }; }
+}
+
+async function fsSaveUsage(userId: string, count: number, date: string): Promise<void> {
+  if (!db) return;
+  try {
+    await setDoc(doc(db, 'users', userId, 'meta', 'usage'), { count, date });
+  } catch { /* silent */ }
+}
+
 // ─── Firestore: Consentement CGU ─────────────────────────────────────────────
 
 async function fsGetConsent(userId: string): Promise<boolean> {
@@ -600,6 +626,11 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // ── Abonnement
+  const [subscription, setSubscription] = useState<Plan>('free');
+  const [dailyUsage, setDailyUsage] = useState<{ count: number; date: string }>({ count: 0, date: '' });
+  const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
+
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
   const [consentCgu, setConsentCgu] = useState(false);
@@ -636,12 +667,17 @@ export default function App() {
   const loadUserData = useCallback(async (firebaseUser: FirebaseUser) => {
     setUser(firebaseUser);
     setSyncing(true);
-    const [remote, remoteProjects] = await Promise.all([
+    const [remote, remoteProjects, plan, usage] = await Promise.all([
       fsLoadConversations(firebaseUser.uid),
       fsLoadProjects(firebaseUser.uid),
+      getSubscription(firebaseUser.uid),
+      fsGetUsage(firebaseUser.uid),
     ]);
     setConversations(remote);
     setProjects(remoteProjects);
+    setSubscription(plan);
+    // Réinitialiser le compteur si c'est un nouveau jour
+    setDailyUsage(usage.date === todayStr() ? usage : { count: 0, date: todayStr() });
     setSyncing(false);
   }, []);
 
@@ -903,6 +939,21 @@ export default function App() {
       if (!text.trim() && attachments.length === 0) return;
       if (sending) return;
 
+      // ── Vérification limite quotidienne (plan Free uniquement)
+      if (subscription === 'free' && FIREBASE_ENABLED) {
+        const today = todayStr();
+        const currentCount = dailyUsage.date === today ? dailyUsage.count : 0;
+        if (currentCount >= FREE_DAILY_LIMIT) {
+          setUpgradeModal('limit');
+          return;
+        }
+        // Incrémenter avant l'envoi
+        const newCount = currentCount + 1;
+        const newUsage = { count: newCount, date: today };
+        setDailyUsage(newUsage);
+        if (user) fsSaveUsage(user.uid, newCount, today);
+      }
+
       // Capture persona + level au moment de l'envoi — immuable pour ce message
       const activePersona = persona;
       const activeLevel = level;
@@ -1040,7 +1091,7 @@ export default function App() {
         setSending(false);
       }
     },
-    [activeId, conversations, sending, persona, level, user]
+    [activeId, conversations, sending, persona, level, user, subscription, dailyUsage]
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1385,11 +1436,17 @@ export default function App() {
                     {syncing && <Loader2 className="w-2.5 h-2.5 animate-spin text-white/20" />}
                     {user && !syncing && <Cloud className="w-2.5 h-2.5 text-white/15" />}
                     <button
-                      onClick={() => { setCreatingProject(true); setNewProjectName(''); }}
-                      title="Nouveau projet"
-                      className="text-white/25 hover:text-[#5D7BFF] transition-colors"
+                      onClick={() => subscription === 'pro'
+                        ? (setCreatingProject(true), setNewProjectName(''))
+                        : setUpgradeModal('projects')
+                      }
+                      title={subscription === 'pro' ? 'Nouveau projet' : 'Fonctionnalité Pro'}
+                      className="text-white/25 hover:text-[#5D7BFF] transition-colors relative"
                     >
                       <FolderPlus className="w-3.5 h-3.5" />
+                      {subscription === 'free' && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#5D7BFF] text-white text-[5px] font-black px-0.5">PRO</span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -1591,10 +1648,18 @@ export default function App() {
                         <User className="w-3 h-3 text-[#5D7BFF]" />
                       </div>
                     )}
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black text-white/70 truncate">
-                        {user.displayName ?? user.email}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[9px] font-black text-white/70 truncate">
+                          {user.displayName ?? user.email}
+                        </p>
+                        {subscription === 'pro' && (
+                          <span className="flex-shrink-0 flex items-center gap-0.5 bg-[#5D7BFF] px-1 py-px">
+                            <Crown className="w-2 h-2 text-white" />
+                            <span className="text-[6px] font-black text-white">PRO</span>
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[7px] text-white/25 uppercase tracking-widest truncate">
                         {user.email}
                       </p>
@@ -1929,12 +1994,20 @@ export default function App() {
               />
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => subscription === 'pro' ? fileInputRef.current?.click() : setUpgradeModal('files')}
                 disabled={sending}
-                title="Joindre un fichier"
-                className="flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
+                title={subscription === 'pro' ? 'Joindre un fichier' : 'Fonctionnalité Pro'}
+                className={cx(
+                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
+                  subscription === 'pro'
+                    ? 'border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
+                    : 'border-[#141414]/10 text-[#141414]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
+                )}
               >
                 <Paperclip className="w-5 h-5" />
+                {subscription === 'free' && (
+                  <span className="absolute -top-1 -right-1 bg-[#5D7BFF] text-white text-[6px] font-black px-1 py-px">PRO</span>
+                )}
               </button>
 
               {/* Textarea */}
@@ -1949,9 +2022,25 @@ export default function App() {
                   disabled={sending}
                   className="w-full bg-[#F0F4FF] border-2 border-[#5D7BFF]/20 focus:border-[#5D7BFF] px-4 py-3 text-sm font-medium text-[#141414] placeholder:text-[#141414]/30 focus:outline-none resize-none transition-all leading-relaxed"
                 />
-                <p className="absolute bottom-2 right-3 text-[7px] font-mono text-[#141414]/15 pointer-events-none select-none hidden sm:block">
-                  ↵ envoyer &middot; Shift+↵ saut
-                </p>
+                {subscription === 'free' && FIREBASE_ENABLED && (() => {
+                  const today = todayStr();
+                  const used = dailyUsage.date === today ? dailyUsage.count : 0;
+                  const remaining = FREE_DAILY_LIMIT - used;
+                  if (remaining > 5) return null;
+                  return (
+                    <p className={cx(
+                      'absolute bottom-2 right-3 text-[7px] font-black uppercase tracking-wider pointer-events-none select-none hidden sm:block',
+                      remaining <= 2 ? 'text-red-400/70' : 'text-orange-400/60'
+                    )}>
+                      {remaining > 0 ? `${remaining} msg restant${remaining > 1 ? 's' : ''}` : 'Limite atteinte'}
+                    </p>
+                  );
+                })()}
+                {subscription === 'pro' && (
+                  <p className="absolute bottom-2 right-3 text-[7px] font-mono text-[#141414]/15 pointer-events-none select-none hidden sm:block">
+                    ↵ envoyer &middot; Shift+↵ saut
+                  </p>
+                )}
               </div>
 
               {/* Envoyer */}
@@ -2128,6 +2217,95 @@ export default function App() {
                   className="w-full py-2.5 text-[8px] font-black uppercase tracking-widest text-white/25 hover:text-white/50 transition-colors disabled:opacity-40"
                 >
                   Annuler et se déconnecter
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal Upgrade Pro ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {upgradeModal && (
+          <motion.div
+            key="upgrade-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(10,10,10,0.78)' }}
+            onClick={() => setUpgradeModal(null)}
+          >
+            <motion.div
+              key="upgrade-card"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="bg-[#141414] border-4 border-[#5D7BFF] w-full max-w-sm"
+              style={{ boxShadow: '8px 8px 0px 0px rgba(93,123,255,0.25)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b-2 border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center">
+                      <Crown className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-widest text-white">
+                        Challenger Pro
+                      </p>
+                      <p className="text-[8px] text-white/35 mt-0.5">
+                        {upgradeModal === 'limit' && `Limite de ${FREE_DAILY_LIMIT} messages/jour atteinte`}
+                        {upgradeModal === 'files' && 'Les pièces jointes sont réservées au plan Pro'}
+                        {upgradeModal === 'projects' && 'Les projets sont réservés au plan Pro'}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={() => setUpgradeModal(null)} className="text-white/30 hover:text-white/60 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="px-6 py-5 space-y-2.5">
+                {[
+                  { icon: InfinityIcon, label: 'Messages illimités' },
+                  { icon: Paperclip, label: 'Pièces jointes (PDF, images, DOCX…)' },
+                  { icon: Folder, label: 'Projets & dossiers' },
+                  { icon: Cloud, label: 'Conversations illimitées sauvegardées' },
+                ].map(({ icon: Icon, label }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className="w-5 h-5 bg-[#5D7BFF]/15 border border-[#5D7BFF]/30 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-2.5 h-2.5 text-[#5D7BFF]" />
+                    </div>
+                    <p className="text-[10px] text-white/70">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div className="px-6 pb-6 space-y-2">
+                <a
+                  href={`${import.meta.env.VITE_STRIPE_PAYMENT_LINK}?client_reference_id=${user?.uid ?? ''}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
+                  style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.08)' }}
+                  onClick={() => setUpgradeModal(null)}
+                >
+                  <Crown className="w-4 h-4" />
+                  Passer à Pro — 9,99€ / mois
+                </a>
+                <button
+                  onClick={() => setUpgradeModal(null)}
+                  className="w-full py-2 text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-white/50 transition-colors"
+                >
+                  Continuer en version gratuite
                 </button>
               </div>
             </motion.div>
