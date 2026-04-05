@@ -6,6 +6,7 @@ import {
   BookOpen, Target, TrendingUp, Brain, LogIn, LogOut, User,
   Cloud, CloudOff, Trash2, FolderPlus, Folder, FolderOpen,
   GripVertical, Check, Pencil, ChevronDown,
+  Paperclip, FileText, ImageIcon, FileCode, File,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -20,6 +21,15 @@ import {
 type Persona = 'architect' | 'factchecker' | 'opponent';
 type FrictionLevel = 'doux' | 'moyen' | 'extreme';
 
+interface Attachment {
+  id: string;
+  name: string;
+  type: 'image' | 'text' | 'code';
+  mimeType: string;
+  content: string; // base64 data URI pour images, texte brut pour les autres
+  size: number;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -27,6 +37,7 @@ interface Message {
   timestamp: Date;
   persona: Persona;
   level: FrictionLevel;
+  attachments?: Attachment[];
 }
 
 interface Conversation {
@@ -158,6 +169,49 @@ function cx(...cs: (string | false | null | undefined)[]): string {
   return cs.filter(Boolean).join(' ');
 }
 
+// ─── File helpers ─────────────────────────────────────────────────────────────
+
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+const CODE_EXTS = /\.(js|ts|tsx|jsx|py|java|c|cpp|cs|go|rs|rb|php|html|css|json|xml|yaml|yml|sh|sql|md)$/i;
+const MAX_SIZE_MB = 10;
+
+function fmtBytes(b: number) {
+  return b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`;
+}
+
+function fileIcon(att: Attachment) {
+  if (att.type === 'image') return ImageIcon;
+  if (att.type === 'code') return FileCode;
+  return FileText;
+}
+
+function readAsDataURL(file: File): Promise<string> {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
+}
+
+function readAsText(file: File): Promise<string> {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsText(file); });
+}
+
+async function processFile(file: File): Promise<Attachment | null> {
+  if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+    alert(`Fichier trop volumineux (max ${MAX_SIZE_MB}MB) : ${file.name}`);
+    return null;
+  }
+  if (IMAGE_TYPES.includes(file.type)) {
+    const content = await readAsDataURL(file);
+    return { id: uid(), name: file.name, type: 'image', mimeType: file.type, content, size: file.size };
+  }
+  try {
+    const content = await readAsText(file);
+    const type = CODE_EXTS.test(file.name) ? 'code' : 'text';
+    return { id: uid(), name: file.name, type, mimeType: file.type || 'text/plain', content, size: file.size };
+  } catch {
+    alert(`Type de fichier non supporté : ${file.name}`);
+    return null;
+  }
+}
+
 // ─── Firestore helpers ────────────────────────────────────────────────────────
 
 function serializeConv(conv: Conversation) {
@@ -173,6 +227,13 @@ function serializeConv(conv: Conversation) {
       role: m.role,
       content: m.content,
       timestamp: m.timestamp.toISOString(),
+      persona: m.persona,
+      level: m.level,
+      // Images non stockées en Firestore (trop lourdes) — texte tronqué à 8KB
+      attachments: (m.attachments ?? []).map((a) => ({
+        id: a.id, name: a.name, type: a.type, mimeType: a.mimeType, size: a.size,
+        content: a.type === 'image' ? '' : a.content.slice(0, 8000),
+      })),
     })),
   };
 }
@@ -193,6 +254,7 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
       timestamp: new Date(m.timestamp as string),
       persona: (m.persona as Persona) ?? 'architect',
       level: (m.level as FrictionLevel) ?? 'moyen',
+      attachments: ((m.attachments as Attachment[]) ?? []),
     })),
   };
 }
@@ -414,6 +476,8 @@ export default function App() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
 
   const activeConv = conversations.find((c) => c.id === activeId) ?? null;
 
@@ -540,8 +604,9 @@ export default function App() {
 
   // ── Send message
   const send = useCallback(
-    async (text: string) => {
-      if (!text.trim() || sending) return;
+    async (text: string, attachments: Attachment[] = []) => {
+      if (!text.trim() && attachments.length === 0) return;
+      if (sending) return;
 
       // Capture persona + level au moment de l'envoi — immuable pour ce message
       const activePersona = persona;
@@ -554,7 +619,9 @@ export default function App() {
         timestamp: new Date(),
         persona: activePersona,
         level: activeLevel,
+        attachments,
       };
+      setPendingAttachments([]);
 
       let convId = activeId;
       let prevMessages: Message[] = [];
@@ -609,19 +676,40 @@ export default function App() {
           );
 
         const temperature = activeLevel === 'extreme' ? 0.9 : activeLevel === 'moyen' ? 0.7 : 0.5;
+        const hasImages = attachments.some((a) => a.type === 'image');
+        const model = hasImages ? 'pixtral-12b-2409' : 'mistral-small-latest';
+
+        // Construction du contenu du dernier message utilisateur
+        const buildUserContent = (msg: Message) => {
+          const atts = msg.attachments ?? [];
+          const imgs = atts.filter((a) => a.type === 'image');
+          const texts = atts.filter((a) => a.type !== 'image');
+
+          // Contexte textuel des fichiers joints
+          const fileContext = texts.length > 0
+            ? texts.map((a) => `[Fichier joint : ${a.name}]\n\`\`\`\n${a.content.slice(0, 8000)}\n\`\`\``).join('\n\n') + '\n\n'
+            : '';
+
+          if (imgs.length > 0) {
+            // Format multimodal pour pixtral
+            const parts: object[] = [];
+            if (fileContext || msg.content) parts.push({ type: 'text', text: fileContext + msg.content });
+            imgs.forEach((a) => parts.push({ type: 'image_url', image_url: { url: a.content } }));
+            return parts;
+          }
+          return fileContext + msg.content;
+        };
 
         const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: 'mistral-small-latest',
+            model,
             temperature,
             messages: [
               { role: 'system', content: buildSystemPrompt(activePersona, activeLevel) },
-              ...allMessages.map((m) => ({ role: m.role, content: m.content })),
+              ...allMessages.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+              { role: 'user', content: buildUserContent(userMsg) },
             ],
           }),
         });
@@ -662,14 +750,21 @@ export default function App() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    send(input);
+    send(input, pendingAttachments);
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      send(input);
+      send(input, pendingAttachments);
     }
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const results = await Promise.all(Array.from(files).map(processFile));
+    const valid = results.filter(Boolean) as Attachment[];
+    setPendingAttachments((p) => [...p, ...valid]);
   };
 
   const CurrentIcon = PERSONAS[persona].icon;
@@ -1210,13 +1305,55 @@ export default function App() {
                         {fmtTime(msg.timestamp)}
                       </p>
                     </div>
+                    {/* Pièces jointes du message */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className={cx(
+                        'px-4 pt-3 pb-1 flex flex-wrap gap-2 border-b',
+                        msg.role === 'user' ? 'border-[#5D7BFF]/10' : 'border-white/15'
+                      )}>
+                        {msg.attachments.map((att) => {
+                          const AttIcon = fileIcon(att);
+                          if (att.type === 'image' && att.content) {
+                            return (
+                              <img
+                                key={att.id}
+                                src={att.content}
+                                alt={att.name}
+                                title={att.name}
+                                className="max-h-48 max-w-[220px] object-contain border-2 border-[#5D7BFF]/20"
+                              />
+                            );
+                          }
+                          return (
+                            <div
+                              key={att.id}
+                              className={cx(
+                                'flex items-center gap-2 px-2.5 py-1.5 border',
+                                msg.role === 'user'
+                                  ? 'bg-[#F0F4FF] border-[#5D7BFF]/20 text-[#141414]'
+                                  : 'bg-white/10 border-white/20 text-white'
+                              )}
+                            >
+                              <AttIcon className={cx('w-3.5 h-3.5 flex-shrink-0', msg.role === 'user' ? 'text-[#5D7BFF]' : 'text-white/70')} />
+                              <div className="min-w-0">
+                                <p className="text-[9px] font-black truncate max-w-[120px]">{att.name}</p>
+                                <p className={cx('text-[7px]', msg.role === 'user' ? 'text-[#141414]/40' : 'text-white/40')}>{fmtBytes(att.size)}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <div className="px-4 py-3">
                       {msg.role === 'assistant' ? (
                         <ReactMarkdown components={mdWhite}>{msg.content}</ReactMarkdown>
                       ) : (
-                        <p className="text-sm text-[#141414] leading-relaxed whitespace-pre-wrap">
-                          {msg.content}
-                        </p>
+                        msg.content ? (
+                          <p className="text-sm text-[#141414] leading-relaxed whitespace-pre-wrap">
+                            {msg.content}
+                          </p>
+                        ) : null
                       )}
                     </div>
                   </div>
@@ -1272,32 +1409,93 @@ export default function App() {
         </div>
 
         {/* Input */}
-        <div className="flex-shrink-0 bg-white border-t-4 border-[#5D7BFF] px-6 py-4">
-          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto flex gap-3 items-end">
-            <div className="flex-1 relative">
-              <textarea
-                ref={taRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKey}
-                placeholder={`Soumettez une thèse à ${PERSONAS[persona].shortName}…`}
-                rows={1}
-                disabled={sending}
-                className="w-full bg-[#F0F4FF] border-2 border-[#5D7BFF]/20 focus:border-[#5D7BFF] px-4 py-3 text-sm font-medium text-[#141414] placeholder:text-[#141414]/30 focus:outline-none resize-none transition-all leading-relaxed"
+        <div
+          className="flex-shrink-0 bg-white border-t-4 border-[#5D7BFF] px-6 py-4"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+        >
+          <div className="max-w-3xl mx-auto">
+
+            {/* Pièces jointes en attente */}
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {pendingAttachments.map((att) => {
+                  const Icon = fileIcon(att);
+                  return (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-2 bg-[#F0F4FF] border-2 border-[#5D7BFF]/20 px-2 py-1.5 group"
+                    >
+                      {att.type === 'image' ? (
+                        <img src={att.content} alt={att.name} className="h-8 w-8 object-cover border border-[#5D7BFF]/20" />
+                      ) : (
+                        <Icon className="w-4 h-4 text-[#5D7BFF] flex-shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black text-[#141414] truncate max-w-[120px]">{att.name}</p>
+                        <p className="text-[7px] text-[#141414]/40">{fmtBytes(att.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPendingAttachments((p) => p.filter((a) => a.id !== att.id))}
+                        className="text-[#141414]/25 hover:text-red-500 transition-colors ml-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+              {/* Bouton pièce jointe */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                accept="image/*,.txt,.md,.csv,.json,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.rb,.php,.html,.css,.xml,.yaml,.yml,.sh,.sql"
+                onChange={(e) => handleFiles(e.target.files)}
               />
-              <p className="absolute bottom-2 right-3 text-[7px] font-mono text-[#141414]/15 pointer-events-none select-none hidden sm:block">
-                ↵ envoyer &middot; Shift+↵ saut
-              </p>
-            </div>
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              className="flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:translate-x-0.5 active:translate-y-0.5"
-              style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.2)' }}
-            >
-              {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-            </button>
-          </form>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                title="Joindre un fichier"
+                className="flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+
+              {/* Textarea */}
+              <div className="flex-1 relative">
+                <textarea
+                  ref={taRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKey}
+                  placeholder={pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…' : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`}
+                  rows={1}
+                  disabled={sending}
+                  className="w-full bg-[#F0F4FF] border-2 border-[#5D7BFF]/20 focus:border-[#5D7BFF] px-4 py-3 text-sm font-medium text-[#141414] placeholder:text-[#141414]/30 focus:outline-none resize-none transition-all leading-relaxed"
+                />
+                <p className="absolute bottom-2 right-3 text-[7px] font-mono text-[#141414]/15 pointer-events-none select-none hidden sm:block">
+                  ↵ envoyer &middot; Shift+↵ saut
+                </p>
+              </div>
+
+              {/* Envoyer */}
+              <button
+                type="submit"
+                disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
+                className="flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:translate-x-0.5 active:translate-y-0.5"
+                style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.2)' }}
+              >
+                {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
