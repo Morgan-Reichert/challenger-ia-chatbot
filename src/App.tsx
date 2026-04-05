@@ -9,10 +9,11 @@ import {
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Library, Settings,
-  Star, UserMinus, Eraser, Slash,
+  Star, UserMinus, Eraser, Slash, FileDown,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { generateSessionPDF } from './pdfExport';
 import LibraryPage from './LibraryPage';
 import SettingsPage from './SettingsPage';
 import { DEBATE_PERSONAS, type DebatePersona, type DebateDisplayData } from './debatePersonas';
@@ -671,6 +672,13 @@ const SLASH_COMMANDS = [
     icon: UserMinus,
     shortcut: '/noprofil',
   },
+  {
+    id: 'resumepdf',
+    label: 'Résumé PDF',
+    desc: "Génère et télécharge un résumé structuré de la conversation par l'IA",
+    icon: FileDown,
+    shortcut: '/resumepdf',
+  },
 ] as const;
 
 type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
@@ -712,6 +720,7 @@ export default function App() {
   const slashNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // noProfileMode : actif globalement si aucune conv active, sinon stocké sur la conv
   const [noProfileMode, setNoProfileMode] = useState(false);
+  const [resumeGenerating, setResumeGenerating] = useState(false);
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -1509,7 +1518,7 @@ export default function App() {
   }, []);
 
   const handleSlashCommand = useCallback(
-    (id: SlashCommandId) => {
+    async (id: SlashCommandId) => {
       setInput('');
       setSlashIdx(0);
 
@@ -1573,9 +1582,96 @@ export default function App() {
             return !v;
           });
         }
+        return;
+      }
+
+      if (id === 'resumepdf') {
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv || conv.messages.length < 2) {
+          showSlashNotif('Il faut au moins un échange pour générer un résumé.', false);
+          return;
+        }
+
+        setResumeGenerating(true);
+        showSlashNotif('Génération du résumé PDF en cours…');
+
+        const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
+        const transcript = conv.messages
+          .map((m) => `[${m.role === 'user' ? 'Utilisateur' : 'IA'}] ${m.content}`)
+          .join('\n\n');
+
+        const systemPrompt = `Tu es un assistant expert en synthèse et analyse de conversations. Tu produis des résumés structurés, clairs et actionnables. Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans balises, sans texte autour.`;
+
+        const userPrompt = `Voici la transcription d'une session de travail avec une IA challenger :
+
+${transcript.slice(0, 12000)}
+
+Génère un résumé structuré en JSON avec ce schéma exact :
+{
+  "titre": "Titre court et précis de la session (max 60 caractères)",
+  "vue_ensemble": "Résumé global de l'échange en 3-4 phrases. Contexte, enjeux, dynamique générale.",
+  "points_forts": ["Point fort 1 concret", "Point fort 2", "Point fort 3", "Point fort 4"],
+  "axes_amelioration": ["Axe 1 concret avec suggestion", "Axe 2", "Axe 3"],
+  "conseils": ["Conseil pratique 1 actionnable", "Conseil 2", "Conseil 3", "Conseil 4"],
+  "citations": ["Phrase ou argument notable de l'utilisateur 1", "Citation 2"],
+  "score": 7,
+  "score_justification": "Justification courte du score sur 10 (qualité des arguments, profondeur, progression)",
+  "mots_cles": ["mot1", "mot2", "mot3", "mot4", "mot5"]
+}
+
+Sois précis, factuel et bienveillant. Les conseils doivent être directement actionnables.`;
+
+        try {
+          const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model: 'mistral-large-latest',
+              temperature: 0.4,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+            }),
+          });
+
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const raw = data.choices[0].message.content ?? '';
+
+          // Extract JSON robustly
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) throw new Error('Réponse JSON invalide');
+          const summary = JSON.parse(jsonMatch[0]);
+
+          // Validate required fields
+          if (!summary.titre || !summary.vue_ensemble) throw new Error('Résumé incomplet');
+
+          // Determine session type label
+          const sessionTypeLabel = conv.interviewType
+            ? `Interview — ${conv.interviewTitle ?? conv.interviewType}`
+            : conv.debatePersonaId
+              ? `Débat — ${conv.title}`
+              : `Chat — ${PERSONAS[conv.persona]?.name ?? 'Challenger'}`;
+
+          generateSessionPDF(
+            summary,
+            sessionTypeLabel,
+            new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+            userProfile.displayName || undefined
+          );
+
+          showSlashNotif('PDF téléchargé avec succès !');
+        } catch (err) {
+          console.error('PDF error:', err);
+          showSlashNotif('Erreur lors de la génération du PDF.', false);
+        } finally {
+          setResumeGenerating(false);
+        }
+        return;
       }
     },
-    [activeId, send, showSlashNotif, setConversations, conversations]
+    [activeId, send, showSlashNotif, setConversations, conversations, userProfile]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -2995,20 +3091,27 @@ export default function App() {
                             isDark ? (isSelected ? 'text-white' : 'text-white/60') : (isSelected ? 'text-[#141414]' : 'text-[#141414]/70')
                           )}>
                             {cmd.label}
-                            {cmd.id === 'noprofil' && activeConv?.noProfile && (
+                            {cmd.id === 'noprofil' && (activeConv?.noProfile || noProfileMode) && (
                               <span className="ml-2 text-[8px] font-black text-amber-500">ACTIF</span>
+                            )}
+                            {cmd.id === 'resumepdf' && resumeGenerating && (
+                              <span className="ml-2 text-[8px] font-black text-[#5D7BFF]">EN COURS…</span>
                             )}
                           </p>
                           <p className={cx('text-[10px]', isDark ? 'text-white/25' : 'text-[#141414]/40')}>
-                            {cmd.desc}
+                            {cmd.id === 'resumepdf' && resumeGenerating ? 'Génération en cours, patiente…' : cmd.desc}
                           </p>
                         </div>
+                        {cmd.id === 'resumepdf' && resumeGenerating ? (
+                          <Loader2 className="w-3.5 h-3.5 flex-shrink-0 animate-spin text-[#5D7BFF]" />
+                        ) : (
                         <span className={cx(
                           'flex-shrink-0 text-[9px] font-mono px-1.5 py-0.5 border',
                           isDark ? 'text-white/20 border-white/10' : 'text-[#141414]/25 border-[#141414]/10'
                         )}>
                           {cmd.shortcut}
                         </span>
+                        )}
                       </button>
                     );
                   })}
