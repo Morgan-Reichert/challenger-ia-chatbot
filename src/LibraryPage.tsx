@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Swords, Globe, Calendar, Loader2, ChevronRight, X } from 'lucide-react';
-import { DEBATE_PERSONAS_LIST, type DebatePersona } from './debatePersonas';
+import { ArrowLeft, Swords, Globe, Calendar, Loader2, ChevronRight, X, Plus, Pen, AlertTriangle } from 'lucide-react';
+import {
+  DEBATE_PERSONAS_LIST,
+  type DebatePersona,
+  validateCustomPrompt,
+  buildCustomDebatePrompt,
+  CUSTOM_PERSONA_MAX_NAME,
+  CUSTOM_PERSONA_MAX_DESC,
+} from './debatePersonas';
 
 // ─── cx helper ──────────────────────────────────────────────────────────────
 function cx(...classes: (string | boolean | undefined | null)[]): string {
@@ -23,11 +30,61 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
   const [selectedPersona, setSelectedPersona] = useState<DebatePersona | null>(null);
   const [starting, setStarting] = useState(false);
 
+  // Custom persona creation state
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customDesc, setCustomDesc] = useState('');
+  const [customError, setCustomError] = useState('');
+  const [customStarting, setCustomStarting] = useState(false);
+
   const handleStart = async (persona: DebatePersona) => {
     setStarting(true);
     await onStartDebate(persona);
     setStarting(false);
     setSelectedPersona(null);
+  };
+
+  const handleCustomSubmit = async () => {
+    setCustomError('');
+    const validation = validateCustomPrompt(customName, customDesc);
+    if (!validation.ok) {
+      setCustomError(validation.error ?? 'Erreur de validation.');
+      return;
+    }
+    setCustomStarting(true);
+    const currentDate = new Date().toLocaleDateString('fr-FR', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const safeName = customName.trim();
+    const customPersona: DebatePersona = {
+      id: 'custom',
+      name: safeName,
+      shortName: safeName.split(' ')[0],
+      title: 'Opposant personnalisé',
+      country: 'Personnalisé',
+      flag: '⚔️',
+      language: 'Français',
+      born: '',
+      category: 'Personnalisé',
+      color: '#7C3AED',
+      description: customDesc.trim() || 'Opposant personnalisé créé par l\'utilisateur.',
+      keyFacts: [],
+      wikiSlug: '',
+      wikiLang: 'fr',
+      buildSystemPrompt: (_wikiContext, date) => buildCustomDebatePrompt(safeName, customDesc.trim(), date || currentDate),
+    };
+    await onStartDebate(customPersona);
+    setCustomStarting(false);
+    setCustomModalOpen(false);
+    setCustomName('');
+    setCustomDesc('');
+  };
+
+  const handleCustomClose = () => {
+    setCustomModalOpen(false);
+    setCustomName('');
+    setCustomDesc('');
+    setCustomError('');
   };
 
   return (
@@ -102,11 +159,7 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
               style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}
             >
               {/* Color band */}
-              <div
-                className="h-2 w-full"
-                style={{ backgroundColor: persona.color }}
-              />
-
+              <div className="h-2 w-full" style={{ backgroundColor: persona.color }} />
               <div className="p-5">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2 mb-3">
@@ -123,12 +176,10 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                   </div>
                   <span className="text-2xl flex-shrink-0 mt-0.5">{persona.flag}</span>
                 </div>
-
                 {/* Description */}
                 <p className="text-[11px] text-[#141414]/55 leading-relaxed mb-4 line-clamp-3">
                   {persona.description}
                 </p>
-
                 {/* Key facts */}
                 <div className="space-y-1 mb-4">
                   {persona.keyFacts.slice(0, 3).map((fact) => (
@@ -138,7 +189,6 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                     </div>
                   ))}
                 </div>
-
                 {/* Meta */}
                 <div className="flex items-center gap-3 text-[9px] text-[#141414]/30 font-bold uppercase tracking-wider border-t border-[#141414]/6 pt-3">
                   <span className="flex items-center gap-1">
@@ -150,7 +200,6 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                     {persona.born.split(',')[0]}
                   </span>
                 </div>
-
                 {/* CTA */}
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] group-hover:gap-2 flex items-center gap-1.5 transition-all">
@@ -166,6 +215,54 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
               </div>
             </motion.button>
           ))}
+
+          {/* ── Carte Opposant Personnalisé ── */}
+          <motion.button
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: DEBATE_PERSONAS_LIST.length * 0.07 }}
+            onClick={() => setCustomModalOpen(true)}
+            className="text-left bg-white border-2 border-dashed border-[#7C3AED]/30 hover:border-[#7C3AED]/70 hover:bg-[#7C3AED]/[0.02] transition-all group overflow-hidden"
+            style={{ boxShadow: '4px 4px 0px 0px rgba(124,58,237,0.08)' }}
+          >
+            <div className="h-2 w-full" style={{ background: 'linear-gradient(90deg, #7C3AED, #A855F7)' }} />
+            <div className="p-5 flex flex-col h-full min-h-[260px]">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: '#7C3AED' }}>
+                    Personnalisé
+                  </p>
+                  <h3 className="text-[14px] font-black text-[#141414] leading-tight">
+                    Créer un opposant
+                  </h3>
+                  <p className="text-[10px] text-[#141414]/40 font-medium mt-0.5">
+                    Personnage sur mesure
+                  </p>
+                </div>
+                <div
+                  className="w-10 h-10 flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(124,58,237,0.1)', border: '1px dashed rgba(124,58,237,0.4)' }}
+                >
+                  <Plus className="w-5 h-5" style={{ color: '#7C3AED' }} />
+                </div>
+              </div>
+              <p className="text-[11px] text-[#141414]/55 leading-relaxed mb-4 flex-1">
+                Décris ton adversaire idéal — philosophe, entrepreneur, historien, personnage fictif... L'IA jouera ce rôle pendant tout le débat.
+              </p>
+              <div className="flex items-center gap-3 text-[9px] text-[#141414]/30 font-bold uppercase tracking-wider border-t border-[#141414]/6 pt-3">
+                <span className="flex items-center gap-1">
+                  <Pen className="w-2.5 h-2.5" />
+                  Prompt libre
+                </span>
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all" style={{ color: '#7C3AED' }}>
+                  Créer & Débattre
+                  <ChevronRight className="w-3 h-3" />
+                </span>
+              </div>
+            </div>
+          </motion.button>
         </div>
       </div>
 
@@ -188,10 +285,7 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
               className="bg-white w-full max-w-xl max-h-[85vh] overflow-y-auto"
               style={{ boxShadow: '8px 8px 0px 0px rgba(20,20,20,0.15)' }}
             >
-              {/* Color top bar */}
               <div className="h-3 w-full" style={{ backgroundColor: selectedPersona.color }} />
-
-              {/* Header */}
               <div className="px-7 py-6 border-b-2 border-[#141414]/6 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] mb-1">
@@ -211,15 +305,10 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
-              {/* Body */}
               <div className="px-7 py-5 space-y-5">
-                {/* Description */}
                 <p className="text-[12px] text-[#141414]/60 leading-relaxed">
                   {selectedPersona.description}
                 </p>
-
-                {/* Info grid */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { label: 'Né(e)', value: selectedPersona.born },
@@ -235,8 +324,6 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                     </div>
                   ))}
                 </div>
-
-                {/* Key facts */}
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 mb-3">
                     Faits marquants
@@ -253,8 +340,6 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                     ))}
                   </div>
                 </div>
-
-                {/* Web context indicator */}
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-[#5D7BFF]/6 border border-[#5D7BFF]/15">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#5D7BFF] animate-pulse" />
                   <p className="text-[10px] font-bold text-[#5D7BFF]/70">
@@ -262,8 +347,6 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                   </p>
                 </div>
               </div>
-
-              {/* CTA */}
               <div className="px-7 pb-7">
                 <button
                   onClick={() => handleStart(selectedPersona)}
@@ -274,12 +357,130 @@ export default function LibraryPage({ onBack, onStartDebate }: Props) {
                     boxShadow: `4px 4px 0px 0px ${selectedPersona.color}40`,
                   }}
                 >
-                  {starting ? (
+                  {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Swords className="w-5 h-5" />}
+                  {starting ? 'Chargement du contexte…' : `Débattre contre ${selectedPersona.shortName}`}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Custom persona creation modal ── */}
+      <AnimatePresence>
+        {customModalOpen && (
+          <motion.div
+            key="custom-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(10,10,20,0.80)' }}
+            onClick={(e) => { if (e.target === e.currentTarget) handleCustomClose(); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-lg"
+              style={{ boxShadow: '8px 8px 0px 0px rgba(124,58,237,0.2)' }}
+            >
+              {/* Top band */}
+              <div className="h-3 w-full" style={{ background: 'linear-gradient(90deg, #7C3AED, #A855F7)' }} />
+
+              {/* Header */}
+              <div className="px-7 py-6 border-b-2 border-[#141414]/6 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: '#7C3AED' }}>
+                    Opposant personnalisé
+                  </p>
+                  <h2 className="text-[20px] font-black text-[#141414] leading-tight">
+                    Créer un adversaire
+                  </h2>
+                  <p className="text-[11px] text-[#141414]/40 font-medium mt-1">
+                    Décris le personnage que tu veux affronter
+                  </p>
+                </div>
+                <button
+                  onClick={handleCustomClose}
+                  className="text-[#141414]/20 hover:text-[#141414]/60 transition-colors flex-shrink-0 mt-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-7 py-5 space-y-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-[#141414]/40 mb-2">
+                    Nom du personnage *
+                  </label>
+                  <input
+                    type="text"
+                    value={customName}
+                    onChange={(e) => { setCustomName(e.target.value.slice(0, CUSTOM_PERSONA_MAX_NAME)); setCustomError(''); }}
+                    placeholder="ex: Socrate, Simone de Beauvoir, un PDG de startup…"
+                    className="w-full border-2 border-[#141414]/10 focus:border-[#7C3AED] bg-[#F8F7FF] px-4 py-3 text-sm font-medium text-[#141414] placeholder:text-[#141414]/25 focus:outline-none transition-colors"
+                    maxLength={CUSTOM_PERSONA_MAX_NAME}
+                  />
+                  <p className="text-[9px] text-[#141414]/25 mt-1 text-right">{customName.length}/{CUSTOM_PERSONA_MAX_NAME}</p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-[#141414]/40 mb-2">
+                    Description / Profil <span className="normal-case font-normal">(optionnel)</span>
+                  </label>
+                  <textarea
+                    value={customDesc}
+                    onChange={(e) => { setCustomDesc(e.target.value.slice(0, CUSTOM_PERSONA_MAX_DESC)); setCustomError(''); }}
+                    placeholder="Décris sa personnalité, ses convictions, son style de débat, ses positions sur les grands sujets…"
+                    rows={5}
+                    className="w-full border-2 border-[#141414]/10 focus:border-[#7C3AED] bg-[#F8F7FF] px-4 py-3 text-sm font-medium text-[#141414] placeholder:text-[#141414]/25 focus:outline-none transition-colors resize-none leading-relaxed"
+                    maxLength={CUSTOM_PERSONA_MAX_DESC}
+                  />
+                  <p className="text-[9px] text-[#141414]/25 mt-1 text-right">{customDesc.length}/{CUSTOM_PERSONA_MAX_DESC}</p>
+                </div>
+
+                {/* Security notice */}
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200/60">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-[9px] text-amber-700/80 leading-relaxed">
+                    Décris simplement le personnage et ses positions. Les tentatives de modifier le comportement du système sont détectées et bloquées.
+                  </p>
+                </div>
+
+                {/* Error */}
+                {customError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    <p className="text-[10px] font-bold text-red-600">{customError}</p>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* CTA */}
+              <div className="px-7 pb-7">
+                <button
+                  onClick={handleCustomSubmit}
+                  disabled={customStarting || !customName.trim()}
+                  className="w-full flex items-center justify-center gap-3 py-4 text-white text-[12px] font-black uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all"
+                  style={{
+                    background: 'linear-gradient(90deg, #7C3AED, #A855F7)',
+                    boxShadow: '4px 4px 0px 0px rgba(124,58,237,0.3)',
+                  }}
+                >
+                  {customStarting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <Swords className="w-5 h-5" />
                   )}
-                  {starting ? 'Chargement du contexte…' : `Débattre contre ${selectedPersona.shortName}`}
+                  {customStarting ? 'Création en cours…' : 'Créer & Lancer le débat'}
                 </button>
               </div>
             </motion.div>

@@ -13,7 +13,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
 import LibraryPage from './LibraryPage';
-import { DEBATE_PERSONAS, type DebatePersona } from './debatePersonas';
+import { DEBATE_PERSONAS, type DebatePersona, type DebateDisplayData } from './debatePersonas';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
@@ -58,8 +58,9 @@ interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   projectId?: string;
-  debatePrompt?: string;    // system prompt personnalisé pour les débats
-  debatePersonaId?: string; // id du personnage débat
+  debatePrompt?: string;          // system prompt personnalisé pour les débats
+  debatePersonaId?: string;       // id du personnage débat
+  debatePersonaCustomData?: DebateDisplayData; // données display pour opposant custom
 }
 
 interface Project {
@@ -105,6 +106,15 @@ const FRICTION = {
   moyen: { label: 'Moyen', hint: 'Sceptique rationnel' },
   extreme: { label: 'Extrême', hint: 'Avocat du diable' },
 } as const;
+
+// Helper: resolve debate display data for a conversation (handles custom personas)
+function getDP(conv: { debatePersonaId?: string; debatePersonaCustomData?: DebateDisplayData } | null | undefined): DebateDisplayData | null {
+  if (!conv?.debatePersonaId) return null;
+  if (conv.debatePersonaId !== 'custom') {
+    return DEBATE_PERSONAS[conv.debatePersonaId as keyof typeof DEBATE_PERSONAS] ?? null;
+  }
+  return conv.debatePersonaCustomData ?? null;
+}
 
 const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> = {
   architect: [
@@ -345,6 +355,7 @@ function serializeConv(conv: Conversation) {
     projectId: conv.projectId ?? null,
     debatePersonaId: conv.debatePersonaId ?? null,
     debatePrompt: conv.debatePrompt ?? null,
+    debatePersonaCustomData: conv.debatePersonaCustomData ?? null,
     createdAt: conv.createdAt.toISOString(),
     updatedAt: conv.updatedAt.toISOString(),
     messages: conv.messages.map((m) => ({
@@ -373,6 +384,7 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
     projectId: (data.projectId as string | null) ?? undefined,
     debatePersonaId: (data.debatePersonaId as string | null) ?? undefined,
     debatePrompt: (data.debatePrompt as string | null) ?? undefined,
+    debatePersonaCustomData: (data.debatePersonaCustomData as DebateDisplayData | null) ?? undefined,
     createdAt: new Date(data.createdAt as string),
     updatedAt: new Date(data.updatedAt as string),
     messages: msgs.map((m) => ({
@@ -817,17 +829,19 @@ export default function App() {
 
   // ── Démarrer un débat depuis la bibliothèque
   const startDebate = useCallback(async (debatePersona: DebatePersona) => {
-    // 1. Fetch contexte web (Wikipedia + DDG) via Vercel endpoint
+    // 1. Fetch contexte web seulement pour les personas de bibliothèque (pas custom)
     let webContext = '';
-    try {
-      const res = await fetch(
-        `/api/search-context?query=${encodeURIComponent(debatePersona.wikiSlug)}&lang=${debatePersona.wikiLang}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        webContext = data.context ?? '';
-      }
-    } catch { /* silencieux — le débat fonctionne sans contexte web */ }
+    if (debatePersona.id !== 'custom' && debatePersona.wikiSlug) {
+      try {
+        const res = await fetch(
+          `/api/search-context?query=${encodeURIComponent(debatePersona.wikiSlug)}&lang=${debatePersona.wikiLang}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          webContext = data.context ?? '';
+        }
+      } catch { /* silencieux — le débat fonctionne sans contexte web */ }
+    }
 
     // 2. Construire le system prompt enrichi
     const currentDate = new Date().toLocaleDateString('fr-FR', {
@@ -848,6 +862,16 @@ export default function App() {
       updatedAt: now,
       debatePrompt: systemPrompt,
       debatePersonaId: debatePersona.id,
+      // Pour les personas custom, stocker les données d'affichage
+      debatePersonaCustomData: debatePersona.id === 'custom' ? {
+        name: debatePersona.name,
+        shortName: debatePersona.shortName,
+        title: debatePersona.title,
+        color: debatePersona.color,
+        flag: debatePersona.flag,
+        country: debatePersona.country,
+        category: debatePersona.category,
+      } : undefined,
     };
     setConversations((p) => [conv, ...p]);
     setActiveId(convId);
@@ -1604,7 +1628,7 @@ export default function App() {
               {activeConv?.debatePersonaId ? (
                 <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
                   {(() => {
-                    const dp = DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS];
+                    const dp = getDP(activeConv);
                     return (
                       <>
                         <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-1">Mode débat</p>
@@ -1992,14 +2016,14 @@ export default function App() {
               <>
                 <div className="flex items-center gap-2">
                   <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
-                    Débat — {DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.name}
+                    Débat — {getDP(activeConv)?.name}
                   </p>
                   <span className="flex-shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-[#5D7BFF] text-white">
                     DÉBAT
                   </span>
                 </div>
                 <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
-                  {DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.title}
+                  {getDP(activeConv)?.title}
                 </p>
               </>
             ) : (
@@ -2049,7 +2073,7 @@ export default function App() {
 
         {/* ── Bannière arène de débat ── */}
         {activeConv?.debatePersonaId && (() => {
-          const dp = DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS];
+          const dp = getDP(activeConv);
           if (!dp) return null;
           const rounds = Math.ceil(activeConv.messages.length / 2);
           return (
@@ -2090,7 +2114,7 @@ export default function App() {
         )}>
           {!activeConv || activeConv.messages.length === 0 ? (
             activeConv?.debatePersonaId ? (() => {
-              const dp2 = DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS];
+              const dp2 = getDP(activeConv);
               const debateSuggestions = [
                 { text: `La France devrait adopter une politique d'immigration beaucoup plus restrictive.`, icon: Target },
                 { text: `L'Union européenne est un frein à la souveraineté des nations.`, icon: Brain },
@@ -2217,7 +2241,7 @@ export default function App() {
             <div className="max-w-3xl mx-auto space-y-5">
               {activeConv.messages.map((msg) => {
                 const isDebate = !!activeConv.debatePersonaId;
-                const dp = isDebate ? DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS] : null;
+                const dp = isDebate ? getDP(activeConv) : null;
                 const isUser = msg.role === 'user';
 
                 // ── Styles selon mode
@@ -2354,9 +2378,7 @@ export default function App() {
 
               {/* Typing indicator */}
               {sending && (() => {
-                const dp = activeConv?.debatePersonaId
-                  ? DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]
-                  : null;
+                const dp = activeConv?.debatePersonaId ? getDP(activeConv) : null;
                 return (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
@@ -2416,7 +2438,7 @@ export default function App() {
               : 'bg-white border-[#5D7BFF]'
           )}
           style={activeConv?.debatePersonaId
-            ? { borderTop: `2px solid ${DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.color ?? '#5D7BFF'}` }
+            ? { borderTop: `2px solid ${getDP(activeConv)?.color ?? '#5D7BFF'}` }
             : undefined}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
@@ -2504,7 +2526,7 @@ export default function App() {
                   placeholder={
                     pendingAttachments.length > 0 ? 'Ajoutez un message (optionnel)…'
                     : activeConv?.debatePersonaId
-                      ? `Défendez votre position face à ${DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]?.shortName ?? 'l\'adversaire'}…`
+                      ? `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`
                       : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`
                   }
                   rows={1}
