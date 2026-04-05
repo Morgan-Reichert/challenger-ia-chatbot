@@ -1980,11 +1980,17 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             {/* Logo */}
             <div className="px-5 py-4 border-b-2 border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img
-                  src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
-                  alt="Challenger IA"
-                  className="h-10 w-auto flex-shrink-0 object-contain"
-                />
+                <button
+                  onClick={() => setShowSharePopup(true)}
+                  className="focus:outline-none hover:opacity-75 transition-opacity active:scale-95"
+                  title="Partager Challenger IA"
+                >
+                  <img
+                    src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                    alt="Challenger IA"
+                    className="h-10 w-auto flex-shrink-0 object-contain"
+                  />
+                </button>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -2461,14 +2467,12 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               {sidebarOpen && isMobile ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           )}
-          <button
-            onClick={() => setShowSharePopup(true)}
-            className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0 hover:opacity-80 transition-opacity active:scale-95"
+          <div
+            className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
             style={{ boxShadow: '3px 3px 0px 0px rgba(20,20,20,0.15)' }}
-            title="Partager Challenger IA"
           >
             <CurrentIcon className="w-4 h-4 text-white" />
-          </button>
+          </div>
           <div className="min-w-0">
             {activeConv?.interviewType ? (() => {
               const ic = INTERVIEW_TYPES[activeConv.interviewType!];
