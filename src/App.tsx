@@ -46,7 +46,7 @@ interface Attachment {
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'command';
   content: string;
   timestamp: Date;
   persona: Persona;
@@ -694,7 +694,7 @@ export default function App() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
 
   // ── Auth state
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -717,6 +717,16 @@ export default function App() {
   // ── Slash commands
   const [slashIdx, setSlashIdx] = useState(0);
   const [slashNotif, setSlashNotif] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  // ── Mobile detection
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   const slashNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // noProfileMode : actif globalement si aucune conv active, sinon stocké sur la conv
   const [noProfileMode, setNoProfileMode] = useState(false);
@@ -1461,7 +1471,7 @@ export default function App() {
             temperature,
             messages: [
               { role: 'system', content: systemPrompt },
-              ...contextMessages.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+              ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
               { role: 'user', content: buildUserContent(userMsg) },
             ],
           }),
@@ -1517,6 +1527,23 @@ export default function App() {
     slashNotifTimer.current = setTimeout(() => setSlashNotif(null), 2800);
   }, []);
 
+  const addCommandMsg = useCallback((content: string) => {
+    if (!activeId) return;
+    const msg: Message = {
+      id: uid(),
+      role: 'command',
+      content,
+      timestamp: new Date(),
+      persona,
+      level,
+    };
+    setConversations((p) =>
+      p.map((c) =>
+        c.id !== activeId ? c : { ...c, messages: [...c.messages, msg], updatedAt: new Date() }
+      )
+    );
+  }, [activeId, persona, level, setConversations]);
+
   const handleSlashCommand = useCallback(
     async (id: SlashCommandId) => {
       setInput('');
@@ -1531,6 +1558,7 @@ export default function App() {
           'COMMANDE /note — Analyse notre échange et fournis : 1) une note globale sur 10 avec justification, 2) 3 points forts de mes interventions, 3) 3 axes d\'amélioration concrets. Sois direct et constructif.';
         send(evalPrompt, []);
         showSlashNotif('Évaluation en cours…');
+        addCommandMsg('Évaluation demandée — réponse en cours…');
         return;
       }
 
@@ -1545,6 +1573,7 @@ export default function App() {
           )
         );
         showSlashNotif('Conversation effacée.');
+        addCommandMsg('Conversation effacée.');
         return;
       }
 
@@ -1558,6 +1587,7 @@ export default function App() {
           p.map((c) => (c.id !== activeId ? c : { ...c, memoryResetAt: resetAt, updatedAt: new Date() }))
         );
         showSlashNotif('Mémoire effacée — l\'IA repart de zéro.');
+        addCommandMsg('Mémoire effacée — l\'IA repart de zéro.');
         return;
       }
 
@@ -1575,6 +1605,7 @@ export default function App() {
           // On lit l'état actuel depuis conversations pour le message
           const cur = conversations.find((c) => c.id === activeId);
           showSlashNotif(cur?.noProfile ? 'Profil réactivé pour cette session.' : 'Profil ignoré pour cette session.');
+          addCommandMsg(cur?.noProfile ? 'Profil réactivé pour cette session.' : 'Profil ignoré pour cette session.');
         } else {
           // Pas de conv active : toggle le flag global (affectera la prochaine conv)
           setNoProfileMode((v) => {
@@ -1662,6 +1693,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           );
 
           showSlashNotif('PDF téléchargé avec succès !');
+          addCommandMsg('Résumé PDF généré et téléchargé.');
         } catch (err) {
           console.error('PDF error:', err);
           showSlashNotif('Erreur lors de la génération du PDF.', false);
@@ -1671,7 +1703,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         return;
       }
     },
-    [activeId, send, showSlashNotif, setConversations, conversations, userProfile]
+    [activeId, send, showSlashNotif, addCommandMsg, setConversations, conversations, userProfile]
   );
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1915,15 +1947,34 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       {(!FIREBASE_ENABLED || user) && !authLoading && (<>
 
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
+      {/* Mobile sidebar backdrop */}
+      <AnimatePresence>
+        {sidebarOpen && isMobile && (
+          <motion.div
+            key="sidebar-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence initial={false}>
         {sidebarOpen && (
           <motion.aside
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 300, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
+            initial={isMobile ? { x: '-100%' } : { width: 0, opacity: 0 }}
+            animate={isMobile ? { x: 0 } : { width: 300, opacity: 1 }}
+            exit={isMobile ? { x: '-100%' } : { width: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            className="flex-shrink-0 h-full overflow-hidden flex flex-col bg-[#141414] text-white border-r-4 border-[#5D7BFF]"
-            style={{ minWidth: 0 }}
+            className={cx(
+              'flex flex-col bg-[#141414] text-white border-r-4 border-[#5D7BFF]',
+              isMobile
+                ? 'fixed inset-y-0 left-0 z-50 w-[280px] h-full overflow-y-auto'
+                : 'flex-shrink-0 h-full overflow-hidden'
+            )}
+            style={isMobile ? undefined : { minWidth: 0 }}
           >
             {/* Logo */}
             <div className="px-5 py-4 border-b-2 border-white/10 flex items-center justify-between">
@@ -2376,33 +2427,37 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (
-        <LibraryPage
-          onBack={() => setCurrentPage('chat')}
-          onStartDebate={startDebate}
-          onStartInterview={startInterview}
-          userProfile={userProfile}
-        />
+        <div className={cx('flex-1 min-w-0 h-full max-md:pb-16', currentPage !== 'library' && 'hidden')}>
+          <LibraryPage
+            onBack={() => setCurrentPage('chat')}
+            onStartDebate={startDebate}
+            onStartInterview={startInterview}
+            userProfile={userProfile}
+          />
+        </div>
       )}
 
       {/* ── Réglages / Profil IA ─────────────────────────────────────────────── */}
       {currentPage === 'settings' && (
-        <SettingsPage
-          onBack={() => setCurrentPage('chat')}
-          profile={userProfile}
-          onSave={(p) => { setUserProfile(p); saveProfile(p); }}
-        />
+        <div className={cx('flex-1 min-w-0 h-full max-md:pb-16', currentPage !== 'settings' && 'hidden')}>
+          <SettingsPage
+            onBack={() => setCurrentPage('chat')}
+            profile={userProfile}
+            onSave={(p) => { setUserProfile(p); saveProfile(p); }}
+          />
+        </div>
       )}
 
       {/* ── Main area ───────────────────────────────────────────────────────── */}
-      <div className={cx('flex-1 flex flex-col min-w-0 h-full', currentPage !== 'chat' && 'hidden')}>
+      <div className={cx('flex-1 flex flex-col min-w-0 h-full', currentPage !== 'chat' && 'hidden', 'max-md:pb-16')}>
         {/* Top bar */}
         <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
-          {!sidebarOpen && (
+          {(!sidebarOpen || isMobile) && (
             <button
-              onClick={() => setSidebarOpen(true)}
+              onClick={() => setSidebarOpen((v) => !v)}
               className="text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0"
             >
-              <Menu className="w-5 h-5" />
+              {sidebarOpen && isMobile ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           )}
           <div
@@ -2723,11 +2778,35 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 // ── Diviseur de reset mémoire
                 const showMemoryDivider = activeConv.memoryResetAt &&
                   msgIdx > 0 &&
+                  msg.role !== 'command' &&
                   new Date(activeConv.messages[msgIdx - 1].timestamp).toISOString() <= activeConv.memoryResetAt &&
                   new Date(msg.timestamp).toISOString() > activeConv.memoryResetAt;
                 const dp = isDebate ? getDP(activeConv) : null;
                 const ic = isInterview ? INTERVIEW_TYPES[activeConv.interviewType!] : null;
                 const isUser = msg.role === 'user';
+
+                // ── Command notification pill
+                if (msg.role === 'command') {
+                  return (
+                    <React.Fragment key={msg.id}>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex justify-center"
+                      >
+                        <div className={cx(
+                          'flex items-center gap-2 px-3 py-1.5 border text-[9px] font-black uppercase tracking-widest',
+                          (isInterview || isDebate)
+                            ? 'border-white/15 text-white/40 bg-white/5'
+                            : 'border-[#5D7BFF]/20 text-[#5D7BFF]/70 bg-[#5D7BFF]/5'
+                        )}>
+                          <Slash className="w-2.5 h-2.5" />
+                          {msg.content}
+                        </div>
+                      </motion.div>
+                    </React.Fragment>
+                  );
+                }
 
                 // ── Styles selon mode
                 const bubbleBg = (isInterview || isDebate) ? 'border-2'
@@ -3194,7 +3273,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   rows={1}
                   disabled={sending}
                   className={cx(
-                    'w-full border-2 px-4 py-3 text-sm font-medium focus:outline-none resize-none transition-all leading-relaxed',
+                    'w-full border-2 px-4 py-3 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-relaxed',
                     (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
                       : 'bg-[#F0F4FF] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[#141414] placeholder:text-[#141414]/30'
@@ -3234,6 +3313,33 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           </div>
         </div>
       </div>
+
+      {/* ── Bottom Navigation (mobile only) ─────────────────────────────── */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-30 md:hidden flex bg-[#141414] border-t-2 border-[#5D7BFF]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        {([
+          { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
+          { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
+          { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
+          { icon: Plus, label: 'Nouveau', action: () => { startNewConv(); setSidebarOpen(false); }, active: false },
+          { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
+        ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={action}
+            className={cx(
+              'flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors',
+              active ? 'text-[#5D7BFF]' : 'text-white/30 hover:text-white/60'
+            )}
+          >
+            <Icon className="w-5 h-5" />
+            <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
+          </button>
+        ))}
+      </nav>
 
       </>)}
       {/* ── Interface vocale plein écran ────────────────────────────────── */}
