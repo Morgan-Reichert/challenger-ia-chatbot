@@ -135,7 +135,11 @@ export function buildProfileContext(profile: UserProfile): string {
   if (lines.length === 0) return '';
   return (
     `## Profil de l'utilisateur\n` +
-    `(Contexte personnel — utilise ces informations uniquement si elles enrichissent la session. Ne les cite pas explicitement sauf si pertinent.)\n` +
+    `Utilise ces informations de façon subtile et bienveillante :\n` +
+    `- Seulement quand c'est pertinent pour la session en cours — pas de façon systématique.\n` +
+    `- Pour aider, guider et améliorer les pratiques de l'utilisateur, jamais pour le juger ou le rabaisser.\n` +
+    `- Pour personnaliser tes exemples, ton niveau de langage ou tes conseils à son profil.\n` +
+    `- Ne cite jamais explicitement ces données sauf si l'utilisateur t'y invite.\n` +
     lines.join('\n')
   );
 }

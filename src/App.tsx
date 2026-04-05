@@ -1367,7 +1367,10 @@ export default function App() {
 
         // Utilise le prompt de débat s'il existe, sinon le prompt standard
         const activeConvNow = conversations.find((c) => c.id === convId);
-        const systemPrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
+        const basePrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
+        // Profil utilisateur injecté dans tous les modes (débat/interview : déjà baked-in au lancement)
+        const profileCtx = !activeConvNow?.debatePrompt ? buildProfileContext(userProfile) : '';
+        const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
 
         const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
