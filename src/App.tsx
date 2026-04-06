@@ -148,6 +148,14 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
 function buildSystemPrompt(persona: Persona, level: FrictionLevel): string {
 
   const FORMAT = `
+## Mémoire conversationnelle (OBLIGATOIRE)
+Tu as accès à l'intégralité de l'historique de la conversation. Tu DOIS :
+- Te souvenir et référencer explicitement ce que l'utilisateur a dit dans les messages précédents
+- Construire sur les arguments, exemples et réponses déjà échangés — ne jamais recommencer à zéro
+- Si l'utilisateur répond à ta question précédente, commencer par reconnaître sa réponse avant d'approfondir
+- Faire évoluer le fil de la discussion de façon cohérente et progressive
+- Ne jamais poser une question à laquelle l'utilisateur a déjà répondu dans la conversation
+
 ## Règles de formatage (OBLIGATOIRES)
 Structure toujours ta réponse en Markdown avec ces conventions :
 - **## Titre** pour chaque section principale (ex: ## Faille identifiée, ## Exemple, ## Question)
@@ -157,7 +165,7 @@ Structure toujours ta réponse en Markdown avec ces conventions :
 - \`> \` blockquote avec \`> **Exemple :**\` pour illustrer par un cas concret
 - Texte normal pour l'analyse principale
 - Sépare les sections avec une ligne vide
-- Termine TOUJOURS par une section \`## Question\` avec une seule question incisive`;
+- Termine TOUJOURS par une section \`## Question\` avec une seule question incisive qui s'appuie sur ce qui vient d'être dit`;
 
   const map: Record<Persona, Record<FrictionLevel, string>> = {
     architect: {
