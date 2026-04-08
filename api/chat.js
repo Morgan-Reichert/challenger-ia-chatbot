@@ -1,14 +1,14 @@
 /**
- * Vercel serverless function — Proxy Mistral AI
- * Lit MISTRAL_API_KEY (sans préfixe VITE_) — variable serveur uniquement dans Vercel.
- * La clé ne sera jamais exposée dans le bundle client.
- * TAVILY_API_KEY aussi — la recherche web se fait ici, côté serveur.
+ * Vercel serverless function — Proxy Mistral AI avec streaming SSE
+ * - MISTRAL_API_KEY : variable serveur uniquement dans Vercel (sans préfixe VITE_)
+ * - TAVILY_API_KEY  : idem — recherche web côté serveur uniquement
+ * - Paramètre `stream` : si true → SSE, sinon → JSON bloc (pour LibraryPage)
  */
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { messages, model, temperature, searchQuery } = req.body;
+  const { messages, model, temperature, searchQuery, stream = true } = req.body;
 
   if (!messages || !model) {
     return res.status(400).json({ error: 'messages et model sont requis' });
@@ -49,7 +49,6 @@ export default async function handler(req, res) {
             });
           }
           if (webContext.trim()) {
-            // Injecte les résultats web dans le system prompt (premier message)
             finalMessages = finalMessages.map((m, i) =>
               i === 0 && m.role === 'system'
                 ? { ...m, content: m.content + `\n\n## Résultats web récents\n${webContext.trim()}` }
@@ -71,12 +70,41 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${mistralKey}`,
       },
-      body: JSON.stringify({ model, temperature, messages: finalMessages }),
+      body: JSON.stringify({ model, temperature, messages: finalMessages, stream }),
     });
 
-    const data = await mistralRes.json();
-    return res.status(mistralRes.status).json(data);
+    if (!mistralRes.ok) {
+      const errData = await mistralRes.json().catch(() => ({}));
+      return res.status(mistralRes.status).json({ error: errData?.message ?? `Erreur Mistral ${mistralRes.status}` });
+    }
+
+    if (!stream) {
+      // Mode bloc (LibraryPage)
+      const data = await mistralRes.json();
+      return res.status(200).json(data);
+    }
+
+    // Mode streaming SSE — pipe la réponse Mistral vers le client
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const reader = mistralRes.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(decoder.decode(value, { stream: true }));
+    }
+
+    res.end();
   } catch (err) {
-    return res.status(500).json({ error: err.message ?? 'Erreur serveur' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message ?? 'Erreur serveur' });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    }
   }
 }

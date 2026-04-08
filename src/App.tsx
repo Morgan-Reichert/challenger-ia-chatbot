@@ -723,7 +723,52 @@ const SLASH_COMMANDS = [
 
 type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
 
-// ─── Appel API Chat (proxy serverless) ───────────────────────────────────────
+// ─── Appel API Chat avec streaming SSE ───────────────────────────────────────
+async function streamChat(
+  payload: { messages: object[]; model: string; temperature: number; searchQuery?: string },
+  onChunk: (text: string) => void
+): Promise<void> {
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, stream: true }),
+  });
+
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error ?? e?.message ?? `Erreur ${res.status}`);
+  }
+  if (!res.body) throw new Error('Streaming non supporté par ce navigateur');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === '[DONE]') return;
+      try {
+        const json = JSON.parse(data);
+        if (json.error) throw new Error(typeof json.error === 'string' ? json.error : JSON.stringify(json.error));
+        const content = json.choices?.[0]?.delta?.content;
+        if (content) onChunk(content);
+      } catch (e) {
+        if (e instanceof SyntaxError) continue; // chunk JSON incomplet → ignorer
+        throw e;
+      }
+    }
+  }
+}
+
+// ─── Appel API Chat sans streaming (LibraryPage / one-shot) ──────────────────
 async function callChat(payload: {
   messages: object[];
   model: string;
@@ -733,7 +778,7 @@ async function callChat(payload: {
   return fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, stream: false }),
   });
 }
 
@@ -1535,43 +1580,58 @@ export default function App() {
           ? allMessages.filter((m) => new Date(m.timestamp).toISOString() > memoryResetAt)
           : allMessages;
 
-        // La recherche web Tavily se fait côté serveur via searchQuery
-        const res = await callChat({
-          model: debateModel,
-          temperature,
-          searchQuery: text,
-          messages: [
-            { role: 'system', content: enrichedSystemPrompt },
-            ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
-            { role: 'user', content: buildUserContent(userMsg) },
-          ],
-        });
-
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-          throw new Error(e?.message ?? e?.error?.message ?? `Erreur ${res.status}`);
-        }
-
-        const data = await res.json();
-        const reply = data.choices[0].message.content ?? '…';
-        const asstMsg: Message = {
-          id: uid(),
-          role: 'assistant',
-          content: reply,
-          timestamp: new Date(),
-          persona: activePersona,
-          level: activeLevel,
-        };
-
+        // Placeholder vide affiché immédiatement pendant le streaming
+        const asstId = uid();
         setConversations((p) =>
-          p.map((c) => {
-            if (c.id !== convId) return c;
-            const now = new Date();
-            const updated = { ...c, messages: [...c.messages, asstMsg], updatedAt: now };
-            if (user) fsSaveConversation(user.uid, updated);
-            return updated;
-          })
+          p.map((c) =>
+            c.id !== convId ? c : {
+              ...c,
+              messages: [...c.messages, {
+                id: asstId,
+                role: 'assistant' as const,
+                content: '',
+                timestamp: new Date(),
+                persona: activePersona,
+                level: activeLevel,
+              }],
+              updatedAt: new Date(),
+            }
+          )
         );
+
+        // Stream chunk par chunk
+        let accumulated = '';
+        await streamChat(
+          {
+            model: debateModel,
+            temperature,
+            searchQuery: text,
+            messages: [
+              { role: 'system', content: enrichedSystemPrompt },
+              ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
+              { role: 'user', content: buildUserContent(userMsg) },
+            ],
+          },
+          (chunk) => {
+            accumulated += chunk;
+            const snap = accumulated;
+            setConversations((p) =>
+              p.map((c) =>
+                c.id !== convId ? c : {
+                  ...c,
+                  messages: c.messages.map((m) => (m.id === asstId ? { ...m, content: snap } : m)),
+                }
+              )
+            );
+          }
+        );
+
+        // Streaming terminé — sauvegarder l'état final dans Firestore
+        setConversations((p) => {
+          const conv = p.find((c) => c.id === convId);
+          if (conv && user) fsSaveConversation(user.uid, conv);
+          return p;
+        });
       } catch (e) {
         setChatError(e instanceof Error ? e.message : 'Erreur inconnue');
       } finally {
