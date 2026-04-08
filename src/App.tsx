@@ -805,20 +805,51 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
   }, [texts.length]);
 
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white border-b border-black/8">
-      {/* Animation — cercles concentriques pulsés */}
-      <div className="relative w-4 h-4 flex-shrink-0">
-        <span
-          className="absolute inset-0 rounded-full bg-[#5D7BFF]/25 animate-ping"
-          style={{ animationDuration: '1.4s' }}
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-black/[0.06]">
+
+      {/* ── Logo CR animé ───────────────────────────── */}
+      <div className="relative flex-shrink-0" style={{ width: 26, height: 26 }}>
+
+        {/* Halo pulsé derrière le logo */}
+        <div
+          className="absolute rounded-full bg-[#5D7BFF]"
+          style={{
+            inset: -6,
+            animation: 'cr-halo 2s ease-in-out infinite',
+          }}
         />
-        <span
-          className="absolute inset-[3px] rounded-full bg-[#5D7BFF]/50 animate-ping"
-          style={{ animationDuration: '1.4s', animationDelay: '0.35s' }}
-        />
-        <span className="absolute inset-[6px] rounded-full bg-[#5D7BFF]" />
+
+        {/* Logo + shimmer dans un clip */}
+        <div
+          className="relative overflow-hidden"
+          style={{ width: 26, height: 26 }}
+        >
+          <img
+            src="https://i.postimg.cc/50kqszGt/Design-sans-titre.png"
+            alt="Challenger IA"
+            style={{
+              width: 26,
+              height: 26,
+              objectFit: 'contain',
+              display: 'block',
+              animation: 'cr-breathe 2s ease-in-out infinite',
+            }}
+          />
+          {/* Balayage lumineux gauche → droite */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.85) 50%, transparent 80%)',
+              animation: 'cr-shimmer 2.2s ease-in-out infinite',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
       </div>
-      {/* Texte rotatif */}
+
+      {/* ── Texte rotatif ───────────────────────────── */}
       <AnimatePresence mode="wait">
         <motion.span
           key={idx}
