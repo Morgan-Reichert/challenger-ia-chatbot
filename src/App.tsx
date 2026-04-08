@@ -782,6 +782,136 @@ async function callChat(payload: {
   });
 }
 
+// ─── Onboarding ──────────────────────────────────────────────────────────────
+
+const ONBOARDING_PERSONAS: { key: Persona; emoji: string; title: string; desc: string; color: string }[] = [
+  { key: 'architect',   emoji: '⚖️', title: "L'Architecte",    desc: "Déconstruit ta thèse, en teste la cohérence logique et les prémisses.",  color: '#5D7BFF' },
+  { key: 'factchecker', emoji: '🔍', title: "Le Fact-Checker", desc: "Vérifie tes données, cite des contre-exemples et exige des sources.",    color: '#10B981' },
+  { key: 'opponent',    emoji: '⚔️', title: "L'Opposant",      desc: "Attaque ta position frontalement et force à la défendre sous pression.",  color: '#EF4444' },
+];
+
+const ONBOARDING_SUGGESTIONS = [
+  "L'intelligence artificielle va rendre le travail humain obsolète dans 20 ans.",
+  "La démocratie directe est supérieure à la démocratie représentative.",
+  "Les réseaux sociaux sont fondamentalement néfastes pour la société.",
+];
+
+function OnboardingOverlay({
+  step, persona, onStepChange, onPersonaChange, onClose, onSend,
+}: {
+  step: number;
+  persona: Persona;
+  onStepChange: (s: number) => void;
+  onPersonaChange: (p: Persona) => void;
+  onClose: () => void;
+  onSend: (text: string) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#F0F4FF]/95 backdrop-blur-sm px-4"
+    >
+      <AnimatePresence mode="wait">
+        {/* ── Étape 0 : Bienvenue ── */}
+        {step === 0 && (
+          <motion.div
+            key="step0"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className="text-center max-w-sm w-full"
+          >
+            <div className="relative inline-flex mb-6">
+              <div className="absolute inset-[-10px] rounded-full bg-[#5D7BFF]/10 animate-ping" style={{ animationDuration: '2.5s' }} />
+              <img src="https://i.postimg.cc/50kqszGt/Design-sans-titre.png" alt="CR" className="w-20 h-20 object-contain relative" style={{ animation: 'cr-breathe 2s ease-in-out infinite' }} />
+            </div>
+            <h1 className="text-3xl font-black uppercase tracking-tighter text-[#141414] mb-2">Challenger IA</h1>
+            <p className="text-sm text-[#141414]/50 mb-8 font-medium">Ton adversaire intellectuel. Challengé pour progresser.</p>
+            <button
+              onClick={() => onStepChange(1)}
+              className="px-8 py-3 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
+              style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.3)' }}
+            >
+              Commencer →
+            </button>
+            <button onClick={onClose} className="block mx-auto mt-4 text-[9px] text-[#141414]/25 hover:text-[#141414]/50 font-black uppercase tracking-widest transition-colors">
+              Passer
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── Étape 1 : Choix du persona ── */}
+        {step === 1 && (
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className="w-full max-w-lg"
+          >
+            <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 text-center mb-6">Choisissez votre challenger</p>
+            <div className="space-y-3">
+              {ONBOARDING_PERSONAS.map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => { onPersonaChange(p.key); onStepChange(2); }}
+                  className={cx(
+                    'w-full text-left px-5 py-4 border-2 transition-all',
+                    persona === p.key
+                      ? 'border-[#5D7BFF] bg-[#5D7BFF]/5'
+                      : 'border-[#141414]/10 bg-white hover:border-[#5D7BFF]/40'
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl">{p.emoji}</span>
+                    <div>
+                      <p className="font-black text-[#141414] text-sm uppercase tracking-wide">{p.title}</p>
+                      <p className="text-[11px] text-[#141414]/50 mt-0.5 leading-snug">{p.desc}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#141414]/20 ml-auto flex-shrink-0" />
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={onClose} className="block mx-auto mt-5 text-[9px] text-[#141414]/25 hover:text-[#141414]/50 font-black uppercase tracking-widest transition-colors">
+              Passer
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── Étape 2 : Première thèse ── */}
+        {step === 2 && (
+          <motion.div
+            key="step2"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className="w-full max-w-lg"
+          >
+            <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 text-center mb-2">Première thèse</p>
+            <p className="text-center text-sm text-[#141414]/50 mb-6">
+              Soumets une conviction à <span className="font-black text-[#5D7BFF]">{ONBOARDING_PERSONAS.find(p => p.key === persona)?.title}</span>
+            </p>
+            <div className="space-y-3">
+              {ONBOARDING_SUGGESTIONS.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => { onSend(s); onClose(); }}
+                  className="w-full text-left px-5 py-4 bg-white border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[4px_4px_0px_0px_rgba(93,123,255,0.8)] transition-all text-sm font-medium text-[#141414]"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={onClose}
+              className="block mx-auto mt-5 text-[9px] text-[#141414]/40 hover:text-[#5D7BFF] font-black uppercase tracking-widest transition-colors"
+            >
+              ✏️ Écrire moi-même
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 // ─── Textes rotatifs pendant le streaming ────────────────────────────────────
 
 const STREAMING_TEXTS: Record<string, string[]> = {
@@ -917,6 +1047,12 @@ export default function App() {
   const [resumeGenerating, setResumeGenerating] = useState(false);
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
+
+  // ── UX features
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('cia_onboarding_done'));
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingPersona, setOnboardingPersona] = useState<Persona>('architect');
+  const [collapsedMsgs, setCollapsedMsgs] = useState<Set<string>>(new Set());
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -2685,6 +2821,27 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         )}
       </AnimatePresence>
 
+      {/* ── Onboarding overlay ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingOverlay
+            step={onboardingStep}
+            persona={onboardingPersona}
+            onStepChange={setOnboardingStep}
+            onPersonaChange={(p) => { setOnboardingPersona(p); setPersona(p); }}
+            onClose={() => {
+              localStorage.setItem('cia_onboarding_done', '1');
+              setShowOnboarding(false);
+            }}
+            onSend={(text) => {
+              localStorage.setItem('cia_onboarding_done', '1');
+              setShowOnboarding(false);
+              send(text);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (
         <div className={cx('flex-1 min-w-0 h-full max-md:pb-16', currentPage !== 'library' && 'hidden')}>
@@ -3090,6 +3247,36 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             </motion.div>
             )
           ) : (
+            {/* ── Barre de contexte sticky ── */}
+            {!activeConv?.interviewType && !activeConv?.debatePersonaId && (() => {
+              const msgCount = activeConv.messages.filter(m => m.role !== 'command').length;
+              if (msgCount === 0) return null;
+              const heat = msgCount >= 10 || activeConv.level === 'extreme' ? 'hot'
+                : msgCount >= 5 || activeConv.level === 'moyen' ? 'warm' : 'cool';
+              const heatColor = heat === 'hot' ? '#EF4444' : heat === 'warm' ? '#F59E0B' : '#5D7BFF';
+              const heatLabel = heat === 'hot' ? 'intense' : heat === 'warm' ? 'actif' : 'calme';
+              const heatDots = heat === 'hot' ? 5 : heat === 'warm' ? 3 : 1;
+              const PIcon = PERSONAS[activeConv.persona].icon;
+              return (
+                <div className="sticky top-0 z-10 flex items-center gap-2.5 px-4 py-1.5 bg-white/90 backdrop-blur-sm border-b border-[#5D7BFF]/10 -mx-6 -mt-8 mb-6 px-10">
+                  <PIcon className="w-3 h-3 flex-shrink-0" style={{ color: '#5D7BFF99' }} />
+                  <p className="text-[7px] font-black uppercase tracking-widest text-[#141414]/40">
+                    {PERSONAS[activeConv.persona].shortName}
+                  </p>
+                  <span className="text-[6px] font-black uppercase tracking-widest border px-1.5 py-px" style={{ color: '#5D7BFF', borderColor: '#5D7BFF40' }}>
+                    {FRICTION[activeConv.level].label}
+                  </span>
+                  <span className="text-[7px] text-[#141414]/20 font-mono">{msgCount} msg</span>
+                  <div className="flex items-center gap-1 ml-auto">
+                    {[0,1,2,3,4].map(i => (
+                      <div key={i} className="w-1.5 h-1.5 rounded-full transition-colors" style={{ backgroundColor: i < heatDots ? heatColor : '#14141415' }} />
+                    ))}
+                    <span className="text-[6px] font-black uppercase tracking-widest ml-1.5" style={{ color: heatColor + 'AA' }}>{heatLabel}</span>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="max-w-3xl mx-auto space-y-5">
               {activeConv.messages.map((msg, msgIdx) => {
                 const isInterview = !!activeConv.interviewType;
@@ -3270,9 +3457,29 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
                     {msg.content ? (
                       <div className="px-4 py-3">
-                        {msg.role === 'assistant' ? (
-                          <ReactMarkdown components={mdWhite}>{msg.content}</ReactMarkdown>
-                        ) : (
+                        {msg.role === 'assistant' ? (() => {
+                          const COLLAPSE_THRESHOLD = 500;
+                          const isLong = msg.content.length > COLLAPSE_THRESHOLD;
+                          const isCollapsed = collapsedMsgs.has(msg.id);
+                          const displayed = isLong && isCollapsed ? msg.content.slice(0, 300) + '…' : msg.content;
+                          return (
+                            <>
+                              <ReactMarkdown components={mdWhite}>{displayed}</ReactMarkdown>
+                              {isLong && (
+                                <button
+                                  onClick={() => setCollapsedMsgs(s => {
+                                    const n = new Set(s);
+                                    isCollapsed ? n.delete(msg.id) : n.add(msg.id);
+                                    return n;
+                                  })}
+                                  className="mt-2 text-[8px] font-black uppercase tracking-widest text-white/35 hover:text-white/70 border border-white/15 hover:border-white/35 px-2 py-0.5 transition-all"
+                                >
+                                  {isCollapsed ? '▼ Voir tout' : '▲ Condenser'}
+                                </button>
+                              )}
+                            </>
+                          );
+                        })() : (
                           <p className={cx(
                             'text-sm leading-relaxed whitespace-pre-wrap',
                             (isInterview || isDebate) ? 'text-white/80' : 'text-[#141414]'
@@ -3592,12 +3799,48 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 </button>
               )}
 
+              {/* ── Chips sessions récentes ── */}
+              {!activeId && !sending && input === '' && conversations.length > 0 && (
+                <div className="absolute bottom-full left-0 right-0 flex gap-2 overflow-x-auto pb-2 pt-1 px-6 scrollbar-hide" style={{ marginBottom: 0 }}>
+                  {conversations.slice(0, 4).map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => { setInput(c.title.replace(/…$/, '')); taRef.current?.focus(); }}
+                      className="flex-shrink-0 flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest px-3 py-1.5 bg-white border border-[#5D7BFF]/20 text-[#5D7BFF]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] hover:bg-[#5D7BFF]/5 transition-all whitespace-nowrap"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5 flex-shrink-0" />
+                      {c.title.length > 30 ? c.title.slice(0, 30) + '…' : c.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Textarea */}
               <div className="flex-1 relative">
                 <textarea
                   ref={taRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    // ── Raccourcis @persona
+                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent']];
+                    for (const [cmd, p] of pShorts) {
+                      if (val.includes(cmd)) {
+                        setPersona(p); val = val.replace(cmd, '').trimStart();
+                        showSlashNotif(`Persona → ${PERSONAS[p].shortName}`, true);
+                      }
+                    }
+                    // ── Raccourcis !niveau
+                    const fShorts: [string, FrictionLevel][] = [['!doux','doux'],['!moyen','moyen'],['!extreme','extreme']];
+                    for (const [cmd, f] of fShorts) {
+                      if (val.includes(cmd)) {
+                        setLevel(f); val = val.replace(cmd, '').trimStart();
+                        showSlashNotif(`Niveau → ${FRICTION[f].label}`, true);
+                      }
+                    }
+                    setInput(val);
+                  }}
                   onKeyDown={handleKey}
                   onFocus={() => setInputFocused(true)}
                   onBlur={() => setInputFocused(false)}
@@ -3607,7 +3850,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       ? 'Répondre…'
                       : activeConv?.debatePersonaId
                         ? (isMobile ? 'Répondre…' : `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`)
-                        : (isMobile ? 'Écrire…' : `Soumettez une thèse à ${PERSONAS[persona].shortName}…`)
+                        : (isMobile ? 'Écrire…' : `Soumettez une thèse… (@arch @fact @opp · !doux !moyen !extreme)`)
                   }
                   rows={isMobile && inputFocused ? 4 : 1}
                   disabled={sending}
