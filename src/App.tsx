@@ -782,6 +782,59 @@ async function callChat(payload: {
   });
 }
 
+// ─── Textes rotatifs pendant le streaming ────────────────────────────────────
+
+const STREAMING_TEXTS: Record<string, string[]> = {
+  architect:   ['Structuration logique…', 'Analyse des prémisses…', 'Cartographie des arguments…', 'Formalisation de la thèse…'],
+  factchecker: ['Vérification des sources…', 'Recoupement factuel…', 'Analyse des données…', 'Examen des biais…'],
+  opponent:    ['Identification des failles…', 'Déconstruction logique…', 'Contre-argumentation…', "Préparation de l'offensive…"],
+  debate:      ['Argumentation en cours…',   'Analyse contextuelle…',    'Formulation de la réponse…', 'Recherche des arguments…'],
+  interview:   ['Formulation de la question…','Analyse de vos réponses…','Évaluation des éléments…',  'Préparation du suivi…'],
+};
+
+function StreamingHeader({ persona, isDebate, isInterview }: {
+  persona: Persona; isDebate: boolean; isInterview: boolean;
+}) {
+  const key = isInterview ? 'interview' : isDebate ? 'debate' : persona;
+  const texts = STREAMING_TEXTS[key] ?? STREAMING_TEXTS.architect;
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % texts.length), 2000);
+    return () => clearInterval(t);
+  }, [texts.length]);
+
+  return (
+    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white border-b border-black/8">
+      {/* Animation — cercles concentriques pulsés */}
+      <div className="relative w-4 h-4 flex-shrink-0">
+        <span
+          className="absolute inset-0 rounded-full bg-[#5D7BFF]/25 animate-ping"
+          style={{ animationDuration: '1.4s' }}
+        />
+        <span
+          className="absolute inset-[3px] rounded-full bg-[#5D7BFF]/50 animate-ping"
+          style={{ animationDuration: '1.4s', animationDelay: '0.35s' }}
+        />
+        <span className="absolute inset-[6px] rounded-full bg-[#5D7BFF]" />
+      </div>
+      {/* Texte rotatif */}
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={idx}
+          initial={{ opacity: 0, y: 3 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -3 }}
+          transition={{ duration: 0.22 }}
+          className="text-[9px] font-black uppercase tracking-widest text-[#141414]/40 select-none"
+        >
+          {texts[idx]}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -3175,28 +3228,37 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       </div>
                     )}
 
-                    <div className="px-4 py-3">
-                      {msg.role === 'assistant' ? (
-                        <ReactMarkdown components={(isInterview || isDebate) ? mdWhite : mdWhite}>{msg.content}</ReactMarkdown>
-                      ) : (
-                        msg.content ? (
+                    {/* Header streaming — fond blanc + textes rotatifs + animation */}
+                    {sending && msgIdx === activeConv.messages.length - 1 && !isUser && (
+                      <StreamingHeader
+                        persona={msg.persona ?? persona}
+                        isDebate={isDebate}
+                        isInterview={isInterview}
+                      />
+                    )}
+
+                    {msg.content ? (
+                      <div className="px-4 py-3">
+                        {msg.role === 'assistant' ? (
+                          <ReactMarkdown components={mdWhite}>{msg.content}</ReactMarkdown>
+                        ) : (
                           <p className={cx(
                             'text-sm leading-relaxed whitespace-pre-wrap',
                             (isInterview || isDebate) ? 'text-white/80' : 'text-[#141414]'
                           )}>
                             {msg.content}
                           </p>
-                        ) : null
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </motion.div>
                 </React.Fragment>
                 );
               })}
 
-              {/* Typing indicator */}
-              {sending && (() => {
+              {/* Typing indicator — visible uniquement avant que le placeholder stream apparaisse */}
+              {sending && activeConv.messages.at(-1)?.role !== 'assistant' && (() => {
                 const isInterviewMode = !!activeConv?.interviewType;
                 const ic2 = isInterviewMode ? INTERVIEW_TYPES[activeConv!.interviewType!] : null;
                 const dp = !isInterviewMode && activeConv?.debatePersonaId ? getDP(activeConv) : null;
