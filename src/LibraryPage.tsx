@@ -152,10 +152,9 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview, u
 
     setInterviewRefining(true);
     try {
-      const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
-      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mistral-small-latest',
           temperature: 0.4,
@@ -184,7 +183,6 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview, u
     if (!interviewModalType || !userProfile) return;
     setInterviewAutofilling(true);
     try {
-      const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
       const profileLines: string[] = [];
       if (userProfile.displayName) profileLines.push(`Nom : ${userProfile.displayName}`);
       if (userProfile.background) profileLines.push(`Parcours : ${userProfile.background}`);
@@ -200,9 +198,9 @@ export default function LibraryPage({ onBack, onStartDebate, onStartInterview, u
         .map(f => `- "${f.id}" (${f.label}) : ${f.placeholder}`)
         .join('\n');
 
-      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mistral-small-latest',
           temperature: 0.3,

@@ -196,7 +196,7 @@ Structure toujours ta réponse en Markdown avec ces conventions :
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
 function uid(): string {
-  return Math.random().toString(36).slice(2, 9);
+  return crypto.randomUUID();
 }
 
 function fmtTime(d: Date): string {
@@ -500,6 +500,24 @@ async function fsSaveConsent(userId: string): Promise<void> {
   } catch { /* silent */ }
 }
 
+// ─── Firestore: Profil utilisateur ───────────────────────────────────────────
+
+async function fsLoadProfile(userId: string): Promise<Partial<UserProfile> | null> {
+  if (!db) return null;
+  try {
+    const snap = await getDoc(doc(db, 'users', userId, 'meta', 'profile'));
+    if (!snap.exists()) return null;
+    return snap.data() as Partial<UserProfile>;
+  } catch { return null; }
+}
+
+async function fsSaveProfileRemote(userId: string, profile: UserProfile): Promise<void> {
+  if (!db) return;
+  try {
+    await setDoc(doc(db, 'users', userId, 'meta', 'profile'), { ...profile, updatedAt: new Date().toISOString() });
+  } catch { /* silent */ }
+}
+
 // ─── Firestore: Projects ──────────────────────────────────────────────────────
 
 function serializeProject(p: Project) {
@@ -694,41 +712,29 @@ const SLASH_COMMANDS = [
     icon: FileDown,
     shortcut: '/resumepdf',
   },
+  {
+    id: 'exportjson',
+    label: 'Exporter JSON',
+    desc: 'Télécharge la conversation courante en JSON brut',
+    icon: FileText,
+    shortcut: '/exportjson',
+  },
 ] as const;
 
 type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
 
-// ─── Web Search (Tavily) ──────────────────────────────────────────────────────
-async function searchWeb(query: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_TAVILY_API_KEY;
-  if (!apiKey) return '';
-  try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: 'basic',
-        max_results: 5,
-        include_answer: true,
-        include_raw_content: false,
-      }),
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    let out = '';
-    if (data.answer) out += `Synthèse web : ${data.answer}\n\n`;
-    if (data.results?.length) {
-      out += 'Sources récentes :\n';
-      data.results.slice(0, 4).forEach((r: any) => {
-        out += `• ${r.title}\n  ${(r.content ?? '').slice(0, 250)}\n  Source : ${r.url}\n\n`;
-      });
-    }
-    return out.trim();
-  } catch {
-    return '';
-  }
+// ─── Appel API Chat (proxy serverless) ───────────────────────────────────────
+async function callChat(payload: {
+  messages: object[];
+  model: string;
+  temperature: number;
+  searchQuery?: string;
+}): Promise<Response> {
+  return fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -781,6 +787,7 @@ export default function App() {
   const [noProfileMode, setNoProfileMode] = useState(false);
   const [resumeGenerating, setResumeGenerating] = useState(false);
   const [showSharePopup, setShowSharePopup] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState('');
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -847,17 +854,23 @@ export default function App() {
   const loadUserData = useCallback(async (firebaseUser: FirebaseUser) => {
     setUser(firebaseUser);
     setSyncing(true);
-    const [remote, remoteProjects, plan, usage] = await Promise.all([
+    const [remote, remoteProjects, plan, usage, remoteProfile] = await Promise.all([
       fsLoadConversations(firebaseUser.uid),
       fsLoadProjects(firebaseUser.uid),
       getSubscription(firebaseUser.uid),
       fsGetUsage(firebaseUser.uid),
+      fsLoadProfile(firebaseUser.uid),
     ]);
     setConversations(remote);
     setProjects(remoteProjects);
     setSubscription(plan);
-    // Réinitialiser le compteur si c'est un nouveau jour
     setDailyUsage(usage.date === todayStr() ? usage : { count: 0, date: todayStr() });
+    // Profil : Firestore prioritaire sur localStorage si disponible
+    if (remoteProfile) {
+      const merged = { ...loadProfile(), ...remoteProfile } as UserProfile;
+      setUserProfile(merged);
+      saveProfile(merged);
+    }
     setSyncing(false);
   }, []);
 
@@ -1051,18 +1064,13 @@ export default function App() {
     // L'IA ouvre la session avec sa première question
     setSending(true);
     try {
-      const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
-      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: 'mistral-large-latest',
-          temperature: 0.7,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: '[DÉBUT DE SESSION]' },
-          ],
-        }),
+      const res = await callChat({
+        model: 'mistral-large-latest',
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: '[DÉBUT DE SESSION]' },
+        ],
       });
       const data = await res.json();
       const reply = data.choices?.[0]?.message?.content ?? '…';
@@ -1309,6 +1317,25 @@ export default function App() {
     setInput('');
   }, [persona, level]);
 
+  // ── Raccourcis clavier globaux
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+N / Cmd+N → Nouvelle conversation
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        startNewConv();
+        return;
+      }
+      // Esc → fermer sidebar sur mobile
+      if (e.key === 'Escape' && isMobile && sidebarOpen) {
+        setSidebarOpen(false);
+        return;
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [startNewConv, isMobile, sidebarOpen]);
+
   // ── Delete conversation
   const deleteConv = useCallback(
     async (convId: string) => {
@@ -1466,12 +1493,6 @@ export default function App() {
       setInput('');
 
       try {
-        const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
-        if (!apiKey)
-          throw new Error(
-            'Clé API manquante. Renommez la variable en VITE_MISTRAL_API_KEY dans Vercel (avec le préfixe VITE_) puis redéployez.'
-          );
-
         const temperature = activeLevel === 'extreme' ? 0.9 : activeLevel === 'moyen' ? 0.7 : 0.5;
         const hasImages = attachments.some((a) => a.type === 'image');
         const model = hasImages ? 'pixtral-12b-2409' : 'mistral-small-latest';
@@ -1482,13 +1503,11 @@ export default function App() {
           const imgs = atts.filter((a) => a.type === 'image');
           const texts = atts.filter((a) => a.type !== 'image');
 
-          // Contexte textuel des fichiers joints
           const fileContext = texts.length > 0
             ? texts.map((a) => `[Fichier joint : ${a.name}]\n\`\`\`\n${a.content.slice(0, 8000)}\n\`\`\``).join('\n\n') + '\n\n'
             : '';
 
           if (imgs.length > 0) {
-            // Format multimodal pour pixtral
             const parts: object[] = [];
             if (fileContext || msg.content) parts.push({ type: 'text', text: fileContext + msg.content });
             imgs.forEach((a) => parts.push({ type: 'image_url', image_url: { url: a.content } }));
@@ -1497,42 +1516,35 @@ export default function App() {
           return fileContext + msg.content;
         };
 
-        // Utilise le prompt de débat s'il existe, sinon le prompt standard
         const activeConvNow = conversations.find((c) => c.id === convId);
         const basePrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
-        // Profil utilisateur — injecté sauf si désactivé pour cette conv/globalement ou mode débat/interview
         const profileCtx = (!activeConvNow?.debatePrompt && !activeConvNow?.noProfile && !noProfileMode)
           ? buildProfileContext(userProfile)
           : '';
         const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
 
-        // ─── Inject real-time date + Tavily web search ────────────────────────
+        // Inject real-time date (côté client — non sensible)
         const currentDateStr = new Date().toLocaleDateString('fr-FR', {
           weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
-        const webResults = await searchWeb(text);
-        const contextBlock = `\n\n## Contexte temps réel\nDate actuelle : ${currentDateStr}\n${webResults ? `\n## Résultats web récents\n${webResults}` : ''}`;
-        const enrichedSystemPrompt = systemPrompt + contextBlock;
+        const enrichedSystemPrompt = systemPrompt + `\n\n## Contexte temps réel\nDate actuelle : ${currentDateStr}`;
 
-        // Filtre le contexte selon la date de reset mémoire
         const memoryResetAt = activeConvNow?.memoryResetAt;
         const contextMessages = memoryResetAt
           ? allMessages.filter((m) => new Date(m.timestamp).toISOString() > memoryResetAt)
           : allMessages;
 
-        const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: debateModel,
-            temperature,
-            messages: [
-              { role: 'system', content: enrichedSystemPrompt },
-              ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
-              { role: 'user', content: buildUserContent(userMsg) },
-            ],
-          }),
+        // La recherche web Tavily se fait côté serveur via searchQuery
+        const res = await callChat({
+          model: debateModel,
+          temperature,
+          searchQuery: text,
+          messages: [
+            { role: 'system', content: enrichedSystemPrompt },
+            ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user', content: buildUserContent(userMsg) },
+          ],
         });
 
         if (!res.ok) {
@@ -1684,7 +1696,6 @@ export default function App() {
         setResumeGenerating(true);
         showSlashNotif('Génération du résumé PDF en cours…');
 
-        const apiKey = import.meta.env.VITE_MISTRAL_API_KEY;
         const transcript = conv.messages
           .map((m) => `[${m.role === 'user' ? 'Utilisateur' : 'IA'}] ${m.content}`)
           .join('\n\n');
@@ -1711,17 +1722,13 @@ Génère un résumé structuré en JSON avec ce schéma exact :
 Sois précis, factuel et bienveillant. Les conseils doivent être directement actionnables.`;
 
         try {
-          const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({
-              model: 'mistral-large-latest',
-              temperature: 0.4,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-              ],
-            }),
+          const res = await callChat({
+            model: 'mistral-large-latest',
+            temperature: 0.4,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
           });
 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1758,6 +1765,27 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         } finally {
           setResumeGenerating(false);
         }
+        return;
+      }
+
+      if (id === 'exportjson') {
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv) {
+          showSlashNotif('Aucune conversation active à exporter.', false);
+          return;
+        }
+        const payload = JSON.stringify({ _app: 'Challenger IA', _version: 1, exportedAt: new Date().toISOString(), conversation: conv }, null, 2);
+        const blob = new Blob([payload], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `challenger-session-${conv.id.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSlashNotif('Conversation exportée en JSON.');
+        addCommandMsg('Session exportée en JSON.');
         return;
       }
     },
@@ -2058,7 +2086,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             </div>
 
             {/* New session */}
-            <div className="px-5 py-4 border-b-2 border-white/10">
+            <div className="px-5 py-4 border-b-2 border-white/10 space-y-3">
               <button
                 onClick={() => { startNewConv(); setSidebarOpen(false); }}
                 className="w-full flex items-center justify-between px-4 py-3 bg-[#5D7BFF] text-white text-xs font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
@@ -2067,6 +2095,25 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 <span>Nouvelle Session</span>
                 <Plus className="w-4 h-4" />
               </button>
+              {/* Recherche sidebar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-white/25 pointer-events-none" />
+                <input
+                  type="text"
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  placeholder="Rechercher une session…"
+                  className="w-full bg-white/5 border border-white/10 pl-8 pr-3 py-2 text-[11px] text-white/60 placeholder-white/20 focus:outline-none focus:border-[#5D7BFF]/50 focus:text-white/80 transition-colors"
+                />
+                {sidebarSearch && (
+                  <button
+                    onClick={() => setSidebarSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/60 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
@@ -2151,7 +2198,12 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       return (
                         <button
                           key={p.id}
-                          onClick={() => setPersona(p.id)}
+                          onClick={() => {
+                            if (p.id !== persona && activeId) {
+                              addCommandMsg(`— Persona changée : ${p.name} —`);
+                            }
+                            setPersona(p.id);
+                          }}
                           className={cx(
                             'w-full flex items-center gap-3 px-4 py-3 text-left border-2 transition-all',
                             active
@@ -2274,7 +2326,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
                 {/* Projets */}
                 {projects.map((project) => {
-                  const projectConvs = conversations.filter((c) => c.projectId === project.id);
+                  const projectConvs = conversations.filter((c) => c.projectId === project.id && (!sidebarSearch || c.title.toLowerCase().includes(sidebarSearch.toLowerCase())));
                   const isOver = dragOverId === project.id;
                   return (
                     <div key={project.id}>
@@ -2407,7 +2459,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       </p>
                     )}
                     <div className="space-y-0.5">
-                      {conversations.filter((c) => !c.projectId).map((conv) => (
+                      {conversations.filter((c) => !c.projectId && (!sidebarSearch || c.title.toLowerCase().includes(sidebarSearch.toLowerCase()))).map((conv) => (
                         <ConvItem
                           key={conv.id}
                           conv={conv}
@@ -2507,7 +2559,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           <SettingsPage
             onBack={() => setCurrentPage('chat')}
             profile={userProfile}
-            onSave={(p) => { setUserProfile(p); saveProfile(p); }}
+            onSave={(p) => { setUserProfile(p); saveProfile(p); if (user) fsSaveProfileRemote(user.uid, p); }}
           />
         </div>
       )}
@@ -3627,7 +3679,10 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     return (
                       <button
                         key={p.id}
-                        onClick={() => setPersona(p.id)}
+                        onClick={() => {
+                          if (p.id !== persona && activeId) addCommandMsg(`— Persona changée : ${p.name} —`);
+                          setPersona(p.id);
+                        }}
                         className={cx(
                           'flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-black uppercase tracking-wider transition-all',
                           active
