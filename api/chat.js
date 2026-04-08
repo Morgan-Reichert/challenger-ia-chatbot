@@ -1,8 +1,8 @@
 /**
  * Vercel serverless function — Proxy Mistral AI
- * Lit VITE_MISTRAL_API_KEY (nom de la variable dans le dashboard Vercel).
- * Côté serveur, process.env expose toutes les variables — pas de risque d'exposition client.
- * La clé VITE_TAVILY_API_KEY aussi — la recherche web se fait ici, côté serveur.
+ * Lit MISTRAL_API_KEY (sans préfixe VITE_) — variable serveur uniquement dans Vercel.
+ * La clé ne sera jamais exposée dans le bundle client.
+ * TAVILY_API_KEY aussi — la recherche web se fait ici, côté serveur.
  */
 
 export default async function handler(req, res) {
@@ -14,16 +14,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'messages et model sont requis' });
   }
 
-  const mistralKey = process.env.VITE_MISTRAL_API_KEY;
+  const mistralKey = process.env.MISTRAL_API_KEY;
   if (!mistralKey) {
-    return res.status(500).json({ error: 'VITE_MISTRAL_API_KEY non configurée sur le serveur' });
+    return res.status(500).json({ error: 'MISTRAL_API_KEY non configurée sur le serveur' });
   }
 
   // ── Recherche web Tavily (optionnelle) ──────────────────────────────────────
   let finalMessages = messages;
 
   if (searchQuery) {
-    const tavilyKey = process.env.VITE_TAVILY_API_KEY;
+    const tavilyKey = process.env.TAVILY_API_KEY;
     if (tavilyKey) {
       try {
         const tavilyRes = await fetch('https://api.tavily.com/search', {
