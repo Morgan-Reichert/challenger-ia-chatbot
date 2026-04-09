@@ -1740,29 +1740,33 @@ export default function App() {
         const dailyCount = dailyUsage.date === today ? dailyUsage.count : 0;
         const wkCount = weeklyUsage.week === thisWeek ? weeklyUsage.count : 0;
 
+        // Fichiers joints coûtent 3 crédits chacun (max 3 fichiers = 9 crédits)
+        const cost = attachments.length > 0 ? attachments.length * 3 : 1;
+
         const dailyLimit  = subscription === 'pro' ? PRO_DAILY_LIMIT  : FREE_DAILY_LIMIT;
         const weeklyLimit = subscription === 'pro' ? PRO_WEEKLY_LIMIT : FREE_WEEKLY_LIMIT;
 
-        const dailyOk  = dailyCount < dailyLimit;
-        const weeklyOk = wkCount   < weeklyLimit;
+        const dailyOk  = dailyCount + cost <= dailyLimit;
+        const weeklyOk = wkCount   + cost <= weeklyLimit;
 
         if (dailyOk && weeklyOk) {
           // ── Quota inclus disponible
-          const newDaily  = dailyCount + 1;
-          const newWeekly = wkCount + 1;
+          const newDaily  = dailyCount + cost;
+          const newWeekly = wkCount + cost;
           setDailyUsage({ count: newDaily, date: today });
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
           if (user) fsSaveUsage(user.uid, newDaily, today, newWeekly, thisWeek);
-        } else if (userCredits > 0) {
-          // ── Quota épuisé → déduire 1 crédit supplémentaire
-          setUserCredits(c => c - 1);
-          if (user) deductOneCredit(user.uid);
-          // Compteur hebdo incrémenté même sur crédit (pour analytics)
-          const newWeekly = wkCount + 1;
+        } else if (userCredits >= cost) {
+          // ── Quota épuisé → déduire les crédits supplémentaires
+          setUserCredits(c => c - cost);
+          // Déductions en parallèle (1 appel par crédit)
+          if (user) { const u = user; (async () => { for (let i = 0; i < cost; i++) await deductOneCredit(u.uid); })(); }
+          const newWeekly = wkCount + cost;
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
         } else {
-          // ── Bloqué — plus de quota ni de crédits
+          // ── Bloqué — crédits insuffisants
           setUpgradeModal('limit');
+          sendingRef.current = false;
           return;
         }
       }
