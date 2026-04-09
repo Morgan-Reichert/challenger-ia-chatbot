@@ -1075,7 +1075,7 @@ export default function App() {
   const [pendingCreditSend, setPendingCreditSend] = useState<{ text: string; attachments: Attachment[] } | null>(null);
 
   // ── Notifications in-chat (quota, crédits)
-  const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string } | null>(null);
+  const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
   const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings'>('chat');
@@ -1803,10 +1803,15 @@ export default function App() {
           if (user) fsSaveUsage(user.uid, newDaily, today, newWeekly, thisWeek);
           // Notif 80% quota journalier
           const pct = newDaily / dailyLimit;
+          const left = dailyLimit - newDaily;
           if (pct >= 0.8 && pct < 1) {
-            setChatNotif({ type: 'warning', msg: `⚠️ Il vous reste ${dailyLimit - newDaily} message${dailyLimit - newDaily > 1 ? 's' : ''} gratuit${dailyLimit - newDaily > 1 ? 's' : ''} aujourd'hui` });
+            setChatNotif({ type: 'warning', msg: `🧠 Votre élan intellectuel est impressionnant — encore ${left} échange${left > 1 ? 's' : ''} dans votre arsenal aujourd'hui` });
           } else if (newDaily >= dailyLimit) {
-            setChatNotif({ type: 'info', msg: userCredits > 0 ? `Quota journalier atteint — vos crédits prendront le relais` : `Quota journalier atteint — rechargez des crédits pour continuer` });
+            if (userCredits > 0) {
+              setChatNotif({ type: 'info', msg: `Votre cerveau a besoin de repos (et nos serveurs aussi) — vos crédits prennent le relais automatiquement` });
+            } else {
+              setChatNotif({ type: 'warning', msg: `Votre cerveau a besoin de repos (et nos serveurs aussi). Revenez demain ou procurez-vous des crédits`, action: { label: 'Recharger →', page: 'settings' } });
+            }
           }
         } else if (userCredits >= cost) {
           // ── Quota épuisé → vérifier si auto ou confirmation
@@ -1824,15 +1829,17 @@ export default function App() {
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
           // Notif selon crédits restants
           if (remaining === 0) {
-            setChatNotif({ type: 'error', msg: `❌ Vous venez d'utiliser votre dernier crédit — rechargez pour continuer` });
+            setChatNotif({ type: 'error', msg: `Dernier crédit consommé. La joute s'arrête ici — à moins de renflouer l'arsenal.`, action: { label: 'Recharger →', page: 'settings' } });
+          } else if (remaining <= 5) {
+            setChatNotif({ type: 'error', msg: `⚠️ Arsenal critique : ${remaining} crédit${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}. Ne laissez pas Challenger sans réponse.`, action: { label: 'Recharger →', page: 'settings' } });
           } else if (remaining <= 10) {
-            setChatNotif({ type: 'warning', msg: `⚠️ Plus que ${remaining} crédit${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}` });
+            setChatNotif({ type: 'warning', msg: `⚠️ Munitions limitées — ${remaining} crédits restants. Rechargez avant la prochaine grande thèse.`, action: { label: 'Recharger →', page: 'settings' } });
           } else {
-            setChatNotif({ type: 'info', msg: `💳 ${cost} crédit${cost > 1 ? 's' : ''} utilisé${cost > 1 ? 's' : ''} — ${remaining} restant${remaining > 1 ? 's' : ''}` });
+            setChatNotif({ type: 'info', msg: `💳 ${cost} crédit${cost > 1 ? 's' : ''} consommé${cost > 1 ? 's' : ''} — ${remaining} munition${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''}` });
           }
         } else {
           // ── Bloqué — plus de quota ni de crédits
-          setChatNotif({ type: 'error', msg: `❌ Plus de crédits disponibles — rechargez dans Réglages` });
+          setChatNotif({ type: 'error', msg: `Munitions épuisées. Challenger attend votre retour — passez au niveau supérieur ou rechargez des crédits.`, action: { label: 'Passer Pro / Recharger →', page: 'settings' } });
           setUpgradeModal('limit');
           sendingRef.current = false;
           return;
@@ -3822,10 +3829,25 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 borderColor: chatNotif.type === 'error' ? '#FCA5A5' : chatNotif.type === 'warning' ? '#FCD34D' : '#BFDBFE',
               }}
             >
-              <p className="text-[10px] font-bold"
-                style={{ color: chatNotif.type === 'error' ? '#DC2626' : chatNotif.type === 'warning' ? '#D97706' : '#2563EB' }}>
-                {chatNotif.msg}
-              </p>
+              <div className="flex-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="text-[10px] font-bold leading-relaxed"
+                  style={{ color: chatNotif.type === 'error' ? '#DC2626' : chatNotif.type === 'warning' ? '#D97706' : '#2563EB' }}>
+                  {chatNotif.msg}
+                </p>
+                {chatNotif.action && (
+                  <button
+                    onClick={() => { setCurrentPage('settings'); setChatNotif(null); }}
+                    className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border flex-shrink-0 hover:opacity-80 transition-opacity"
+                    style={{
+                      color: chatNotif.type === 'error' ? '#DC2626' : '#D97706',
+                      borderColor: chatNotif.type === 'error' ? '#DC262640' : '#D9770640',
+                      background: chatNotif.type === 'error' ? '#FEF2F2' : '#FFFBEB',
+                    }}
+                  >
+                    {chatNotif.action.label}
+                  </button>
+                )}
+              </div>
               <button onClick={() => setChatNotif(null)} className="flex-shrink-0 opacity-40 hover:opacity-70 transition-opacity">
                 <X className="w-3 h-3" style={{ color: chatNotif.type === 'error' ? '#DC2626' : chatNotif.type === 'warning' ? '#D97706' : '#2563EB' }} />
               </button>
@@ -3846,10 +3868,10 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               <div className="flex items-start gap-3">
                 <Coins className="w-4 h-4 text-[#F59E0B] flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-[11px] font-black text-[#141414]">Quota gratuit atteint</p>
-                  <p className="text-[10px] text-[#141414]/60 mt-0.5">
-                    Souhaitez-vous continuer avec vos crédits supplémentaires ?&nbsp;
-                    <span className="font-bold text-[#F59E0B]">{userCredits} crédit{userCredits !== 1 ? 's' : ''} disponible{userCredits !== 1 ? 's' : ''}</span>
+                  <p className="text-[11px] font-black text-[#141414]">Votre cerveau a besoin de repos — pas votre ambition.</p>
+                  <p className="text-[10px] text-[#141414]/60 mt-0.5 leading-relaxed">
+                    Quota gratuit épuisé. La joute intellectuelle peut continuer sur vos crédits.&nbsp;
+                    <span className="font-bold text-[#F59E0B]">{userCredits} crédit{userCredits !== 1 ? 's' : ''} disponible{userCredits !== 1 ? 's' : ''}</span> — confirmez-vous ?
                   </p>
                   <div className="flex gap-2 mt-3">
                     <button
