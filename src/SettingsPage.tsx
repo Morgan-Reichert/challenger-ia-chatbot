@@ -299,9 +299,9 @@ export default function SettingsPage({
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 bg-[#5D7BFF] text-white">PRO</span>
-                      <span className="text-sm font-bold text-[#141414]">Accès illimité actif</span>
+                      <span className="text-sm font-bold text-[#141414]">Plan Pro actif</span>
                     </div>
-                    <p className="text-[11px] text-[#141414]/50">Messages illimités · Toutes les fonctionnalités</p>
+                    <p className="text-[11px] text-[#141414]/50">{PRO_DAILY} msg/jour · {PRO_WEEKLY} msg/semaine · Toutes les fonctionnalités</p>
                   </div>
                   <button
                     onClick={() => { const l = import.meta.env.VITE_STRIPE_PORTAL_LINK; if (l) window.open(l, '_blank'); }}
