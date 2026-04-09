@@ -124,6 +124,7 @@ export default function SettingsPage({
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'profil' | 'abonnement' | 'utilisation'>('profil');
+  const [showEco, setShowEco] = useState(false);
 
   // MBTI info modal
   const [mbtiInfoOpen, setMbtiInfoOpen] = useState(false);
@@ -481,6 +482,127 @@ export default function SettingsPage({
               ))}
             </div>
           </div>
+
+          {/* ── Empreinte environnementale (déroulante) ── */}
+          {(() => {
+            // Estimations basées sur la littérature publique (Mistral small ~0.002 kWh/msg)
+            const totalMsgs  = (dailyUsage.count ?? 0) + weeklyUsage.count;
+            const weekMsgs   = weeklyUsage.count;
+            const KWH_PER_MSG  = 0.002;   // kWh par message (Mistral small, efficace)
+            const CO2_PER_KWH  = 0.233;   // kg CO2/kWh (mix UE moyen)
+            const WATER_PER_KWH = 0.5;    // L eau/kWh (refroidissement datacenter)
+
+            const weekKwh   = weekMsgs  * KWH_PER_MSG;
+            const weekCo2g  = weekKwh   * CO2_PER_KWH * 1000; // en grammes
+            const weekWaterL = weekKwh  * WATER_PER_KWH;
+
+            // Equivalences ludiques
+            const kmVoiture = (weekCo2g / 1000) / 0.21; // 210g CO2/km voiture essence
+            const emails    = Math.round(weekCo2g / 4);  // ~4g CO2 par email
+            const chargePhone = Math.round(weekKwh / 0.012); // ~12 Wh pour charger un smartphone
+
+            const ecoScore = weekMsgs === 0 ? 100 : Math.max(0, 100 - Math.floor(weekMsgs / 2));
+            const scoreColor = ecoScore >= 80 ? '#10B981' : ecoScore >= 50 ? '#F59E0B' : '#EF4444';
+            const scoreLabel = ecoScore >= 80 ? 'Excellent' : ecoScore >= 50 ? 'Modéré' : 'Élevé';
+
+            return (
+              <div className="border-2 border-[#141414]/10 bg-white overflow-hidden" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
+                {/* En-tête cliquable */}
+                <button
+                  onClick={() => setShowEco(v => !v)}
+                  className="w-full px-5 py-3 flex items-center gap-3 hover:bg-[#141414]/2 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 flex items-center justify-center flex-shrink-0" style={{ background: '#10B98112', border: '1.5px solid #10B98130' }}>
+                    <span className="text-sm">🌿</span>
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-[11px] font-black uppercase tracking-widest text-[#10B981]">Empreinte environnementale</h2>
+                    <p className="text-[9px] text-[#141414]/40 mt-0.5">Voir mon impact · {weekMsgs} msg cette semaine</p>
+                  </div>
+                  <span className="text-[#141414]/30 text-xs flex-shrink-0">{showEco ? '▲' : '▼'}</span>
+                </button>
+
+                {showEco && (
+                  <div className="px-5 pb-5 space-y-5 border-t border-[#141414]/8">
+
+                    {/* Score global */}
+                    <div className="pt-4 flex items-center gap-4">
+                      <div className="flex-shrink-0 w-16 h-16 flex flex-col items-center justify-center border-2" style={{ borderColor: `${scoreColor}40`, background: `${scoreColor}08` }}>
+                        <span className="text-xl font-black" style={{ color: scoreColor }}>{ecoScore}</span>
+                        <span className="text-[7px] font-black uppercase tracking-widest" style={{ color: scoreColor }}>/ 100</span>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black text-[#141414]">Impact {scoreLabel}</p>
+                        <p className="text-[9px] text-[#141414]/45 leading-relaxed mt-0.5">
+                          Basé sur {weekMsgs} messages cette semaine.<br />
+                          Estimation : ~{weekCo2g.toFixed(1)}g CO₂ · {weekKwh.toFixed(3)} kWh · {weekWaterL.toFixed(2)} L d'eau
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Barres d'impact */}
+                    <div className="space-y-3">
+                      {[
+                        { label: 'CO₂ émis (g)', value: weekCo2g, max: 50,  color: '#EF4444', unit: 'g', fmt: (v: number) => v.toFixed(1) },
+                        { label: 'Énergie (Wh)',  value: weekKwh * 1000, max: 100, color: '#F59E0B', unit: 'Wh', fmt: (v: number) => v.toFixed(0) },
+                        { label: 'Eau (mL)',       value: weekWaterL * 1000, max: 500, color: '#3B82F6', unit: 'mL', fmt: (v: number) => v.toFixed(0) },
+                      ].map(bar => (
+                        <div key={bar.label}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-[#141414]/50">{bar.label}</span>
+                            <span className="text-[9px] font-black tabular-nums" style={{ color: bar.color }}>{bar.fmt(bar.value)} {bar.unit}</span>
+                          </div>
+                          <div className="h-1.5 bg-[#141414]/8 w-full rounded-sm overflow-hidden">
+                            <div className="h-1.5 rounded-sm transition-all duration-700"
+                              style={{ width: `${Math.min(100, (bar.value / bar.max) * 100)}%`, backgroundColor: bar.color }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Équivalences */}
+                    <div className="bg-[#141414]/3 px-4 py-3 space-y-1.5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 mb-2">Équivalences cette semaine</p>
+                      {[
+                        { icon: '🚗', text: `${kmVoiture.toFixed(2)} km en voiture essence` },
+                        { icon: '📧', text: `${emails} emails envoyés` },
+                        { icon: '📱', text: `${chargePhone} charges de smartphone` },
+                      ].map(eq => (
+                        <div key={eq.icon} className="flex items-center gap-2">
+                          <span className="text-sm">{eq.icon}</span>
+                          <span className="text-[9px] text-[#141414]/55">{eq.text}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Tips eco */}
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#10B981]/70 mb-2.5">Utiliser Challenger de façon + responsable</p>
+                      <div className="space-y-2">
+                        {[
+                          { icon: '✍️', tip: 'Posez des questions précises — moins d\'allers-retours = moins de CO₂' },
+                          { icon: '🖼️', tip: 'Évitez les images inutiles — elles consomment 3× plus d\'énergie' },
+                          { icon: '📦', tip: 'Groupez vos questions en un seul message quand c\'est possible' },
+                          { icon: '🌙', tip: 'Utilisez l\'app aux heures creuses — le réseau électrique est plus vert la nuit' },
+                          { icon: '🔁', tip: 'Relisez les réponses avant de redemander — évitez les doublons' },
+                        ].map(t => (
+                          <div key={t.icon} className="flex items-start gap-2.5">
+                            <span className="text-sm flex-shrink-0">{t.icon}</span>
+                            <p className="text-[9px] text-[#141414]/50 leading-relaxed">{t.tip}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-[7px] text-[#141414]/20 leading-relaxed">
+                      * Estimations basées sur les données publiques de consommation des LLMs (Mistral AI, ~0.002 kWh/requête) et le mix électrique européen moyen (0.233 kg CO₂/kWh). Ces chiffres sont indicatifs.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         </>)}
 
         {/* ═══════════════ ONGLET PROFIL (existant) ═══════════════ */}
