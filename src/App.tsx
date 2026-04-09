@@ -28,8 +28,10 @@ import {
 import { subscribeToNewsletter, getSubscription, getUserCredits, deductOneCredit, CREDIT_PACKS, type Plan } from './supabase';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
-const FREE_DAILY_LIMIT = 20;
+const FREE_DAILY_LIMIT  = 20;
 const FREE_WEEKLY_LIMIT = 100;
+const PRO_DAILY_LIMIT   = 150;
+const PRO_WEEKLY_LIMIT  = 700;
 
 function weekStr(): string {
   const d = new Date();
@@ -1037,6 +1039,7 @@ export default function App() {
   const [dailyUsage, setDailyUsage] = useState<{ count: number; date: string }>({ count: 0, date: '' });
   const [weeklyUsage, setWeeklyUsage] = useState<{ count: number; week: string }>({ count: 0, week: '' });
   const [userCredits, setUserCredits] = useState<number>(0);
+  const [totalCredits, setTotalCredits] = useState<number>(0); // lifetime (total acheté)
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
@@ -1149,7 +1152,8 @@ export default function App() {
     setConversations(remote);
     setProjects(remoteProjects);
     setSubscription(plan);
-    setUserCredits(credits);
+    setUserCredits(credits.credits);
+    setTotalCredits(credits.lifetime);
     const today = todayStr();
     const thisWeek = weekStr();
     setDailyUsage(usage.date === today ? { count: usage.count, date: today } : { count: 0, date: today });
@@ -1705,32 +1709,35 @@ export default function App() {
       if (!text.trim() && attachments.length === 0) return;
       if (sending) return;
 
-      // ── Modèle Hybride : Free / Crédits / Pro ─────────────────────────────
-      if (subscription !== 'pro' && FIREBASE_ENABLED) {
+      // ── Modèle Hybride : quotas pour tous les plans ──────────────────────
+      if (FIREBASE_ENABLED) {
         const today = todayStr();
         const thisWeek = weekStr();
         const dailyCount = dailyUsage.date === today ? dailyUsage.count : 0;
         const wkCount = weeklyUsage.week === thisWeek ? weeklyUsage.count : 0;
 
-        const dailyOk = dailyCount < FREE_DAILY_LIMIT;
-        const weeklyOk = wkCount < FREE_WEEKLY_LIMIT;
+        const dailyLimit  = subscription === 'pro' ? PRO_DAILY_LIMIT  : FREE_DAILY_LIMIT;
+        const weeklyLimit = subscription === 'pro' ? PRO_WEEKLY_LIMIT : FREE_WEEKLY_LIMIT;
+
+        const dailyOk  = dailyCount < dailyLimit;
+        const weeklyOk = wkCount   < weeklyLimit;
 
         if (dailyOk && weeklyOk) {
-          // ── Quota gratuit disponible
-          const newDaily = dailyCount + 1;
+          // ── Quota inclus disponible
+          const newDaily  = dailyCount + 1;
           const newWeekly = wkCount + 1;
           setDailyUsage({ count: newDaily, date: today });
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
           if (user) fsSaveUsage(user.uid, newDaily, today, newWeekly, thisWeek);
         } else if (userCredits > 0) {
-          // ── Quota épuisé → déduire 1 crédit
+          // ── Quota épuisé → déduire 1 crédit supplémentaire
           setUserCredits(c => c - 1);
           if (user) deductOneCredit(user.uid);
           // Compteur hebdo incrémenté même sur crédit (pour analytics)
           const newWeekly = wkCount + 1;
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
         } else {
-          // ── Bloqué
+          // ── Bloqué — plus de quota ni de crédits
           setUpgradeModal('limit');
           return;
         }
@@ -2905,6 +2912,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             dailyUsage={dailyUsage}
             weeklyUsage={weeklyUsage}
             userCredits={userCredits}
+            totalCredits={totalCredits}
             user={user}
           />
         </div>
@@ -4354,7 +4362,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                         Challenger Pro
                       </p>
                       <p className="text-[8px] text-white/35 mt-0.5">
-                        {upgradeModal === 'limit' && `Limite de ${FREE_DAILY_LIMIT} messages/jour atteinte`}
+                        {upgradeModal === 'limit' && (subscription === 'pro' ? `Limite Pro de ${PRO_DAILY_LIMIT} msg/jour atteinte — achetez des crédits` : `Limite de ${FREE_DAILY_LIMIT} msg/jour atteinte`)}
                         {upgradeModal === 'files' && 'Les pièces jointes sont réservées au plan Pro'}
                         {upgradeModal === 'projects' && 'Les projets sont réservés au plan Pro'}
                       </p>

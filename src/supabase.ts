@@ -49,20 +49,23 @@ export async function subscribeToNewsletter(email: string): Promise<void> {
 // ─── Crédits ──────────────────────────────────────────────────────────────────
 
 /**
- * Lit le solde de crédits de l'utilisateur.
+ * Lit le solde de crédits de l'utilisateur (restants + total acheté).
  * Table Supabase : user_credits (user_id text PK, credits int, lifetime_credits int, updated_at timestamptz)
  */
-export async function getUserCredits(userId: string): Promise<number> {
-  if (!supabase) return 0;
+export async function getUserCredits(userId: string): Promise<{ credits: number; lifetime: number }> {
+  if (!supabase) return { credits: 0, lifetime: 0 };
   try {
     const { data } = await supabase
       .from('user_credits')
-      .select('credits')
+      .select('credits, lifetime_credits')
       .eq('user_id', userId)
       .single();
-    return data?.credits ?? 0;
+    return {
+      credits:  data?.credits          ?? 0,
+      lifetime: data?.lifetime_credits ?? 0,
+    };
   } catch {
-    return 0;
+    return { credits: 0, lifetime: 0 };
   }
 }
 

@@ -108,15 +108,18 @@ type Props = {
   dailyUsage: { count: number; date: string };
   weeklyUsage: { count: number; week: string };
   userCredits: number;
+  totalCredits: number;
   user: FirebaseUser | null;
 };
 
-const FREE_DAILY = 20;
-const FREE_WEEKLY = 100;
+const FREE_DAILY   = 20;
+const FREE_WEEKLY  = 100;
+const PRO_DAILY    = 150;
+const PRO_WEEKLY   = 700;
 
 export default function SettingsPage({
   onBack, profile: initialProfile, onSave,
-  subscription, dailyUsage, weeklyUsage, userCredits, user,
+  subscription, dailyUsage, weeklyUsage, userCredits, totalCredits, user,
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
@@ -233,7 +236,7 @@ export default function SettingsPage({
           <div className="flex-1 min-w-0">
             <h1 className="text-[13px] font-black uppercase tracking-widest text-[#141414]">Paramètres</h1>
             <p className="text-[9px] font-medium text-[#141414]/40 uppercase tracking-widest mt-0.5">
-              {subscription === 'pro' ? '✦ Plan Pro actif' : `${userCredits} crédit${userCredits !== 1 ? 's' : ''} disponible${userCredits !== 1 ? 's' : ''}`}
+              {subscription === 'pro' ? `✦ Plan Pro · ${userCredits} crédit${userCredits !== 1 ? 's' : ''} supp.` : `${userCredits} crédit${userCredits !== 1 ? 's' : ''} disponible${userCredits !== 1 ? 's' : ''}`}
             </p>
           </div>
           <AnimatePresence>
@@ -372,69 +375,90 @@ export default function SettingsPage({
         {/* ═══════════════ ONGLET UTILISATION ═══════════════ */}
         {activeTab === 'utilisation' && (<>
 
-          {/* Quotas */}
+          {/* ── 3 indicateurs visuels ── */}
           <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
             <div className="px-5 py-3 border-b border-[#141414]/8 flex items-center gap-3">
               <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#5D7BFF12', border: '1.5px solid #5D7BFF30' }}>
                 <TrendingUp className="w-4 h-4 text-[#5D7BFF]" />
               </div>
               <h2 className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">Quota & Limites</h2>
-              {subscription === 'pro' && (
-                <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] bg-[#5D7BFF]/8 px-2 py-0.5">illimité</span>
-              )}
+              <span className="ml-auto text-[9px] font-black uppercase tracking-widest px-2 py-0.5"
+                style={{ color: subscription === 'pro' ? '#5D7BFF' : '#141414', background: subscription === 'pro' ? '#5D7BFF14' : '#14141408' }}>
+                {subscription === 'pro' ? '✦ Pro' : 'Free'}
+              </span>
             </div>
-            <div className="px-5 py-5 space-y-5">
-              {subscription === 'pro' ? (
-                <p className="text-sm text-[#141414]/50 text-center py-4">Aucune limite — plan Pro actif ✦</p>
-              ) : (
-                <>
-                  {/* Quotidien */}
-                  {(() => {
-                    const today = new Date().toISOString().split('T')[0];
-                    const used = dailyUsage.date === today ? dailyUsage.count : 0;
-                    const pct = Math.min(100, (used / FREE_DAILY) * 100);
-                    const color = pct >= 90 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#5D7BFF';
-                    return (
-                      <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Aujourd'hui</span>
-                          <span className="text-[10px] font-black" style={{ color }}>{used} / {FREE_DAILY} msg</span>
-                        </div>
-                        <div className="h-2 bg-[#141414]/8 w-full">
-                          <div className="h-2 transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
-                        </div>
-                        {used >= FREE_DAILY && userCredits > 0 && (
-                          <p className="text-[9px] text-[#F59E0B] mt-1">Quota atteint — vos crédits prennent le relais</p>
-                        )}
-                      </div>
-                    );
-                  })()}
+            <div className="px-5 py-5 space-y-6">
 
-                  {/* Hebdomadaire */}
-                  {(() => {
-                    const used = weeklyUsage.count;
-                    const pct = Math.min(100, (used / FREE_WEEKLY) * 100);
-                    const color = pct >= 90 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#10B981';
-                    return (
-                      <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Cette semaine</span>
-                          <span className="text-[10px] font-black" style={{ color }}>{used} / {FREE_WEEKLY} msg</span>
-                        </div>
-                        <div className="h-2 bg-[#141414]/8 w-full">
-                          <div className="h-2 transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Crédits restants */}
-                  <div className="flex items-center justify-between pt-2 border-t border-[#141414]/8">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Crédits disponibles</span>
-                    <span className="text-sm font-black text-[#F59E0B]">{userCredits} crédits</span>
+              {/* ── 1. Aujourd'hui ── */}
+              {(() => {
+                const today = new Date().toISOString().split('T')[0];
+                const used  = dailyUsage.date === today ? dailyUsage.count : 0;
+                const limit = subscription === 'pro' ? PRO_DAILY : FREE_DAILY;
+                const pct   = Math.min(100, (used / limit) * 100);
+                const color = pct >= 90 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#5D7BFF';
+                return (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Crédits aujourd'hui</span>
+                      <span className="text-[11px] font-black tabular-nums" style={{ color }}>{used} / {limit}</span>
+                    </div>
+                    <div className="h-2.5 bg-[#141414]/8 w-full rounded-sm overflow-hidden">
+                      <div className="h-2.5 rounded-sm transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+                    </div>
+                    {used >= limit && userCredits > 0 && (
+                      <p className="text-[9px] text-[#F59E0B] mt-1.5 font-medium">Quota atteint — vos crédits supplémentaires prennent le relais</p>
+                    )}
+                    {used >= limit && userCredits === 0 && (
+                      <p className="text-[9px] text-[#EF4444] mt-1.5 font-medium">Quota atteint — achetez des crédits pour continuer</p>
+                    )}
                   </div>
-                </>
-              )}
+                );
+              })()}
+
+              {/* ── 2. Cette semaine ── */}
+              {(() => {
+                const used  = weeklyUsage.count;
+                const limit = subscription === 'pro' ? PRO_WEEKLY : FREE_WEEKLY;
+                const pct   = Math.min(100, (used / limit) * 100);
+                const color = pct >= 90 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#10B981';
+                return (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Crédits cette semaine</span>
+                      <span className="text-[11px] font-black tabular-nums" style={{ color }}>{used} / {limit}</span>
+                    </div>
+                    <div className="h-2.5 bg-[#141414]/8 w-full rounded-sm overflow-hidden">
+                      <div className="h-2.5 rounded-sm transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── 3. Crédits supplémentaires ── */}
+              {(() => {
+                const used  = Math.max(0, totalCredits - userCredits);
+                const total = totalCredits;
+                const pct   = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+                const color = '#F59E0B';
+                return (
+                  <div className="pt-2 border-t border-[#141414]/8">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Crédits supplémentaires</span>
+                      <span className="text-[11px] font-black tabular-nums" style={{ color: userCredits > 0 ? color : '#141414' }}>
+                        {userCredits} restants{total > 0 ? ` / ${total} achetés` : ''}
+                      </span>
+                    </div>
+                    {total > 0 ? (
+                      <div className="h-2.5 bg-[#141414]/8 w-full rounded-sm overflow-hidden">
+                        <div className="h-2.5 rounded-sm transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+                      </div>
+                    ) : (
+                      <p className="text-[9px] text-[#141414]/35 mt-1">Aucun crédit acheté — disponibles dans l'onglet Abonnement</p>
+                    )}
+                  </div>
+                );
+              })()}
+
             </div>
           </div>
 
@@ -443,9 +467,9 @@ export default function SettingsPage({
             <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 mb-3">Comment ça marche</p>
             <div className="space-y-2.5">
               {[
-                { icon: '🟢', label: 'Plan Free',    desc: '20 msg/jour · 100 msg/semaine inclus' },
-                { icon: '🟡', label: 'Crédits',      desc: 'Déclenchés quand le quota est épuisé · 1 crédit = 1 msg' },
-                { icon: '🔵', label: 'Plan Pro',      desc: 'Illimité · Priorité serveur · Toutes features' },
+                { icon: '🟢', label: 'Plan Free',  desc: `${FREE_DAILY} msg/jour · ${FREE_WEEKLY} msg/semaine inclus` },
+                { icon: '🔵', label: 'Plan Pro',   desc: `${PRO_DAILY} msg/jour · ${PRO_WEEKLY} msg/semaine · toutes les features` },
+                { icon: '🟡', label: 'Crédits +',  desc: 'S\'activent automatiquement quand le quota est épuisé · 1 crédit = 1 msg · n\'expirent jamais' },
               ].map(r => (
                 <div key={r.label} className="flex items-start gap-3">
                   <span className="text-base">{r.icon}</span>
