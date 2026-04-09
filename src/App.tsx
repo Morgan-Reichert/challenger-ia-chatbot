@@ -1047,6 +1047,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false); // guard synchrone — évite les double-envois avant re-render
   const [chatError, setChatError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
 
@@ -1729,7 +1730,8 @@ export default function App() {
   const send = useCallback(
     async (text: string, attachments: Attachment[] = []) => {
       if (!text.trim() && attachments.length === 0) return;
-      if (sending) return;
+      if (sending || sendingRef.current) return;
+      sendingRef.current = true;
 
       // ── Modèle Hybride : quotas pour tous les plans ──────────────────────
       if (FIREBASE_ENABLED) {
@@ -1823,6 +1825,7 @@ export default function App() {
 
       const allMessages = [...prevMessages, userMsg];
       setSending(true);
+      sendingRef.current = true;
       setChatError(null);
       setInput('');
 
@@ -1925,6 +1928,7 @@ export default function App() {
         setChatError(e instanceof Error ? e.message : 'Erreur inconnue');
       } finally {
         setSending(false);
+        sendingRef.current = false;
       }
     },
     [activeId, conversations, sending, persona, level, user, subscription, dailyUsage]
