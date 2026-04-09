@@ -25,6 +25,10 @@
   to   { opacity: 1; transform: translateY(0);   }
 }
 
+/* ── Masquer les scrollbars ─────────────────────────────────────────────────── */
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 @layer base {
   html, body, #root {
     height: 100%;

@@ -3803,7 +3803,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
               {/* ── Chips sessions récentes ── */}
               {!activeId && !sending && input === '' && conversations.length > 0 && (
-                <div className="absolute bottom-full left-0 right-0 flex gap-2 overflow-x-auto pb-2 pt-1 px-6 scrollbar-hide" style={{ marginBottom: 0 }}>
+                <div className="absolute bottom-full left-0 right-0 flex gap-2 overflow-x-auto pb-2 pt-1 px-6 scrollbar-hide" style={{ marginBottom: 0, scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
                   {conversations.slice(0, 4).map(c => (
                     <button
                       key={c.id}
