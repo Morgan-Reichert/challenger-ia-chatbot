@@ -110,6 +110,8 @@ type Props = {
   userCredits: number;
   totalCredits: number;
   user: FirebaseUser | null;
+  autoUseCredits: boolean;
+  onAutoUseCreditsChange: (v: boolean) => void;
 };
 
 const FREE_DAILY   = 20;
@@ -120,6 +122,7 @@ const PRO_WEEKLY   = 700;
 export default function SettingsPage({
   onBack, profile: initialProfile, onSave,
   subscription, dailyUsage, weeklyUsage, userCredits, totalCredits, user,
+  autoUseCredits, onAutoUseCreditsChange,
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
@@ -364,6 +367,41 @@ export default function SettingsPage({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* Préférence utilisation automatique des crédits */}
+          <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
+            <div className="px-5 py-3 border-b border-[#141414]/8 flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#F59E0B12', border: '1.5px solid #F59E0B30' }}>
+                <Coins className="w-4 h-4 text-[#F59E0B]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B]">Préférences crédits</h2>
+            </div>
+            <div className="px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-[11px] font-black text-[#141414]">Utilisation automatique des crédits</p>
+                  <p className="text-[10px] text-[#141414]/50 mt-1 leading-relaxed">
+                    Quand activé, vos crédits supplémentaires sont utilisés automatiquement une fois le quota gratuit épuisé.<br />
+                    Quand désactivé, une confirmation vous est demandée dans le chat.
+                  </p>
+                </div>
+                {/* Toggle */}
+                <button
+                  onClick={() => onAutoUseCreditsChange(!autoUseCredits)}
+                  className="flex-shrink-0 mt-0.5 relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none"
+                  style={{ background: autoUseCredits ? '#F59E0B' : '#141414/15', backgroundColor: autoUseCredits ? '#F59E0B' : '#D1D5DB' }}
+                >
+                  <span
+                    className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                    style={{ transform: autoUseCredits ? 'translateX(20px)' : 'translateX(0)' }}
+                  />
+                </button>
+              </div>
+              <p className="text-[9px] mt-3 font-black uppercase tracking-widest" style={{ color: autoUseCredits ? '#F59E0B' : '#141414' }}>
+                {autoUseCredits ? '✓ Activation automatique — vos crédits sont utilisés sans confirmation' : '✗ Manuel — une confirmation vous sera demandée dans le chat'}
+              </p>
             </div>
           </div>
 

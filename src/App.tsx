@@ -1067,6 +1067,16 @@ export default function App() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [creditsSuccess, setCreditsSuccess] = useState(false);
 
+  // ── Préférences crédits
+  const [autoUseCredits, setAutoUseCredits] = useState<boolean>(() => {
+    try { return localStorage.getItem('autoUseCredits') !== 'false'; } catch { return true; }
+  });
+  const creditConfirmedRef = useRef(false);
+  const [pendingCreditSend, setPendingCreditSend] = useState<{ text: string; attachments: Attachment[] } | null>(null);
+
+  // ── Notifications in-chat (quota, crédits)
+  const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string } | null>(null);
+
   // ── Navigation
   const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings'>('chat');
 
@@ -1488,6 +1498,18 @@ export default function App() {
     return () => clearTimeout(t);
   }, [paymentSuccess]);
 
+  // ── Persistance préférence crédits auto
+  useEffect(() => {
+    try { localStorage.setItem('autoUseCredits', String(autoUseCredits)); } catch {}
+  }, [autoUseCredits]);
+
+  // ── Auto-dismiss chatNotif
+  useEffect(() => {
+    if (!chatNotif) return;
+    const t = setTimeout(() => setChatNotif(null), 5000);
+    return () => clearTimeout(t);
+  }, [chatNotif]);
+
   useEffect(() => {
     if (!creditsSuccess) return;
     const t = setTimeout(() => setCreditsSuccess(false), 6000);
@@ -1779,15 +1801,38 @@ export default function App() {
           setDailyUsage({ count: newDaily, date: today });
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
           if (user) fsSaveUsage(user.uid, newDaily, today, newWeekly, thisWeek);
+          // Notif 80% quota journalier
+          const pct = newDaily / dailyLimit;
+          if (pct >= 0.8 && pct < 1) {
+            setChatNotif({ type: 'warning', msg: `⚠️ Il vous reste ${dailyLimit - newDaily} message${dailyLimit - newDaily > 1 ? 's' : ''} gratuit${dailyLimit - newDaily > 1 ? 's' : ''} aujourd'hui` });
+          } else if (newDaily >= dailyLimit) {
+            setChatNotif({ type: 'info', msg: userCredits > 0 ? `Quota journalier atteint — vos crédits prendront le relais` : `Quota journalier atteint — rechargez des crédits pour continuer` });
+          }
         } else if (userCredits >= cost) {
-          // ── Quota épuisé → déduire les crédits supplémentaires
+          // ── Quota épuisé → vérifier si auto ou confirmation
+          if (!autoUseCredits && !creditConfirmedRef.current) {
+            setPendingCreditSend({ text, attachments });
+            sendingRef.current = false;
+            return;
+          }
+          creditConfirmedRef.current = false;
+          // Déduire les crédits
+          const remaining = userCredits - cost;
           setUserCredits(c => c - cost);
-          // Déductions en parallèle (1 appel par crédit)
           if (user) { const u = user; (async () => { for (let i = 0; i < cost; i++) await deductOneCredit(u.uid); })(); }
           const newWeekly = wkCount + cost;
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
+          // Notif selon crédits restants
+          if (remaining === 0) {
+            setChatNotif({ type: 'error', msg: `❌ Vous venez d'utiliser votre dernier crédit — rechargez pour continuer` });
+          } else if (remaining <= 10) {
+            setChatNotif({ type: 'warning', msg: `⚠️ Plus que ${remaining} crédit${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}` });
+          } else {
+            setChatNotif({ type: 'info', msg: `💳 ${cost} crédit${cost > 1 ? 's' : ''} utilisé${cost > 1 ? 's' : ''} — ${remaining} restant${remaining > 1 ? 's' : ''}` });
+          }
         } else {
-          // ── Bloqué — crédits insuffisants
+          // ── Bloqué — plus de quota ni de crédits
+          setChatNotif({ type: 'error', msg: `❌ Plus de crédits disponibles — rechargez dans Réglages` });
           setUpgradeModal('limit');
           sendingRef.current = false;
           return;
@@ -3042,6 +3087,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             userCredits={userCredits}
             totalCredits={totalCredits}
             user={user}
+            autoUseCredits={autoUseCredits}
+            onAutoUseCreditsChange={setAutoUseCredits}
           />
         </div>
       )}
@@ -3760,6 +3807,75 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         </div>
           );
         })()}
+
+        {/* ── Notification in-chat (quota / crédits) ── */}
+        <AnimatePresence>
+          {chatNotif && (
+            <motion.div
+              key="chat-notif"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="flex-shrink-0 flex items-center justify-between gap-3 px-6 py-2.5 border-t"
+              style={{
+                background: chatNotif.type === 'error' ? '#FEF2F2' : chatNotif.type === 'warning' ? '#FFFBEB' : '#EFF6FF',
+                borderColor: chatNotif.type === 'error' ? '#FCA5A5' : chatNotif.type === 'warning' ? '#FCD34D' : '#BFDBFE',
+              }}
+            >
+              <p className="text-[10px] font-bold"
+                style={{ color: chatNotif.type === 'error' ? '#DC2626' : chatNotif.type === 'warning' ? '#D97706' : '#2563EB' }}>
+                {chatNotif.msg}
+              </p>
+              <button onClick={() => setChatNotif(null)} className="flex-shrink-0 opacity-40 hover:opacity-70 transition-opacity">
+                <X className="w-3 h-3" style={{ color: chatNotif.type === 'error' ? '#DC2626' : chatNotif.type === 'warning' ? '#D97706' : '#2563EB' }} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Confirmation utiliser crédits ── */}
+        <AnimatePresence>
+          {pendingCreditSend && (
+            <motion.div
+              key="credit-confirm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="flex-shrink-0 px-6 py-4 border-t-2 border-[#F59E0B]/30 bg-[#FFFBEB]"
+            >
+              <div className="flex items-start gap-3">
+                <Coins className="w-4 h-4 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-[11px] font-black text-[#141414]">Quota gratuit atteint</p>
+                  <p className="text-[10px] text-[#141414]/60 mt-0.5">
+                    Souhaitez-vous continuer avec vos crédits supplémentaires ?&nbsp;
+                    <span className="font-bold text-[#F59E0B]">{userCredits} crédit{userCredits !== 1 ? 's' : ''} disponible{userCredits !== 1 ? 's' : ''}</span>
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        const { text: t, attachments: a } = pendingCreditSend;
+                        setPendingCreditSend(null);
+                        creditConfirmedRef.current = true;
+                        send(t, a);
+                      }}
+                      className="px-4 py-1.5 bg-[#F59E0B] text-white text-[9px] font-black uppercase tracking-widest hover:bg-[#D97706] transition-colors"
+                      style={{ boxShadow: '3px 3px 0px 0px rgba(217,119,6,0.3)' }}
+                    >
+                      Oui, utiliser mes crédits
+                    </button>
+                    <button
+                      onClick={() => setPendingCreditSend(null)}
+                      className="px-4 py-1.5 border-2 border-[#141414]/15 text-[9px] font-black uppercase tracking-widest text-[#141414]/50 hover:border-[#141414]/30 transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Input */}
         <div
