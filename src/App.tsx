@@ -3801,23 +3801,6 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 </button>
               )}
 
-              {/* ── Chips sessions récentes ── */}
-              {!activeId && !sending && input === '' && conversations.length > 0 && (
-                <div className="absolute bottom-full left-0 right-0 flex gap-2 overflow-x-auto pb-2 pt-1 px-6 scrollbar-hide" style={{ marginBottom: 0, scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}>
-                  {conversations.slice(0, 4).map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => { setInput(c.title.replace(/…$/, '')); taRef.current?.focus(); }}
-                      className="flex-shrink-0 flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest px-3 py-1.5 bg-white border border-[#5D7BFF]/20 text-[#5D7BFF]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] hover:bg-[#5D7BFF]/5 transition-all whitespace-nowrap"
-                    >
-                      <RotateCcw className="w-2.5 h-2.5 flex-shrink-0" />
-                      {c.title.length > 30 ? c.title.slice(0, 30) + '…' : c.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {/* Textarea */}
               <div className="flex-1 relative">
                 <textarea
