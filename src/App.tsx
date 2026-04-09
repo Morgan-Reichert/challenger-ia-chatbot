@@ -3997,11 +3997,6 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 )}
               </div>
 
-              {/* Disclaimer IA */}
-              <p className="absolute -top-5 left-0 right-0 text-center text-[8px] text-[#141414]/20 pointer-events-none select-none tracking-wide hidden sm:block">
-                Challenger IA peut se tromper — vérifiez les informations importantes
-              </p>
-
               {/* Envoyer */}
               <button
                 type="submit"
@@ -4015,6 +4010,12 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </button>
             </form>
+
+            {/* Disclaimer IA */}
+            <p className="text-center text-[8px] text-[#141414]/20 pointer-events-none select-none tracking-wide mt-2 hidden sm:block">
+              Challenger IA peut se tromper — vérifiez les informations importantes
+            </p>
+
           </div>
         </div>
       </div>
