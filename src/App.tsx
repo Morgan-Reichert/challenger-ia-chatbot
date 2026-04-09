@@ -242,6 +242,28 @@ function readAsDataURL(file: File): Promise<string> {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
 }
 
+/** Compresse une image via canvas — max 1024px, qualité 85% — pour rester sous la limite Vercel 4.5MB */
+function compressImage(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('canvas ctx')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 function readAsText(file: File): Promise<string> {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsText(file); });
 }
@@ -331,8 +353,8 @@ async function processFile(file: File): Promise<Attachment | null> {
 
   // ── Images ──
   if (IMAGE_TYPES.includes(file.type)) {
-    const content = await readAsDataURL(file);
-    return { id: uid(), name: file.name, type: 'image', mimeType: file.type, content, size: file.size };
+    const content = await compressImage(file);
+    return { id: uid(), name: file.name, type: 'image', mimeType: 'image/jpeg', content, size: file.size };
   }
 
   // ── PDF ──
@@ -1822,7 +1844,7 @@ export default function App() {
           if (imgs.length > 0) {
             const parts: object[] = [];
             if (fileContext || msg.content) parts.push({ type: 'text', text: fileContext + msg.content });
-            imgs.forEach((a) => parts.push({ type: 'image_url', image_url: { url: a.content } }));
+            imgs.forEach((a) => parts.push({ type: 'image_url', image_url: a.content }));
             return parts;
           }
           return fileContext + msg.content;
