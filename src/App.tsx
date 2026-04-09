@@ -9,7 +9,7 @@ import {
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Library, Settings,
-  Star, UserMinus, Eraser, Slash, FileDown,
+  Star, UserMinus, Eraser, Slash, FileDown, Coins,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -1065,6 +1065,7 @@ export default function App() {
   const [totalCredits, setTotalCredits] = useState<number>(0); // lifetime (total acheté)
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [creditsSuccess, setCreditsSuccess] = useState(false);
 
   // ── Navigation
   const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings'>('chat');
@@ -1444,19 +1445,35 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // ── Retour depuis Stripe : re-vérification du plan + visibilitychange
+  // ── Retour depuis Stripe : re-vérification du plan + crédits + visibilitychange
   useEffect(() => {
-    // Détecte ?payment=success dans l'URL au chargement
     const params = new URLSearchParams(window.location.search);
-    if (params.get('payment') === 'success') {
+    const paymentParam = params.get('payment');
+
+    if (paymentParam === 'success') {
       setPaymentSuccess(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentParam === 'credits') {
+      // Rechargement du solde de crédits depuis Supabase
+      if (user) {
+        getUserCredits(user.uid).then(({ credits, lifetime }) => {
+          setUserCredits(credits);
+          setTotalCredits(lifetime);
+        });
+      }
+      setCreditsSuccess(true);
       window.history.replaceState({}, '', window.location.pathname);
     }
 
     const handleVisibility = async () => {
       if (document.visibilityState === 'visible' && user) {
-        const plan = await getSubscription(user.uid);
+        const [plan, { credits, lifetime }] = await Promise.all([
+          getSubscription(user.uid),
+          getUserCredits(user.uid),
+        ]);
         setSubscription(plan);
+        setUserCredits(credits);
+        setTotalCredits(lifetime);
         if (plan === 'pro') setPaymentSuccess(true);
       }
     };
@@ -1464,12 +1481,18 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [user]);
 
-  // ── Auto-masquage de la notification de paiement
+  // ── Auto-masquage des notifications de paiement
   useEffect(() => {
     if (!paymentSuccess) return;
     const t = setTimeout(() => setPaymentSuccess(false), 6000);
     return () => clearTimeout(t);
   }, [paymentSuccess]);
+
+  useEffect(() => {
+    if (!creditsSuccess) return;
+    const t = setTimeout(() => setCreditsSuccess(false), 6000);
+    return () => clearTimeout(t);
+  }, [creditsSuccess]);
 
   // ── Vocal : déclenche le TTS quand l'IA répond en mode vocal
   useEffect(() => {
@@ -3172,6 +3195,26 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 </p>
               </div>
               <button onClick={() => setPaymentSuccess(false)} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+          {creditsSuccess && (
+            <motion.div
+              key="credits-success"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex-shrink-0 flex items-center justify-between gap-3 px-6 py-3 border-b-2"
+              style={{ background: '#F59E0B', borderColor: '#d97706' }}
+            >
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-white flex-shrink-0" />
+                <p className="text-[11px] font-black uppercase tracking-widest text-white">
+                  Crédits ajoutés ! Solde mis à jour — {userCredits} crédit{userCredits !== 1 ? 's' : ''} disponible{userCredits !== 1 ? 's' : ''}.
+                </p>
+              </div>
+              <button onClick={() => setCreditsSuccess(false)} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </motion.div>

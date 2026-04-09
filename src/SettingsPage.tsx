@@ -350,7 +350,10 @@ export default function SettingsPage({
                     key={pack.id}
                     onClick={() => {
                       const link = import.meta.env[pack.envKey];
-                      if (link) window.open(`${link}?client_reference_id=${user?.uid ?? ''}`, '_blank');
+                      if (link) {
+                        const successUrl = encodeURIComponent(`${window.location.origin}/?payment=credits`);
+                        window.open(`${link}?client_reference_id=${user?.uid ?? ''}&success_url=${successUrl}`, '_blank');
+                      }
                     }}
                     className="flex flex-col items-center gap-1.5 px-3 py-4 border-2 border-[#F59E0B]/20 hover:border-[#F59E0B] hover:bg-[#F59E0B]/4 transition-all group"
                   >
