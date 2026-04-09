@@ -7,6 +7,24 @@
   --font-serif: "Cormorant Garamond", serif;
 }
 
+/* ── Variables thème ────────────────────────────────────────────────────────── */
+:root {
+  --bg-app:       #F0F4FF;
+  --bg-sidebar:   #0e0e0e;
+  --bg-chat:      #F0F4FF;
+  --text-primary: #141414;
+  --text-muted:   rgba(20,20,20,0.5);
+  --border:       rgba(20,20,20,0.08);
+}
+html.dark {
+  --bg-app:       #111318;
+  --bg-sidebar:   #080A0D;
+  --bg-chat:      #111318;
+  --text-primary: #E8EAF0;
+  --text-muted:   rgba(232,234,240,0.5);
+  --border:       rgba(232,234,240,0.08);
+}
+
 /* ── Animation logo CR — streaming réponse ──────────────────────────────────── */
 @keyframes cr-shimmer {
   0%   { transform: translateX(-130%) skewX(-12deg); }

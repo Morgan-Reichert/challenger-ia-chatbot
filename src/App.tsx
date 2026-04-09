@@ -10,10 +10,13 @@ import {
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Library, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
+  Moon, Sun, Copy, Share2, Link,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
+import { generateMarkdown, generateNotionMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
+import { getDailyChallenge, getChallengeProgress, incrementChallengeProgress } from './dailyChallenges';
 import LibraryPage from './LibraryPage';
 import SettingsPage from './SettingsPage';
 import { DEBATE_PERSONAS, type DebatePersona, type DebateDisplayData } from './debatePersonas';
@@ -25,7 +28,7 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
-import { subscribeToNewsletter, getSubscription, getUserCredits, deductOneCredit, CREDIT_PACKS, type Plan } from './supabase';
+import { subscribeToNewsletter, getSubscription, getUserCredits, deductOneCredit, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
 const FREE_DAILY_LIMIT  = 20;
@@ -588,6 +591,43 @@ async function fsDeleteProject(userId: string, projectId: string): Promise<void>
   catch { /* silent */ }
 }
 
+// ─── Firestore: Partage de conversation ──────────────────────────────────────
+
+async function fsShareConversation(conv: Conversation): Promise<string | null> {
+  if (!db) return null;
+  try {
+    const shareId = uid();
+    const payload = {
+      shareId,
+      title: conv.title,
+      persona: conv.persona,
+      sharedAt: new Date().toISOString(),
+      messages: conv.messages
+        .filter(m => m.role !== 'command')
+        .map(m => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp.toISOString(),
+        })),
+    };
+    await setDoc(doc(db, 'shared', shareId), payload);
+    return shareId;
+  } catch {
+    return null;
+  }
+}
+
+async function fsGetSharedConversation(shareId: string): Promise<{ title: string; messages: { role: string; content: string; timestamp: string }[]; persona: string; sharedAt: string } | null> {
+  if (!db) return null;
+  try {
+    const snap = await getDoc(doc(db, 'shared', shareId));
+    if (!snap.exists()) return null;
+    return snap.data() as { title: string; messages: { role: string; content: string; timestamp: string }[]; persona: string; sharedAt: string };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
 const mdWhite = {
@@ -759,6 +799,20 @@ const SLASH_COMMANDS = [
     desc: 'Télécharge la conversation courante en JSON brut',
     icon: FileText,
     shortcut: '/exportjson',
+  },
+  {
+    id: 'exportmd',
+    label: 'Exporter Markdown',
+    desc: 'Télécharge la conversation en Markdown enrichi',
+    icon: FileDown,
+    shortcut: '/exportmd',
+  },
+  {
+    id: 'copiernotion',
+    label: 'Copier pour Notion',
+    desc: 'Copie la conversation formatée pour Notion dans le presse-papier',
+    icon: Copy,
+    shortcut: '/copiernotion',
   },
 ] as const;
 
@@ -1103,6 +1157,33 @@ export default function App() {
   const [resumeGenerating, setResumeGenerating] = useState(false);
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
+
+  // ── Partage de conversation
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [sharedConvView, setSharedConvView] = useState<{ title: string; messages: { role: string; content: string; timestamp: string }[]; persona: string; sharedAt: string } | null>(null);
+
+  // ── Dark mode
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try { return localStorage.getItem('cia_dark') === 'true'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    try { localStorage.setItem('cia_dark', darkMode ? 'true' : 'false'); } catch {}
+  }, [darkMode]);
+
+  // ── Défi quotidien
+  const [challengeProgress, setChallengeProgress] = useState<number>(() => getChallengeProgress());
+  const [challengeRewarded, setChallengeRewarded] = useState<boolean>(() => {
+    try { return getChallengeProgress() >= 3; } catch { return false; }
+  });
+  const dailyChallenge = getDailyChallenge();
 
   // ── UX features
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('cia_onboarding_done'));
@@ -1503,6 +1584,18 @@ export default function App() {
     try { localStorage.setItem('autoUseCredits', String(autoUseCredits)); } catch {}
   }, [autoUseCredits]);
 
+  // ── Détection lien de partage ?share=ID
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get('share');
+    if (shareId) {
+      window.history.replaceState({}, '', window.location.pathname);
+      fsGetSharedConversation(shareId).then(data => {
+        if (data) setSharedConvView(data);
+      });
+    }
+  }, []);
+
   // ── Auto-dismiss chatNotif
   useEffect(() => {
     if (!chatNotif) return;
@@ -1846,6 +1939,21 @@ export default function App() {
         }
       }
 
+      // ── Défi quotidien — progression
+      if (user && !challengeRewarded) {
+        const progress = incrementChallengeProgress();
+        setChallengeProgress(progress);
+        if (progress >= 3) {
+          setChallengeRewarded(true);
+          addCredits(user.uid, 1).then(ok => {
+            if (ok) {
+              setUserCredits(c => c + 1);
+              setChatNotif({ type: 'info', msg: '🏆 Défi du jour complété ! +1 crédit offert.' });
+            }
+          });
+        }
+      }
+
       // Capture persona + level au moment de l'envoi — immuable pour ce message
       const activePersona = persona;
       const activeLevel = level;
@@ -2010,7 +2118,7 @@ export default function App() {
         sendingRef.current = false;
       }
     },
-    [activeId, conversations, sending, persona, level, user, subscription, dailyUsage]
+    [activeId, conversations, sending, persona, level, user, subscription, dailyUsage, challengeRewarded]
   );
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
@@ -2220,6 +2328,37 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         addCommandMsg('Session exportée en JSON.');
         return;
       }
+
+      if (id === 'exportmd') {
+        const conv = conversations.find((c) => c.id === activeId);
+        if (conv && conv.messages.length > 0) {
+          const md = generateMarkdown(conv.title, conv.messages, PERSONAS[conv.persona]?.name);
+          downloadTextFile(md, `${conv.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`);
+          showSlashNotif('Export Markdown téléchargé !');
+          addCommandMsg('📥 Export Markdown téléchargé !');
+        } else {
+          showSlashNotif('Aucune conversation à exporter.', false);
+        }
+        return;
+      }
+
+      if (id === 'copiernotion') {
+        const conv = conversations.find((c) => c.id === activeId);
+        if (conv && conv.messages.length > 0) {
+          const md = generateNotionMarkdown(conv.title, conv.messages, PERSONAS[conv.persona]?.name);
+          copyToClipboard(md).then(success => {
+            if (success) {
+              showSlashNotif('Conversation copiée pour Notion !');
+              addCommandMsg('📋 Conversation copiée pour Notion !');
+            } else {
+              showSlashNotif('Impossible de copier dans le presse-papier.', false);
+            }
+          });
+        } else {
+          showSlashNotif('Aucune conversation à exporter.', false);
+        }
+        return;
+      }
     },
     [activeId, send, showSlashNotif, addCommandMsg, setConversations, conversations, userProfile]
   );
@@ -2263,9 +2402,94 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
   return (
     <div
-      className="flex h-screen overflow-hidden bg-[#F0F4FF]"
+      className="flex h-screen overflow-hidden bg-[var(--bg-app)]"
       style={{ fontFamily: '"Inter", ui-sans-serif, system-ui, sans-serif' }}
     >
+
+      {/* ── Conversation partagée (lecture seule) ─────────────────────────── */}
+      <AnimatePresence>
+        {sharedConvView && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-[#0e0e0e] flex flex-col overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex-shrink-0 bg-[#141414] border-b-2 border-[#5D7BFF]/40 px-6 py-4 flex items-center gap-4">
+              <img
+                src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                alt="Challenger IA"
+                className="h-8 w-auto object-contain flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-widest text-white truncate">{sharedConvView.title}</p>
+                <p className="text-[8px] text-white/30 uppercase tracking-widest">
+                  Partagé le {new Date(sharedConvView.sharedAt).toLocaleDateString('fr-FR')} · Lecture seule
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a
+                  href={window.location.origin + window.location.pathname}
+                  className="flex items-center gap-2 px-3 py-2 bg-[#5D7BFF] hover:bg-[#4a68e8] transition-colors text-white text-[8px] font-black uppercase tracking-widest"
+                >
+                  <Zap className="w-3 h-3" />
+                  <span>Essayer Challenger IA</span>
+                </a>
+                <button
+                  onClick={() => setSharedConvView(null)}
+                  className="p-2 text-white/30 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4 max-w-3xl mx-auto w-full">
+              {sharedConvView.messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] px-4 py-3 ${
+                    msg.role === 'user'
+                      ? 'bg-[#5D7BFF] text-white text-sm'
+                      : 'bg-[#1a1a2e] border border-[#5D7BFF]/20 text-white/80 text-sm'
+                  }`}>
+                    {msg.role === 'assistant' && (
+                      <p className="text-[8px] font-black uppercase tracking-widest text-[#5D7BFF] mb-2">
+                        {PERSONAS[sharedConvView.persona as Persona]?.shortName ?? 'Challenger'}
+                      </p>
+                    )}
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                        h2: ({ children }) => <h2 className="text-sm font-black uppercase tracking-wide mt-3 mb-1">{children}</h2>,
+                        ul: ({ children }) => <ul className="list-disc list-inside text-sm space-y-1 mb-2">{children}</ul>,
+                        li: ({ children }) => <li className="text-sm">{children}</li>,
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                    <p className="text-[8px] opacity-30 mt-2 text-right">
+                      {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* CTA footer */}
+            <div className="flex-shrink-0 border-t-2 border-white/5 bg-[#141414] px-6 py-4 text-center">
+              <p className="text-[10px] text-white/30 mb-3">Entraîne ta pensée critique avec Challenger IA</p>
+              <a
+                href={window.location.origin + window.location.pathname}
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#5D7BFF] hover:bg-[#4a68e8] transition-colors text-white text-[9px] font-black uppercase tracking-widest"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Commencer gratuitement
+              </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Chargement initial Firebase ───────────────────────────────────── */}
       {FIREBASE_ENABLED && authLoading && !consentPending && (
@@ -2635,6 +2859,16 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
                 </div>
                 <ChevronRight className="w-3 h-3 opacity-50" />
+              </button>
+
+              {/* Dark mode toggle */}
+              <button
+                onClick={() => setDarkMode(d => !d)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
+                title={darkMode ? 'Mode clair' : 'Mode sombre'}
+              >
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                <span className="text-[11px] font-medium">{darkMode ? 'Mode clair' : 'Mode sombre'}</span>
               </button>
 
               {/* Profil IA */}
@@ -3162,13 +3396,36 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             )}
           </div>
           {activeConv && activeConv.messages.length > 0 && (
-            <button
-              onClick={startNewConv}
-              className="ml-auto flex-shrink-0 flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF] transition-all text-[#141414]/40 hover:text-[#5D7BFF]"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span className="text-[8px] font-black uppercase tracking-widest">Nouvelle</span>
-            </button>
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+              {/* Bouton partager la conversation */}
+              {FIREBASE_ENABLED && (
+                <button
+                  onClick={async () => {
+                    if (!activeConv) return;
+                    setShareLoading(true);
+                    const shareId = await fsShareConversation(activeConv);
+                    setShareLoading(false);
+                    if (shareId) {
+                      const url = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+                      setShareLink(url);
+                    }
+                  }}
+                  disabled={shareLoading}
+                  className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF]/60 transition-all text-[#141414]/40 hover:text-[#5D7BFF] disabled:opacity-40"
+                  title="Partager cette conversation"
+                >
+                  {shareLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
+                  <span className="text-[8px] font-black uppercase tracking-widest hidden sm:inline">Partager</span>
+                </button>
+              )}
+              <button
+                onClick={startNewConv}
+                className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF] transition-all text-[#141414]/40 hover:text-[#5D7BFF]"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span className="text-[8px] font-black uppercase tracking-widest">Nouvelle</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -3226,6 +3483,59 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     <ChevronRight className="w-3.5 h-3.5" />
                     Partager l'application
                   </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* ── Modal lien de partage ───────────────────────────────────────── */}
+        <AnimatePresence>
+          {shareLink && (
+            <>
+              <motion.div
+                key="sharelink-backdrop"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                onClick={() => { setShareLink(null); setShareLinkCopied(false); }}
+              />
+              <motion.div
+                key="sharelink-modal"
+                initial={{ opacity: 0, scale: 0.92, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 16 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
+              >
+                <div className="pointer-events-auto w-full max-w-sm bg-[#141414] border-2 border-[#5D7BFF]/40 p-6 space-y-5"
+                  style={{ boxShadow: '6px 6px 0px 0px rgba(93,123,255,0.2)' }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Share2 className="w-4 h-4 text-[#5D7BFF]" />
+                      <p className="text-[9px] font-black uppercase tracking-widest text-white/60">Conversation partagée</p>
+                    </div>
+                    <button onClick={() => { setShareLink(null); setShareLinkCopied(false); }} className="text-white/30 hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/40 mb-2">Lien de partage (lecture seule) :</p>
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2">
+                      <Link className="w-3 h-3 text-[#5D7BFF]/60 flex-shrink-0" />
+                      <span className="text-[9px] text-white/50 truncate flex-1">{shareLink}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const ok = await copyToClipboard(shareLink);
+                      if (ok) setShareLinkCopied(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-[#5D7BFF] hover:bg-[#4a68e8] transition-colors text-white text-[9px] font-black uppercase tracking-widest active:scale-95"
+                  >
+                    {shareLinkCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {shareLinkCopied ? 'Lien copié !' : 'Copier le lien'}
+                  </button>
+                  <p className="text-[8px] text-white/20 text-center">Accessible à toute personne ayant le lien · Pas d'inscription requise</p>
                 </div>
               </motion.div>
             </>
@@ -3502,6 +3812,51 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   </p>
                 )}
               </div>
+
+              {/* ── Défi quotidien ── */}
+                {!challengeRewarded && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        const challenge = getDailyChallenge();
+                        setInput(challenge.prompt);
+                        taRef.current?.focus();
+                      }}
+                      className="w-full text-left p-4 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
+                      style={{ borderRadius: 0 }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-[#5D7BFF]/10 flex items-center justify-center text-sm">
+                          🎯
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
+                            <span className="text-[8px] px-1.5 py-0.5 bg-[#5D7BFF]/10 text-[#5D7BFF] font-bold">+1 crédit</span>
+                            <span className="text-[8px] text-[#141414]/30 ml-auto">{challengeProgress}/3 messages</span>
+                          </div>
+                          <p className="text-[11px] font-bold text-[#141414] leading-snug truncate">{dailyChallenge.title}</p>
+                          <p className="text-[10px] text-[#141414]/50 mt-0.5">{dailyChallenge.theme}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-[#5D7BFF]/40 group-hover:text-[#5D7BFF] transition-colors flex-shrink-0 mt-1" />
+                      </div>
+                      {/* Progress bar */}
+                      <div className="mt-3 h-0.5 bg-[#5D7BFF]/10 overflow-hidden">
+                        <div className="h-full bg-[#5D7BFF] transition-all duration-500"
+                          style={{ width: `${Math.min(100, (challengeProgress / 3) * 100)}%` }} />
+                      </div>
+                    </button>
+                  </div>
+                )}
+                {challengeRewarded && (
+                  <div className="mb-4 p-3 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-3">
+                    <span className="text-sm">🏆</span>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
+                      <p className="text-[10px] text-[#141414]/40">Revenez demain pour un nouveau défi.</p>
+                    </div>
+                  </div>
+                )}
 
               <div className="w-full space-y-3">
                 <p className="text-[8px] font-black uppercase tracking-widest text-[#141414]/25 text-center mb-4">

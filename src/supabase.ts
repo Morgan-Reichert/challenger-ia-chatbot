@@ -96,6 +96,20 @@ export async function deductOneCredit(userId: string): Promise<boolean> {
 }
 
 /**
+ * Ajoute des crédits (récompense défi quotidien, etc.)
+ * Utilise la RPC add_credits existante.
+ */
+export async function addCredits(userId: string, amount: number): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: amount });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Obtient les liens Stripe pour les packs de crédits (configurés en env vars).
  */
 export const CREDIT_PACKS = [
