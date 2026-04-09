@@ -3094,6 +3094,36 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           );
         })()}
 
+        {/* ── Barre de contexte (hors scroll) ── */}
+        {activeConv && activeConv.messages.filter(m => m.role !== 'command').length > 0
+          && !activeConv.interviewType && !activeConv.debatePersonaId && (() => {
+          const msgCount = activeConv.messages.filter(m => m.role !== 'command').length;
+          const heat = msgCount >= 10 || activeConv.level === 'extreme' ? 'hot'
+            : msgCount >= 5 || activeConv.level === 'moyen' ? 'warm' : 'cool';
+          const heatColor = heat === 'hot' ? '#EF4444' : heat === 'warm' ? '#F59E0B' : '#5D7BFF';
+          const heatLabel = heat === 'hot' ? 'intense' : heat === 'warm' ? 'actif' : 'calme';
+          const heatDots = heat === 'hot' ? 5 : heat === 'warm' ? 3 : 1;
+          const PIcon = PERSONAS[activeConv.persona].icon;
+          return (
+            <div className="flex-shrink-0 flex items-center gap-2.5 px-6 py-1.5 bg-white border-b border-[#5D7BFF]/10">
+              <PIcon className="w-3 h-3 flex-shrink-0" style={{ color: '#5D7BFF99' }} />
+              <p className="text-[7px] font-black uppercase tracking-widest text-[#141414]/40">
+                {PERSONAS[activeConv.persona].shortName}
+              </p>
+              <span className="text-[6px] font-black uppercase tracking-widest border px-1.5 py-px" style={{ color: '#5D7BFF', borderColor: '#5D7BFF40' }}>
+                {FRICTION[activeConv.level].label}
+              </span>
+              <span className="text-[7px] text-[#141414]/20 font-mono">{msgCount} msg</span>
+              <div className="flex items-center gap-1 ml-auto">
+                {[0,1,2,3,4].map(i => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full transition-colors" style={{ backgroundColor: i < heatDots ? heatColor : '#14141415' }} />
+                ))}
+                <span className="text-[6px] font-black uppercase tracking-widest ml-1.5" style={{ color: heatColor + 'AA' }}>{heatLabel}</span>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Messages */}
         {(() => {
           const interviewCfg = activeConv?.interviewType ? INTERVIEW_TYPES[activeConv.interviewType] : null;
@@ -3248,36 +3278,6 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             )
           ) : (
             <>
-            {/* ── Barre de contexte sticky ── */}
-            {!activeConv?.interviewType && !activeConv?.debatePersonaId && (() => {
-              const msgCount = activeConv.messages.filter(m => m.role !== 'command').length;
-              if (msgCount === 0) return null;
-              const heat = msgCount >= 10 || activeConv.level === 'extreme' ? 'hot'
-                : msgCount >= 5 || activeConv.level === 'moyen' ? 'warm' : 'cool';
-              const heatColor = heat === 'hot' ? '#EF4444' : heat === 'warm' ? '#F59E0B' : '#5D7BFF';
-              const heatLabel = heat === 'hot' ? 'intense' : heat === 'warm' ? 'actif' : 'calme';
-              const heatDots = heat === 'hot' ? 5 : heat === 'warm' ? 3 : 1;
-              const PIcon = PERSONAS[activeConv.persona].icon;
-              return (
-                <div className="sticky top-0 z-10 flex items-center gap-2.5 px-4 py-1.5 bg-white/90 backdrop-blur-sm border-b border-[#5D7BFF]/10 -mx-6 -mt-8 mb-6 px-10">
-                  <PIcon className="w-3 h-3 flex-shrink-0" style={{ color: '#5D7BFF99' }} />
-                  <p className="text-[7px] font-black uppercase tracking-widest text-[#141414]/40">
-                    {PERSONAS[activeConv.persona].shortName}
-                  </p>
-                  <span className="text-[6px] font-black uppercase tracking-widest border px-1.5 py-px" style={{ color: '#5D7BFF', borderColor: '#5D7BFF40' }}>
-                    {FRICTION[activeConv.level].label}
-                  </span>
-                  <span className="text-[7px] text-[#141414]/20 font-mono">{msgCount} msg</span>
-                  <div className="flex items-center gap-1 ml-auto">
-                    {[0,1,2,3,4].map(i => (
-                      <div key={i} className="w-1.5 h-1.5 rounded-full transition-colors" style={{ backgroundColor: i < heatDots ? heatColor : '#14141415' }} />
-                    ))}
-                    <span className="text-[6px] font-black uppercase tracking-widest ml-1.5" style={{ color: heatColor + 'AA' }}>{heatLabel}</span>
-                  </div>
-                </div>
-              );
-            })()}
-
             <div className="max-w-3xl mx-auto space-y-5">
               {activeConv.messages.map((msg, msgIdx) => {
                 const isInterview = !!activeConv.interviewType;
