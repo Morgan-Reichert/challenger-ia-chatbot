@@ -42,34 +42,18 @@ export default async function handler(req, res) {
       const session = event.data.object;
       const userId = session.client_reference_id;
 
-      // Diagnostic : log pour Vercel
-      console.log('[webhook] session.id:', session.id);
-      console.log('[webhook] client_reference_id:', userId);
-      console.log('[webhook] amount_total:', session.amount_total);
-      console.log('[webhook] subscription:', session.subscription);
-
-      if (!userId) {
-        console.log('[webhook] SKIP: client_reference_id vide');
-        return res.status(200).json({ received: true, skip: 'no_user_id' });
-      }
+      if (!userId) return res.status(200).json({ received: true });
 
       const subscriptionId = session.subscription;
 
       // ── Paiement unique → achat de crédits ──────────────────────────────
       if (!subscriptionId) {
         const credits = CREDITS_BY_AMOUNT[session.amount_total];
-        if (!credits) {
-          console.log('[webhook] SKIP: montant inconnu:', session.amount_total);
-          return res.status(200).json({ received: true, skip: 'unknown_amount', amount: session.amount_total });
+        if (credits) {
+          const { error } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits });
+          if (error) console.error('[stripe-webhook] add_credits error:', error.message);
         }
-        console.log('[webhook] Ajout crédits:', credits, 'pour', userId);
-        const { error } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits });
-        if (error) {
-          console.error('[webhook] RPC error:', error.message);
-          return res.status(200).json({ received: true, rpc_error: error.message });
-        }
-        console.log('[webhook] Crédits ajoutés avec succès');
-        return res.status(200).json({ received: true, credits_added: credits, user: userId });
+        return res.status(200).json({ received: true });
       }
 
       // ── Abonnement → plan Pro ────────────────────────────────────────────
