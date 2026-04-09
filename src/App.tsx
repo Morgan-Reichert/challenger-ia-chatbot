@@ -2164,16 +2164,91 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
       {/* ── Chargement initial Firebase ───────────────────────────────────── */}
       {FIREBASE_ENABLED && authLoading && !consentPending && (
-        <div className="flex-1 bg-[#141414] flex flex-col items-center justify-center gap-5">
-          <img
-            src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
-            alt="Challenger IA"
-            className="h-14 w-auto object-contain opacity-70"
+        <div className="flex-1 bg-[#0e0e0e] flex flex-col items-center justify-center relative overflow-hidden">
+
+          {/* ── Grille de fond ── */}
+          <div className="absolute inset-0 opacity-[0.04]"
+            style={{
+              backgroundImage: 'linear-gradient(#5D7BFF 1px, transparent 1px), linear-gradient(90deg, #5D7BFF 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
+            }}
           />
-          <Loader2 className="w-5 h-5 animate-spin text-[#5D7BFF]" />
-          <p className="text-[8px] font-black uppercase tracking-widest text-white/20">
-            Vérification du compte…
-          </p>
+
+          {/* ── Lignes diagonales d'accent ── */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[...Array(5)].map((_, i) => (
+              <div key={i}
+                className="absolute h-px opacity-[0.07]"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, #5D7BFF, transparent)',
+                  top: `${15 + i * 18}%`,
+                  left: '-20%',
+                  right: '-20%',
+                  transform: `rotate(-8deg)`,
+                  animation: `splash-line ${2.4 + i * 0.4}s ease-in-out infinite alternate`,
+                  animationDelay: `${i * 0.3}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* ── Scan line animée ── */}
+          <div className="absolute left-0 right-0 h-px pointer-events-none"
+            style={{
+              background: 'linear-gradient(90deg, transparent 0%, #5D7BFF44 30%, #5D7BFF 50%, #5D7BFF44 70%, transparent 100%)',
+              animation: 'splash-scan 3s ease-in-out infinite',
+              boxShadow: '0 0 12px 2px rgba(93,123,255,0.3)',
+            }}
+          />
+
+          {/* ── Coins de cadrage (brackets) ── */}
+          {[
+            { top: '50%', left: '50%', mt: '-90px', ml: '-90px', br: 'borderTop borderLeft' },
+          ].map((_, idx) => (
+            <div key={idx} className="absolute" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: 180 }}>
+              {/* Coin TL */}
+              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-[#5D7BFF] opacity-50" />
+              {/* Coin TR */}
+              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-[#5D7BFF] opacity-50" />
+              {/* Coin BL */}
+              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-[#5D7BFF] opacity-50" />
+              {/* Coin BR */}
+              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-[#5D7BFF] opacity-50" />
+            </div>
+          ))}
+
+          {/* ── Halo central ── */}
+          <div className="absolute rounded-full pointer-events-none"
+            style={{
+              width: 280, height: 280,
+              background: 'radial-gradient(circle, rgba(93,123,255,0.07) 0%, transparent 70%)',
+              animation: 'cr-halo 3s ease-in-out infinite',
+            }}
+          />
+
+          {/* ── Contenu ── */}
+          <div className="relative flex flex-col items-center gap-6 z-10">
+            <img
+              src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+              alt="Challenger IA"
+              className="h-14 w-auto object-contain"
+              style={{ filter: 'drop-shadow(0 0 12px rgba(93,123,255,0.4))', animation: 'cr-breathe 3s ease-in-out infinite' }}
+            />
+
+            {/* Ligne décorative sous le logo */}
+            <div className="flex items-center gap-3 w-48">
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent to-[#5D7BFF]/40" />
+              <div className="w-1 h-1 bg-[#5D7BFF] opacity-60" style={{ transform: 'rotate(45deg)' }} />
+              <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[#5D7BFF]/40" />
+            </div>
+
+            <Loader2 className="w-4 h-4 animate-spin text-[#5D7BFF]" style={{ filter: 'drop-shadow(0 0 4px rgba(93,123,255,0.6))' }} />
+
+            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-white/25">
+              Vérification du compte…
+            </p>
+          </div>
+
         </div>
       )}
 
