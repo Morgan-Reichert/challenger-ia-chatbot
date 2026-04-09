@@ -25,10 +25,18 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
-import { subscribeToNewsletter, getSubscription, type Plan } from './supabase';
+import { subscribeToNewsletter, getSubscription, getUserCredits, deductOneCredit, CREDIT_PACKS, type Plan } from './supabase';
 
-// ─── Constantes abonnement ────────────────────────────────────────────────────
+// ─── Constantes abonnement & limites ─────────────────────────────────────────
 const FREE_DAILY_LIMIT = 20;
+const FREE_WEEKLY_LIMIT = 100;
+
+function weekStr(): string {
+  const d = new Date();
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -464,20 +472,29 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function fsGetUsage(userId: string): Promise<{ count: number; date: string }> {
-  if (!db) return { count: 0, date: '' };
+async function fsGetUsage(userId: string): Promise<{
+  count: number; date: string; weeklyCount: number; week: string;
+}> {
+  if (!db) return { count: 0, date: '', weeklyCount: 0, week: '' };
   try {
     const snap = await getDoc(doc(db, 'users', userId, 'meta', 'usage'));
-    if (!snap.exists()) return { count: 0, date: '' };
+    if (!snap.exists()) return { count: 0, date: '', weeklyCount: 0, week: '' };
     const d = snap.data();
-    return { count: d.count ?? 0, date: d.date ?? '' };
-  } catch { return { count: 0, date: '' }; }
+    return {
+      count: d.count ?? 0, date: d.date ?? '',
+      weeklyCount: d.weeklyCount ?? 0, week: d.week ?? '',
+    };
+  } catch { return { count: 0, date: '', weeklyCount: 0, week: '' }; }
 }
 
-async function fsSaveUsage(userId: string, count: number, date: string): Promise<void> {
+async function fsSaveUsage(
+  userId: string,
+  count: number, date: string,
+  weeklyCount: number, week: string
+): Promise<void> {
   if (!db) return;
   try {
-    await setDoc(doc(db, 'users', userId, 'meta', 'usage'), { count, date });
+    await setDoc(doc(db, 'users', userId, 'meta', 'usage'), { count, date, weeklyCount, week });
   } catch { /* silent */ }
 }
 
@@ -1018,6 +1035,8 @@ export default function App() {
   // ── Abonnement
   const [subscription, setSubscription] = useState<Plan>('free');
   const [dailyUsage, setDailyUsage] = useState<{ count: number; date: string }>({ count: 0, date: '' });
+  const [weeklyUsage, setWeeklyUsage] = useState<{ count: number; week: string }>({ count: 0, week: '' });
+  const [userCredits, setUserCredits] = useState<number>(0);
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
@@ -1119,17 +1138,22 @@ export default function App() {
   const loadUserData = useCallback(async (firebaseUser: FirebaseUser) => {
     setUser(firebaseUser);
     setSyncing(true);
-    const [remote, remoteProjects, plan, usage, remoteProfile] = await Promise.all([
+    const [remote, remoteProjects, plan, usage, remoteProfile, credits] = await Promise.all([
       fsLoadConversations(firebaseUser.uid),
       fsLoadProjects(firebaseUser.uid),
       getSubscription(firebaseUser.uid),
       fsGetUsage(firebaseUser.uid),
       fsLoadProfile(firebaseUser.uid),
+      getUserCredits(firebaseUser.uid),
     ]);
     setConversations(remote);
     setProjects(remoteProjects);
     setSubscription(plan);
-    setDailyUsage(usage.date === todayStr() ? usage : { count: 0, date: todayStr() });
+    setUserCredits(credits);
+    const today = todayStr();
+    const thisWeek = weekStr();
+    setDailyUsage(usage.date === today ? { count: usage.count, date: today } : { count: 0, date: today });
+    setWeeklyUsage(usage.week === thisWeek ? { count: usage.weeklyCount, week: thisWeek } : { count: 0, week: thisWeek });
     // Profil : Firestore prioritaire sur localStorage si disponible
     if (remoteProfile) {
       const merged = { ...loadProfile(), ...remoteProfile } as UserProfile;
@@ -1681,19 +1705,35 @@ export default function App() {
       if (!text.trim() && attachments.length === 0) return;
       if (sending) return;
 
-      // ── Vérification limite quotidienne (plan Free uniquement)
-      if (subscription === 'free' && FIREBASE_ENABLED) {
+      // ── Modèle Hybride : Free / Crédits / Pro ─────────────────────────────
+      if (subscription !== 'pro' && FIREBASE_ENABLED) {
         const today = todayStr();
-        const currentCount = dailyUsage.date === today ? dailyUsage.count : 0;
-        if (currentCount >= FREE_DAILY_LIMIT) {
+        const thisWeek = weekStr();
+        const dailyCount = dailyUsage.date === today ? dailyUsage.count : 0;
+        const wkCount = weeklyUsage.week === thisWeek ? weeklyUsage.count : 0;
+
+        const dailyOk = dailyCount < FREE_DAILY_LIMIT;
+        const weeklyOk = wkCount < FREE_WEEKLY_LIMIT;
+
+        if (dailyOk && weeklyOk) {
+          // ── Quota gratuit disponible
+          const newDaily = dailyCount + 1;
+          const newWeekly = wkCount + 1;
+          setDailyUsage({ count: newDaily, date: today });
+          setWeeklyUsage({ count: newWeekly, week: thisWeek });
+          if (user) fsSaveUsage(user.uid, newDaily, today, newWeekly, thisWeek);
+        } else if (userCredits > 0) {
+          // ── Quota épuisé → déduire 1 crédit
+          setUserCredits(c => c - 1);
+          if (user) deductOneCredit(user.uid);
+          // Compteur hebdo incrémenté même sur crédit (pour analytics)
+          const newWeekly = wkCount + 1;
+          setWeeklyUsage({ count: newWeekly, week: thisWeek });
+        } else {
+          // ── Bloqué
           setUpgradeModal('limit');
           return;
         }
-        // Incrémenter avant l'envoi
-        const newCount = currentCount + 1;
-        const newUsage = { count: newCount, date: today };
-        setDailyUsage(newUsage);
-        if (user) fsSaveUsage(user.uid, newCount, today);
       }
 
       // Capture persona + level au moment de l'envoi — immuable pour ce message
@@ -2861,6 +2901,11 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             onBack={() => setCurrentPage('chat')}
             profile={userProfile}
             onSave={(p) => { setUserProfile(p); saveProfile(p); if (user) fsSaveProfileRemote(user.uid, p); }}
+            subscription={subscription}
+            dailyUsage={dailyUsage}
+            weeklyUsage={weeklyUsage}
+            userCredits={userCredits}
+            user={user}
           />
         </div>
       )}

@@ -45,3 +45,58 @@ export async function subscribeToNewsletter(email: string): Promise<void> {
     // silent — doublon ou erreur réseau
   }
 }
+
+// ─── Crédits ──────────────────────────────────────────────────────────────────
+
+/**
+ * Lit le solde de crédits de l'utilisateur.
+ * Table Supabase : user_credits (user_id text PK, credits int, lifetime_credits int, updated_at timestamptz)
+ */
+export async function getUserCredits(userId: string): Promise<number> {
+  if (!supabase) return 0;
+  try {
+    const { data } = await supabase
+      .from('user_credits')
+      .select('credits')
+      .eq('user_id', userId)
+      .single();
+    return data?.credits ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Déduit 1 crédit. Retourne true si succès.
+ * Utilise une fonction RPC `deduct_one_credit(p_user_id text)` côté Supabase
+ * ou fait un UPDATE direct (avec vérification >= 1).
+ */
+export async function deductOneCredit(userId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    // Appel RPC si disponible, sinon UPDATE direct
+    const { error } = await supabase.rpc('deduct_one_credit', { p_user_id: userId });
+    return !error;
+  } catch {
+    // Fallback : UPDATE direct
+    try {
+      const { error } = await supabase
+        .from('user_credits')
+        .update({ credits: supabase.rpc('greatest', { a: 0, b: -1 }) })
+        .eq('user_id', userId)
+        .gte('credits', 1);
+      return !error;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Obtient les liens Stripe pour les packs de crédits (configurés en env vars).
+ */
+export const CREDIT_PACKS = [
+  { id: 'pack_50',   label: 'Starter',  credits: 50,   price: '1,99 €',  envKey: 'VITE_STRIPE_CREDITS_50' },
+  { id: 'pack_200',  label: 'Standard', credits: 200,  price: '5,99 €',  envKey: 'VITE_STRIPE_CREDITS_200' },
+  { id: 'pack_1000', label: 'Boost',    credits: 1000, price: '24,99 €', envKey: 'VITE_STRIPE_CREDITS_1000' },
+] as const;

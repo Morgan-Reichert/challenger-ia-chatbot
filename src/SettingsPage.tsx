@@ -3,11 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
+  CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon,
 } from 'lucide-react';
+import type { User as FirebaseUser } from 'firebase/auth';
 import {
   type UserProfile, type NeuroTag, type BigFiveResult,
   NEURO_TAGS, MBTI_TYPES, saveProfile, exportProfile, importProfileFromJson, EMPTY_PROFILE,
 } from './userProfile';
+import { CREDIT_PACKS, type Plan } from './supabase';
 
 function cx(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
@@ -101,11 +104,23 @@ type Props = {
   onBack: () => void;
   profile: UserProfile;
   onSave: (p: UserProfile) => void;
+  subscription: Plan;
+  dailyUsage: { count: number; date: string };
+  weeklyUsage: { count: number; week: string };
+  userCredits: number;
+  user: FirebaseUser | null;
 };
 
-export default function SettingsPage({ onBack, profile: initialProfile, onSave }: Props) {
+const FREE_DAILY = 20;
+const FREE_WEEKLY = 100;
+
+export default function SettingsPage({
+  onBack, profile: initialProfile, onSave,
+  subscription, dailyUsage, weeklyUsage, userCredits, user,
+}: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profil' | 'abonnement' | 'utilisation'>('profil');
 
   // MBTI info modal
   const [mbtiInfoOpen, setMbtiInfoOpen] = useState(false);
@@ -123,7 +138,7 @@ export default function SettingsPage({ onBack, profile: initialProfile, onSave }
   const [importError, setImportError] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
   const cvRef     = useRef<HTMLInputElement>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // ── Auto-save with debounce
   const updateProfile = useCallback((patch: Partial<UserProfile>) => {
@@ -210,17 +225,18 @@ export default function SettingsPage({ onBack, profile: initialProfile, onSave }
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
       {/* Header */}
-      <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
-        <button onClick={onBack} className="text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-[13px] font-black uppercase tracking-widest text-[#141414]">Profil IA</h1>
-          <p className="text-[9px] font-medium text-[#141414]/40 uppercase tracking-widest mt-0.5">
-            Personnalisation de vos sessions
-          </p>
-        </div>
-        <AnimatePresence>
+      <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4">
+        <div className="flex items-center gap-4 mb-4">
+          <button onClick={onBack} className="text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[13px] font-black uppercase tracking-widest text-[#141414]">Paramètres</h1>
+            <p className="text-[9px] font-medium text-[#141414]/40 uppercase tracking-widest mt-0.5">
+              {subscription === 'pro' ? '✦ Plan Pro actif' : `${userCredits} crédit${userCredits !== 1 ? 's' : ''} disponible${userCredits !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+          <AnimatePresence>
           {saved && (
             <motion.div
               initial={{ opacity: 0, scale: 0.85 }}
@@ -232,12 +248,219 @@ export default function SettingsPage({ onBack, profile: initialProfile, onSave }
               <span className="text-[9px] font-black uppercase tracking-widest text-green-600">Sauvegardé</span>
             </motion.div>
           )}
-        </AnimatePresence>
+          </AnimatePresence>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-t border-[#141414]/8">
+          {([
+            { id: 'profil',        label: 'Profil IA',    icon: User },
+            { id: 'abonnement',    label: 'Abonnement',   icon: CreditCard },
+            { id: 'utilisation',   label: 'Utilisation',  icon: BarChart2 },
+          ] as const).map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={cx(
+                'flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all border-b-2',
+                activeTab === id
+                  ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/4'
+                  : 'border-transparent text-[#141414]/35 hover:text-[#141414]/60'
+              )}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto bg-[#F8F9FF]">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+
+        {/* ═══════════════ ONGLET ABONNEMENT ═══════════════ */}
+        {activeTab === 'abonnement' && (<>
+
+          {/* Plan actuel */}
+          <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
+            <div className="px-5 py-3 border-b border-[#141414]/8 flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#5D7BFF12', border: '1.5px solid #5D7BFF30' }}>
+                <Crown className="w-4 h-4 text-[#5D7BFF]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">Plan actuel</h2>
+            </div>
+            <div className="px-5 py-5">
+              {subscription === 'pro' ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 bg-[#5D7BFF] text-white">PRO</span>
+                      <span className="text-sm font-bold text-[#141414]">Accès illimité actif</span>
+                    </div>
+                    <p className="text-[11px] text-[#141414]/50">Messages illimités · Toutes les fonctionnalités</p>
+                  </div>
+                  <button
+                    onClick={() => { const l = import.meta.env.VITE_STRIPE_PORTAL_LINK; if (l) window.open(l, '_blank'); }}
+                    className="text-[9px] font-black uppercase tracking-widest px-3 py-2 border-2 border-[#141414]/15 text-[#141414]/50 hover:border-[#141414]/30 transition-all"
+                  >
+                    Gérer →
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 border-2 border-[#141414]/20 text-[#141414]/50">FREE</span>
+                    <span className="text-sm font-bold text-[#141414]">Plan gratuit</span>
+                  </div>
+                  <p className="text-[11px] text-[#141414]/50 mb-4">20 messages/jour · 100 messages/semaine · Crédits supplémentaires disponibles</p>
+                  <button
+                    onClick={() => { const l = import.meta.env.VITE_STRIPE_PAYMENT_LINK; if (l) window.open(`${l}?client_reference_id=${user?.uid ?? ''}`, '_blank'); }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
+                    style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.25)' }}
+                  >
+                    <ZapIcon className="w-3.5 h-3.5" />
+                    Passer au Pro — Illimité
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Solde crédits */}
+          <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
+            <div className="px-5 py-3 border-b border-[#141414]/8 flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#F59E0B12', border: '1.5px solid #F59E0B30' }}>
+                <Coins className="w-4 h-4 text-[#F59E0B]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B]">Crédits</h2>
+              <span className="ml-auto text-2xl font-black text-[#141414]">{userCredits}</span>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[11px] text-[#141414]/50 mb-4">
+                1 crédit = 1 message. S'activent automatiquement quand votre quota quotidien est épuisé. <strong>N'expirent jamais.</strong>
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                {CREDIT_PACKS.map(pack => (
+                  <button
+                    key={pack.id}
+                    onClick={() => {
+                      const link = import.meta.env[pack.envKey];
+                      if (link) window.open(`${link}?client_reference_id=${user?.uid ?? ''}`, '_blank');
+                    }}
+                    className="flex flex-col items-center gap-1.5 px-3 py-4 border-2 border-[#F59E0B]/20 hover:border-[#F59E0B] hover:bg-[#F59E0B]/4 transition-all group"
+                  >
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[#F59E0B]/60 group-hover:text-[#F59E0B]">{pack.label}</span>
+                    <span className="text-xl font-black text-[#141414]">{pack.credits}</span>
+                    <span className="text-[8px] text-[#141414]/40">crédits</span>
+                    <span className="text-[11px] font-black text-[#141414] mt-1">{pack.price}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Info sécurité */}
+          <div className="flex gap-3 px-4 py-3 bg-green-50 border-2 border-green-200">
+            <ShieldCheck className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-green-700 leading-relaxed">
+              Paiements sécurisés par <strong>Stripe</strong>. Aucune carte stockée sur nos serveurs. Crédits crédités instantanément après paiement.
+            </p>
+          </div>
+        </>)}
+
+        {/* ═══════════════ ONGLET UTILISATION ═══════════════ */}
+        {activeTab === 'utilisation' && (<>
+
+          {/* Quotas */}
+          <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
+            <div className="px-5 py-3 border-b border-[#141414]/8 flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#5D7BFF12', border: '1.5px solid #5D7BFF30' }}>
+                <TrendingUp className="w-4 h-4 text-[#5D7BFF]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">Quota & Limites</h2>
+              {subscription === 'pro' && (
+                <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] bg-[#5D7BFF]/8 px-2 py-0.5">illimité</span>
+              )}
+            </div>
+            <div className="px-5 py-5 space-y-5">
+              {subscription === 'pro' ? (
+                <p className="text-sm text-[#141414]/50 text-center py-4">Aucune limite — plan Pro actif ✦</p>
+              ) : (
+                <>
+                  {/* Quotidien */}
+                  {(() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const used = dailyUsage.date === today ? dailyUsage.count : 0;
+                    const pct = Math.min(100, (used / FREE_DAILY) * 100);
+                    const color = pct >= 90 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#5D7BFF';
+                    return (
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Aujourd'hui</span>
+                          <span className="text-[10px] font-black" style={{ color }}>{used} / {FREE_DAILY} msg</span>
+                        </div>
+                        <div className="h-2 bg-[#141414]/8 w-full">
+                          <div className="h-2 transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                        </div>
+                        {used >= FREE_DAILY && userCredits > 0 && (
+                          <p className="text-[9px] text-[#F59E0B] mt-1">Quota atteint — vos crédits prennent le relais</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Hebdomadaire */}
+                  {(() => {
+                    const used = weeklyUsage.count;
+                    const pct = Math.min(100, (used / FREE_WEEKLY) * 100);
+                    const color = pct >= 90 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#10B981';
+                    return (
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Cette semaine</span>
+                          <span className="text-[10px] font-black" style={{ color }}>{used} / {FREE_WEEKLY} msg</span>
+                        </div>
+                        <div className="h-2 bg-[#141414]/8 w-full">
+                          <div className="h-2 transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Crédits restants */}
+                  <div className="flex items-center justify-between pt-2 border-t border-[#141414]/8">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#141414]/50">Crédits disponibles</span>
+                    <span className="text-sm font-black text-[#F59E0B]">{userCredits} crédits</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Modèle de tarification */}
+          <div className="border-2 border-[#141414]/10 bg-white px-5 py-4" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
+            <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 mb-3">Comment ça marche</p>
+            <div className="space-y-2.5">
+              {[
+                { icon: '🟢', label: 'Plan Free',    desc: '20 msg/jour · 100 msg/semaine inclus' },
+                { icon: '🟡', label: 'Crédits',      desc: 'Déclenchés quand le quota est épuisé · 1 crédit = 1 msg' },
+                { icon: '🔵', label: 'Plan Pro',      desc: 'Illimité · Priorité serveur · Toutes features' },
+              ].map(r => (
+                <div key={r.label} className="flex items-start gap-3">
+                  <span className="text-base">{r.icon}</span>
+                  <div>
+                    <p className="text-[10px] font-black text-[#141414]">{r.label}</p>
+                    <p className="text-[10px] text-[#141414]/45">{r.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>)}
+
+        {/* ═══════════════ ONGLET PROFIL (existant) ═══════════════ */}
+        {activeTab === 'profil' && (<>
 
           {/* Info banner */}
           <div className="bg-[#5D7BFF]/5 border-2 border-[#5D7BFF]/20 px-4 py-3 flex gap-3 items-start">
@@ -542,6 +765,8 @@ export default function SettingsPage({ onBack, profile: initialProfile, onSave }
           </Section>
 
           <div className="pb-8" />
+        </>)}
+
         </div>
       </div>
 
