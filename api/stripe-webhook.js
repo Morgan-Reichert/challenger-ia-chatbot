@@ -30,6 +30,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Webhook error: ${err.message}` });
   }
 
+  // Crédits par montant (centimes) — doit correspondre aux prix Stripe
+  const CREDITS_BY_AMOUNT = {
+    199:  50,    // Starter  1,99€
+    599:  200,   // Standard 5,99€
+    2499: 1000,  // Boost    24,99€
+  };
+
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
@@ -37,11 +44,20 @@ export default async function handler(req, res) {
       if (!userId) return res.status(200).json({ received: true });
 
       const subscriptionId = session.subscription;
+
+      // ── Paiement unique → achat de crédits ──────────────────────────────
+      if (!subscriptionId) {
+        const credits = CREDITS_BY_AMOUNT[session.amount_total];
+        if (credits) {
+          await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits });
+        }
+        return res.status(200).json({ received: true });
+      }
+
+      // ── Abonnement → plan Pro ────────────────────────────────────────────
       let periodEnd = null;
       if (subscriptionId) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        // current_period_end a été déplacé dans l'API dahlia (2026-03-25)
-        // on cherche dans plusieurs emplacements possibles
         const ts = sub.current_period_end
           ?? sub.items?.data?.[0]?.current_period_end
           ?? null;
