@@ -3247,6 +3247,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             </motion.div>
             )
           ) : (
+            <>
             {/* ── Barre de contexte sticky ── */}
             {!activeConv?.interviewType && !activeConv?.debatePersonaId && (() => {
               const msgCount = activeConv.messages.filter(m => m.role !== 'command').length;
@@ -3553,6 +3554,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
               <div ref={bottomRef} />
             </div>
+            </>
           )}
         </div>
           );
