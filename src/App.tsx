@@ -1254,6 +1254,8 @@ export default function App() {
   const [onboardingPersona, setOnboardingPersona] = useState<Persona>('architect');
   const [collapsedMsgs, setCollapsedMsgs] = useState<Set<string>>(new Set());
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0); // counter pour éviter les faux onDragLeave sur les enfants
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -3422,7 +3424,69 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       )}
 
       {/* ── Main area ───────────────────────────────────────────────────────── */}
-      <div className={cx('flex-1 flex flex-col min-w-0 h-full', currentPage !== 'chat' && 'hidden', 'max-md:pb-16')}>
+      <div
+        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', 'max-md:pb-16')}
+        onDragEnter={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return;
+          dragCounterRef.current += 1;
+          setIsDragOver(true);
+        }}
+        onDragLeave={() => {
+          dragCounterRef.current -= 1;
+          if (dragCounterRef.current === 0) setIsDragOver(false);
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          dragCounterRef.current = 0;
+          setIsDragOver(false);
+          handleFiles(e.dataTransfer.files);
+        }}
+      >
+        {/* ── Overlay drag & drop ── */}
+        <AnimatePresence>
+          {isDragOver && (
+            <motion.div
+              key="drag-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 z-40 pointer-events-none flex flex-col items-center justify-center"
+              style={{ background: 'rgba(93,123,255,0.08)', backdropFilter: 'blur(2px)' }}
+            >
+              {/* Bordure animée */}
+              <div
+                className="absolute inset-3"
+                style={{
+                  border: '2.5px dashed #5D7BFF',
+                  opacity: 0.6,
+                  animation: 'dash-border 0.5s linear infinite',
+                }}
+              />
+              {/* Icône + texte */}
+              <div className="flex flex-col items-center gap-4 z-10">
+                <div
+                  className="w-20 h-20 flex items-center justify-center"
+                  style={{ background: 'rgba(93,123,255,0.12)', border: '2px solid rgba(93,123,255,0.4)' }}
+                >
+                  <Paperclip className="w-9 h-9 text-[#5D7BFF]" style={{ filter: 'drop-shadow(0 0 8px rgba(93,123,255,0.5))' }} />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-black uppercase tracking-widest text-[#5D7BFF]">Dépose tes fichiers ici</p>
+                  <p className="text-[10px] text-[#5D7BFF]/60 mt-1 font-medium">Images · PDF · Word · Excel · Code · Texte</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {['image', 'pdf', 'doc', 'xlsx', 'code'].map((t) => (
+                    <span key={t} className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 text-[#5D7BFF] border border-[#5D7BFF]/30 bg-[#5D7BFF]/5">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Top bar */}
         <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
           {(!sidebarOpen || isMobile) && (
@@ -4449,8 +4513,6 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             : activeConv?.debatePersonaId
               ? { borderTop: `2px solid ${getDP(activeConv)?.color ?? '#5D7BFF'}` }
               : undefined}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
           <div className="max-w-3xl mx-auto relative">
 
