@@ -33,6 +33,47 @@ service cloud.firestore {
       allow update: if request.auth != null;
     }
 
+    // Arena - connexions (follow/connect)
+    match /arena_connections/{connId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.fromUserId == request.auth.uid;
+      allow update: if request.auth != null;
+    }
+
+    // Arena - posts personnels
+    match /arena_personal_posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    // Arena - commentaires posts personnels
+    match /arena_personal_posts/{postId}/comments/{commentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    // XPOSE - posts
+    match /xpose_posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    // XPOSE - commentaires
+    match /xpose_posts/{postId}/comments/{commentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    // XPOSE - streaks
+    match /xpose_streaks/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Bloquer tout le reste
     match /{document=**} {
       allow read, write: if false;

@@ -5,7 +5,7 @@ import {
   MessageSquare, ThumbsUp, AlertTriangle, Loader2,
   Send, Check, X, Shield, Search, Sparkles,
   FileSearch, ChevronDown, ChevronUp, Zap,
-  Users, TrendingUp, BarChart3, Bell,
+  Users, TrendingUp, BarChart3, Bell, Settings,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,6 +17,9 @@ import {
 } from './arenaFirestore';
 import type { ArenaUser, ArenaPost, ArenaComment, Stance, SophismAlert } from './arenaTypes';
 import { deductOneCredit } from '../supabase';
+import ArenaProfilePage from './ArenaProfilePage';
+import ArenaProfileSettings from './ArenaProfileSettings';
+import ArenaUserModal from './ArenaUserModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,7 +159,7 @@ function StoryDot({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
+function PostCard({ post, onClick, onAvatarClick }: { post: ArenaPost; onClick: () => void; onAvatarClick?: () => void }) {
   const total = post.agreeCount + post.disagreeCount + post.nuanceCount;
   const agreeP    = total > 0 ? (post.agreeCount    / total) * 100 : 0;
   const disagreeP = total > 0 ? (post.disagreeCount / total) * 100 : 0;
@@ -177,7 +180,9 @@ function PostCard({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
       <div style={{ padding: '16px 18px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <Av name={name} size={36} ring />
+          <button onClick={(e) => { e.stopPropagation(); onAvatarClick?.(); }} style={{ background: 'none', border: 'none', padding: 0, cursor: onAvatarClick ? 'pointer' : 'default', lineHeight: 0 }}>
+            <Av name={name} size={36} ring />
+          </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{post.isAnonymous ? 'Anonyme' : post.authorArenaName}</p>
             <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{timeAgo(post.createdAt)}</p>
@@ -348,7 +353,9 @@ export default function ArenaPage({ user, supabaseUserId, onBack }: {
   const [firestoreError, setFirestoreError] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  const [view, setView] = useState<'feed' | 'post'>('feed');
+  const [view, setView] = useState<'feed' | 'post' | 'profile' | 'settings'>('feed');
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [userModalId, setUserModalId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'recent' | 'trending' | 'featured'>('recent');
   const [posts, setPosts] = useState<ArenaPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -470,9 +477,47 @@ export default function ArenaPage({ user, supabaseUserId, onBack }: {
 
   // ──────────────────────────────────────────────────────────────────────────
 
+  // ── Profile / Settings views ────────────────────────────────────────────────
+  if (view === 'profile' && profileUserId && arenaUser) {
+    return (
+      <ArenaProfilePage
+        targetUserId={profileUserId}
+        myUserId={user.uid}
+        myArenaUser={arenaUser}
+        onBack={() => { setView('feed'); setProfileUserId(null); }}
+        onOpenSettings={() => setView('settings')}
+        onViewProfile={(uid) => { setProfileUserId(uid); }}
+      />
+    );
+  }
+
+  if (view === 'settings' && arenaUser) {
+    return (
+      <ArenaProfileSettings
+        userId={user.uid}
+        arenaUser={arenaUser}
+        onBack={() => setView('feed')}
+        onSaved={(updated) => { setArenaUser(updated); setView('feed'); }}
+      />
+    );
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0A0C12', overflow: 'hidden' }}>
       {showModal && <PseudoModal userId={user.uid} onCreated={u => { setArenaUser(u); setShowModal(false); }} />}
+
+      {/* ArenaUserModal */}
+      <AnimatePresence>
+        {userModalId && arenaUser && (
+          <ArenaUserModal
+            targetUserId={userModalId}
+            myUserId={user.uid}
+            myArenaUser={arenaUser}
+            onClose={() => setUserModalId(null)}
+            onViewFullProfile={(uid) => { setUserModalId(null); setProfileUserId(uid); setView('profile'); }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0D1018' }}>
@@ -500,6 +545,11 @@ export default function ArenaPage({ user, supabaseUserId, onBack }: {
                 <Star size={12} color="#FBBF24" />
                 <span style={{ fontSize: 11, fontWeight: 900, color: '#FBBF24' }}>{arenaUser.credibilityScore}</span>
               </div>
+            )}
+            {arenaUser && (
+              <button onClick={() => setView('settings')} style={{ color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}>
+                <Settings size={18} />
+              </button>
             )}
           </>
         ) : (
@@ -567,7 +617,7 @@ export default function ArenaPage({ user, supabaseUserId, onBack }: {
                 <p style={{ fontSize: 14, fontWeight: 800, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>L'Arène est vide</p>
                 <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>Propulsez un échange depuis le chat !</p>
               </div>
-            ) : filtered.map(p => <PostCard key={p.id} post={p} onClick={() => openPost(p)} />)}
+            ) : filtered.map(p => <PostCard key={p.id} post={p} onClick={() => openPost(p)} onAvatarClick={p.authorId && !p.isAnonymous ? () => { if (arenaUser) setUserModalId(p.authorId); } : undefined} />)}
           </div>
         </div>
       )}

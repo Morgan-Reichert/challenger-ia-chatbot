@@ -15,6 +15,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import ArenaPage from './arena/ArenaPage';
 import PropulseModal from './arena/PropulseModal';
+import XposePage from './xpose/XposePage';
 import remarkGfm from 'remark-gfm';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
@@ -1193,7 +1194,7 @@ export default function App() {
   const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene'>('chat');
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene' | 'xpose'>('chat');
   const [propulseData, setPropulseData] = useState<{ question: string; aiResponse: string; personaName: string } | null>(null);
 
   // ── User profile (local only)
@@ -2953,6 +2954,18 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 <ChevronRight className="w-3 h-3 opacity-50" />
               </button>
 
+              {/* XPOSE */}
+              <button
+                onClick={() => { setCurrentPage('xpose'); setSidebarOpen(false); }}
+                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#A78BFA]/50 hover:text-white/80 hover:bg-[#A78BFA]/5 transition-all"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Rocket className="w-4 h-4" />
+                  <span className="text-[11px] font-black uppercase tracking-widest">XPOSE</span>
+                </div>
+                <ChevronRight className="w-3 h-3 opacity-50" />
+              </button>
+
               {/* Bibliothèque */}
               <button
                 onClick={() => { setCurrentPage('library'); setSidebarOpen(false); }}
@@ -3414,6 +3427,18 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             user={user}
             supabaseUserId={user?.uid ?? null}
             onBack={() => setCurrentPage('chat')}
+          />
+        </div>
+      )}
+
+      {/* ── XPOSE ────────────────────────────────────────────────────────────── */}
+      {currentPage === 'xpose' && user && (
+        <div className="flex-1 min-w-0 h-full max-md:pb-16">
+          <XposePage
+            user={user}
+            arenaUser={null}
+            onBack={() => setCurrentPage('chat')}
+            onGoToArena={(postId) => { setCurrentPage('arene'); }}
           />
         </div>
       )}
@@ -4875,6 +4900,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         {([
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
           { icon: Trophy, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
+          { icon: Rocket, label: 'XPOSE', action: () => { setCurrentPage('xpose'); setSidebarOpen(false); }, active: currentPage === 'xpose' },
           { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
           { icon: Plus, label: 'Nouveau', action: () => { startNewConv(); setSidebarOpen(false); }, active: false },
