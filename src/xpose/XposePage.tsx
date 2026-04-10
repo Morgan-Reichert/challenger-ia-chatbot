@@ -1,36 +1,62 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Zap, MessageSquare, Repeat2, Link2, Image, Hash, Swords, AtSign,
-  X, Loader2, Search, Flame, ChevronDown, ChevronUp, Plus, Check,
-  ArrowLeft, Star, UserPlus, Send,
+  Home, Swords, User, Zap, MessageSquare, Repeat2, Link2,
+  Image, Hash, AtSign, X, Send, Loader2, Search, Flame,
+  ChevronDown, ChevronUp, Plus, Check, BarChart3, HelpCircle,
+  ArrowLeft, Star, UserPlus, Trash2, Globe,
 } from 'lucide-react';
-import type { User } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 import type { ArenaUser } from '../arena/arenaTypes';
-import type { XposePost, XposeComment, XposeRecommendedUser, XposeVisibility, XposeCommentType } from './xposeTypes';
+import type {
+  XposePost, XposeComment, XposeRecommendedUser,
+  XposeVisibility, XposeCommentType, XposePostType, XposeDestination, PollOption,
+} from './xposeTypes';
 import {
   getPublicFeed, getFollowingFeed, createXposePost, updateXposePostImages,
   resonatePost, amplifyPost, addXposeComment, getXposeComments,
   upvoteXposeComment, updateStreak, scorePost,
-  getRecommendedUsers, getTrendingTags,
+  getRecommendedUsers, getTrendingTags, votePoll, deleteXposePost,
 } from './xposeFirestore';
 import { uploadPostImages } from './xposeStorage';
 import { getMyConnections, sendConnection, getArenaPosts } from '../arena/arenaFirestore';
 import type { ArenaPost } from '../arena/arenaTypes';
+import ArenaPage from '../arena/ArenaPage';
 
-// ─── Palette & helpers ────────────────────────────────────────────────────────
+// ─── XposeProfilePage stub (import dynamique selon existence) ──────────────────
+let XposeProfilePage: React.ComponentType<{
+  user: FirebaseUser;
+  targetUserId: string;
+  myArenaUser: ArenaUser | null;
+  onBack: () => void;
+  onViewProfile: (uid: string) => void;
+}> | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  XposeProfilePage = require('./XposeProfilePage').default;
+} catch {
+  XposeProfilePage = null;
+}
 
-const PALETTE = ['#5D7BFF', '#34D399', '#F87171', '#FBBF24', '#A78BFA', '#F97316', '#38BDF8', '#FB7185'];
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const BG = '#000';
+const BORDER = '#2f3336';
+const TEXT = '#e7e9ea';
+const TEXT2 = '#71767b';
 const ACCENT = '#5D7BFF';
 const RESONANCE_ACTIVE = '#F97316';
-const SEPARATOR = '1px solid #2f3336';
-const TEXT_PRIMARY = '#e7e9ea';
-const TEXT_SECONDARY = '#71767b';
+const HOVER = 'rgba(255,255,255,0.03)';
+const SEP = `1px solid ${BORDER}`;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const PALETTE = ['#5D7BFF', '#34D399', '#F87171', '#FBBF24', '#A78BFA', '#F97316', '#38BDF8', '#FB7185'];
 
 function avatarColor(name: string): string {
   let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
+  for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
+  return PALETTE[Math.abs(h) % PALETTE.length];
 }
 
 function initials(name: string): string {
@@ -38,35 +64,48 @@ function initials(name: string): string {
 }
 
 function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return 'maintenant';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}j`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}j`;
 }
+
+function pollTimeLeft(endsAt: string): string {
+  const ms = new Date(endsAt).getTime() - Date.now();
+  if (ms <= 0) return 'Terminé';
+  const h = Math.floor(ms / 3600000);
+  const d = Math.floor(h / 24);
+  if (d > 0) return `${d}j restant${d > 1 ? 's' : ''}`;
+  return `${h}h restantes`;
+}
+
+// ─── Section type ─────────────────────────────────────────────────────────────
+
+type Section = 'feed' | 'arene' | 'profile' | 'profile_other';
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function Avatar({ name, photoURL, size = 40 }: { name: string; photoURL?: string; size?: number }) {
+function Avatar({
+  name, photoURL, size = 40, onClick,
+}: {
+  name: string; photoURL?: string; size?: number; onClick?: () => void;
+}) {
+  const base: React.CSSProperties = {
+    width: size, height: size, borderRadius: '50%',
+    flexShrink: 0, cursor: onClick ? 'pointer' : 'default',
+    objectFit: 'cover' as const,
+  };
   if (photoURL) {
-    return (
-      <img
-        src={photoURL}
-        alt={name}
-        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-      />
-    );
+    return <img src={photoURL} alt={name} style={base} onClick={onClick} />;
   }
   return (
     <div
+      onClick={onClick}
       style={{
-        width: size, height: size, borderRadius: '50%',
-        background: avatarColor(name),
+        ...base, background: avatarColor(name),
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, fontSize: size * 0.35, fontWeight: 700, color: '#fff',
+        fontSize: size * 0.35, fontWeight: 700, color: '#fff',
       }}
     >
       {initials(name)}
@@ -76,20 +115,22 @@ function Avatar({ name, photoURL, size = 40 }: { name: string; photoURL?: string
 
 // ─── Comment Thread ───────────────────────────────────────────────────────────
 
-function CommentThread({ postId, userId, arenaName, photoURL }: {
+function CommentThread({
+  postId, userId, arenaName, photoURL,
+}: {
   postId: string; userId: string; arenaName: string; photoURL?: string;
 }) {
   const [comments, setComments] = useState<XposeComment[]>([]);
-  const [loadingComments, setLoadingComments] = useState(true);
+  const [loadingC, setLoadingC] = useState(true);
   const [replyText, setReplyText] = useState('');
   const [replyType, setReplyType] = useState<XposeCommentType>('argument');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    getXposeComments(postId).then(c => { setComments(c); setLoadingComments(false); });
+    getXposeComments(postId).then(c => { setComments(c); setLoadingC(false); });
   }, [postId]);
 
-  const handleSubmitReply = async () => {
+  const handleSubmit = async () => {
     if (!replyText.trim()) return;
     setSubmitting(true);
     const id = await addXposeComment(postId, {
@@ -98,51 +139,46 @@ function CommentThread({ postId, userId, arenaName, photoURL }: {
       parentCommentId: null, createdAt: new Date().toISOString(),
     });
     if (id) {
-      const newComment: XposeComment = {
+      setComments(prev => [...prev, {
         id, authorId: userId, authorArenaName: arenaName, authorPhotoURL: photoURL,
         type: replyType, content: replyText.trim(), parentCommentId: null,
         createdAt: new Date().toISOString(), upvotes: 0, upvotedBy: [],
-      };
-      setComments(prev => [...prev, newComment]);
+      }]);
       setReplyText('');
     }
     setSubmitting(false);
   };
 
-  const handleUpvote = async (comment: XposeComment) => {
-    const isUp = comment.upvotedBy.includes(userId);
-    await upvoteXposeComment(postId, comment.id, userId, isUp);
-    setComments(prev => prev.map(c =>
-      c.id === comment.id
-        ? {
-          ...c,
-          upvotes: isUp ? c.upvotes - 1 : c.upvotes + 1,
-          upvotedBy: isUp ? c.upvotedBy.filter(id => id !== userId) : [...c.upvotedBy, userId],
-        }
-        : c
+  const handleUpvote = async (c: XposeComment) => {
+    const isUp = c.upvotedBy.includes(userId);
+    await upvoteXposeComment(postId, c.id, userId, isUp);
+    setComments(prev => prev.map(x =>
+      x.id === c.id
+        ? { ...x, upvotes: isUp ? x.upvotes - 1 : x.upvotes + 1, upvotedBy: isUp ? x.upvotedBy.filter(i => i !== userId) : [...x.upvotedBy, userId] }
+        : x
     ));
   };
 
-  const typeLabel: Record<XposeCommentType, string> = { argument: 'Argument', question: 'Question', intuition: 'Intuition' };
-  const typeColor: Record<XposeCommentType, string> = { argument: '#5D7BFF', question: '#34D399', intuition: '#A78BFA' };
+  const typeLabel: Record<XposeCommentType, string> = { argument: 'Argument', question: 'Question', intuition: 'Intuition', reponse: 'Réponse' };
+  const typeColor: Record<XposeCommentType, string> = { argument: ACCENT, question: '#34D399', intuition: '#A78BFA', reponse: '#FBBF24' };
 
   return (
-    <div style={{ borderTop: SEPARATOR, background: 'rgba(255,255,255,0.01)' }}>
-      {/* Reply composer */}
-      <div style={{ display: 'flex', gap: 10, padding: '10px 16px', borderBottom: SEPARATOR }}>
+    <div style={{ borderTop: SEP, background: 'rgba(255,255,255,0.01)' }}>
+      {/* Composer réponse */}
+      <div style={{ display: 'flex', gap: 10, padding: '10px 16px', borderBottom: SEP }}>
         <Avatar name={arenaName} photoURL={photoURL} size={32} />
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            {(['argument', 'question', 'intuition'] as XposeCommentType[]).map(t => (
+          {/* Type pills */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+            {(['argument', 'question', 'intuition', 'reponse'] as XposeCommentType[]).map(t => (
               <button
                 key={t}
                 onClick={() => setReplyType(t)}
                 style={{
                   padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                  border: `1px solid ${replyType === t ? typeColor[t] : '#2f3336'}`,
+                  border: `1px solid ${replyType === t ? typeColor[t] : BORDER}`,
                   background: replyType === t ? `${typeColor[t]}22` : 'transparent',
-                  color: replyType === t ? typeColor[t] : TEXT_SECONDARY,
-                  cursor: 'pointer', transition: 'all 0.15s',
+                  color: replyType === t ? typeColor[t] : TEXT2, cursor: 'pointer',
                 }}
               >
                 {typeLabel[t]}
@@ -156,101 +192,125 @@ function CommentThread({ postId, userId, arenaName, photoURL }: {
               placeholder="Votre réponse..."
               rows={2}
               style={{
-                flex: 1, background: '#111', border: SEPARATOR, borderRadius: 8,
-                color: TEXT_PRIMARY, padding: '8px 10px', fontSize: 14, resize: 'none',
+                flex: 1, background: '#111', border: SEP, borderRadius: 8,
+                color: TEXT, padding: '8px 10px', fontSize: 14, resize: 'none',
                 fontFamily: 'inherit', outline: 'none',
               }}
             />
             <button
-              onClick={handleSubmitReply}
+              onClick={handleSubmit}
               disabled={!replyText.trim() || submitting}
               style={{
-                background: replyText.trim() ? ACCENT : '#2f3336',
+                background: replyText.trim() ? ACCENT : BORDER,
                 border: 'none', borderRadius: '50%', width: 34, height: 34,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: replyText.trim() ? 'pointer' : 'not-allowed', flexShrink: 0,
-                transition: 'background 0.15s',
               }}
             >
-              {submitting
-                ? <Loader2 size={15} color="#fff" className="animate-spin" />
-                : <Send size={15} color="#fff" />}
+              {submitting ? <Loader2 size={15} color="#fff" className="animate-spin" /> : <Send size={15} color="#fff" />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Comments list */}
-      {loadingComments ? (
+      {/* Liste */}
+      {loadingC ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 16 }}>
-          <Loader2 size={18} color={TEXT_SECONDARY} className="animate-spin" />
+          <Loader2 size={18} color={TEXT2} className="animate-spin" />
         </div>
       ) : comments.length === 0 ? (
-        <div style={{ color: TEXT_SECONDARY, textAlign: 'center', padding: '12px 16px', fontSize: 14 }}>
+        <div style={{ color: TEXT2, textAlign: 'center', padding: '12px 16px', fontSize: 14 }}>
           Soyez le premier à répondre.
         </div>
-      ) : (
-        comments.map(c => {
-          const isUp = c.upvotedBy.includes(userId);
-          return (
-            <div key={c.id} style={{ display: 'flex', gap: 10, padding: '10px 16px', borderBottom: SEPARATOR }}>
-              <Avatar name={c.authorArenaName} photoURL={c.authorPhotoURL} size={32} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                  <span style={{ fontWeight: 700, color: TEXT_PRIMARY, fontSize: 14 }}>{c.authorArenaName}</span>
-                  <span
-                    style={{
-                      fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 12,
-                      background: `${typeColor[c.type]}22`, color: typeColor[c.type],
-                    }}
-                  >
-                    {typeLabel[c.type]}
-                  </span>
-                  <span style={{ color: TEXT_SECONDARY, fontSize: 12, marginLeft: 'auto' }}>{timeAgo(c.createdAt)}</span>
-                </div>
-                <p style={{ color: TEXT_PRIMARY, fontSize: 14, margin: 0, lineHeight: 1.5 }}>{c.content}</p>
-                <button
-                  onClick={() => handleUpvote(c)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 4, marginTop: 6,
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: isUp ? RESONANCE_ACTIVE : TEXT_SECONDARY, fontSize: 13, padding: 0,
-                  }}
-                >
-                  <Zap size={14} fill={isUp ? RESONANCE_ACTIVE : 'none'} />
-                  <span>{c.upvotes}</span>
-                </button>
+      ) : comments.map(c => {
+        const isUp = c.upvotedBy.includes(userId);
+        return (
+          <div key={c.id} style={{ display: 'flex', gap: 10, padding: '10px 16px', borderBottom: SEP }}>
+            <Avatar name={c.authorArenaName} photoURL={c.authorPhotoURL} size={32} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <span style={{ fontWeight: 700, color: TEXT, fontSize: 14 }}>{c.authorArenaName}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 12, background: `${typeColor[c.type]}22`, color: typeColor[c.type] }}>
+                  {typeLabel[c.type]}
+                </span>
+                <span style={{ color: TEXT2, fontSize: 12, marginLeft: 'auto' }}>{timeAgo(c.createdAt)}</span>
               </div>
+              <p style={{ color: TEXT, fontSize: 14, margin: 0, lineHeight: 1.5 }}>{c.content}</p>
+              <button
+                onClick={() => handleUpvote(c)}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', color: isUp ? RESONANCE_ACTIVE : TEXT2, fontSize: 13, padding: 0 }}
+              >
+                <Zap size={14} fill={isUp ? RESONANCE_ACTIVE : 'none'} />
+                <span>{c.upvotes}</span>
+              </button>
             </div>
-          );
-        })
-      )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ─── QuoteCard ────────────────────────────────────────────────────────────────
+// ─── Poll Card ────────────────────────────────────────────────────────────────
 
-function QuoteCard({ post }: { post: Omit<XposePost, 'quotedPost'> }) {
+function PollCard({ post, userId, onVoted }: { post: XposePost; userId: string; onVoted: (updated: XposePost) => void }) {
+  const options = post.pollOptions ?? [];
+  const total = options.reduce((acc, o) => acc + o.voteCount, 0);
+  const hasVoted = options.some(o => o.voterIds.includes(userId));
+  const myVote = options.find(o => o.voterIds.includes(userId));
+  const ended = post.pollEndsAt ? new Date(post.pollEndsAt).getTime() < Date.now() : false;
+
+  const handleVote = async (optionId: string) => {
+    if (hasVoted || ended) return;
+    await votePoll(post.id, optionId, userId);
+    const updatedOptions = options.map(o =>
+      o.id === optionId
+        ? { ...o, voteCount: o.voteCount + 1, voterIds: [...o.voterIds, userId] }
+        : o
+    );
+    onVoted({ ...post, pollOptions: updatedOptions });
+  };
+
   return (
-    <div style={{ border: SEPARATOR, borderRadius: 12, padding: 12, marginTop: 8, background: 'rgba(255,255,255,0.02)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        <Avatar name={post.authorArenaName} photoURL={post.authorPhotoURL} size={20} />
-        <span style={{ fontWeight: 700, color: TEXT_PRIMARY, fontSize: 13 }}>{post.authorArenaName}</span>
-        <span style={{ color: TEXT_SECONDARY, fontSize: 12 }}>· {timeAgo(post.createdAt)}</span>
+    <div style={{ marginTop: 8 }}>
+      {options.map(opt => {
+        const pct = total > 0 ? Math.round((opt.voteCount / total) * 100) : 0;
+        const isSelected = myVote?.id === opt.id;
+        const showBar = hasVoted || ended;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => handleVote(opt.id)}
+            disabled={hasVoted || ended}
+            style={{
+              width: '100%', marginBottom: 8, padding: '10px 14px',
+              border: `1px solid ${isSelected ? ACCENT : BORDER}`,
+              borderRadius: 8, background: 'transparent', cursor: (hasVoted || ended) ? 'default' : 'pointer',
+              position: 'relative', overflow: 'hidden', textAlign: 'left',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}
+          >
+            {showBar && (
+              <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: isSelected ? `${ACCENT}22` : `${BORDER}44`, transition: 'width 0.4s', borderRadius: 8 }} />
+            )}
+            <span style={{ position: 'relative', color: TEXT, fontSize: 15, fontWeight: isSelected ? 700 : 400 }}>{opt.text}</span>
+            {showBar && (
+              <span style={{ position: 'relative', color: isSelected ? ACCENT : TEXT2, fontSize: 13, fontWeight: 600 }}>{pct}%</span>
+            )}
+          </button>
+        );
+      })}
+      <div style={{ display: 'flex', gap: 12, color: TEXT2, fontSize: 13, marginTop: 4 }}>
+        <span>{total} vote{total !== 1 ? 's' : ''}</span>
+        {post.pollEndsAt && <span>{pollTimeLeft(post.pollEndsAt)}</span>}
       </div>
-      {post.caption && (
-        <p style={{ color: TEXT_PRIMARY, fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-          {post.caption.length > 100 ? post.caption.slice(0, 100) + '…' : post.caption}
-        </p>
-      )}
     </div>
   );
 }
 
-// ─── Arena card ───────────────────────────────────────────────────────────────
+// ─── Arena Card (embed) ───────────────────────────────────────────────────────
 
-function ArenaCard({ post, onGoToArena }: { post: XposePost; onGoToArena: (id?: string) => void }) {
+function ArenaCardEmbed({ post, onGoToArena }: { post: XposePost; onGoToArena: (id?: string) => void }) {
   const total = (post.arenaAgree ?? 0) + (post.arenaDisagree ?? 0);
   const agreePct = total > 0 ? Math.round(((post.arenaAgree ?? 0) / total) * 100) : 50;
   return (
@@ -259,17 +319,15 @@ function ArenaCard({ post, onGoToArena }: { post: XposePost; onGoToArena: (id?: 
         <Swords size={14} color={ACCENT} />
         <span style={{ color: ACCENT, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Arène</span>
       </div>
-      {post.arenaPostTitle && (
-        <p style={{ color: TEXT_PRIMARY, fontWeight: 600, fontSize: 14, margin: '0 0 4px' }}>{post.arenaPostTitle}</p>
-      )}
+      {post.arenaPostTitle && <p style={{ color: TEXT, fontWeight: 600, fontSize: 14, margin: '0 0 4px' }}>{post.arenaPostTitle}</p>}
       {post.arenaPostExcerpt && (
-        <p style={{ color: TEXT_SECONDARY, fontSize: 13, margin: '0 0 8px', lineHeight: 1.4 }}>
+        <p style={{ color: TEXT2, fontSize: 13, margin: '0 0 8px', lineHeight: 1.4 }}>
           {post.arenaPostExcerpt.length > 120 ? post.arenaPostExcerpt.slice(0, 120) + '…' : post.arenaPostExcerpt}
         </p>
       )}
       {total > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: TEXT_SECONDARY, marginBottom: 3 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: TEXT2, marginBottom: 3 }}>
             <span style={{ color: '#34D399' }}>Pour {agreePct}%</span>
             <span style={{ color: '#F87171' }}>Contre {100 - agreePct}%</span>
           </div>
@@ -280,26 +338,21 @@ function ArenaCard({ post, onGoToArena }: { post: XposePost; onGoToArena: (id?: 
       )}
       <button
         onClick={() => onGoToArena(post.arenaPostId)}
-        style={{
-          background: 'none', border: `1px solid ${ACCENT}`, borderRadius: 20,
-          color: ACCENT, fontSize: 13, fontWeight: 600, padding: '4px 12px',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-        }}
+        style={{ background: 'none', border: `1px solid ${ACCENT}`, borderRadius: 20, color: ACCENT, fontSize: 13, fontWeight: 600, padding: '4px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
       >
-        <Swords size={13} />
-        Rejoindre le débat →
+        <Swords size={13} /> Rejoindre le débat →
       </button>
     </div>
   );
 }
 
-// ─── AI Exchange card ─────────────────────────────────────────────────────────
+// ─── AI Card ──────────────────────────────────────────────────────────────────
 
 function AICard({ post }: { post: XposePost }) {
   const [expanded, setExpanded] = useState(false);
-  const response = post.aiResponse ?? '';
-  const truncated = response.slice(0, 180);
-  const needsExpand = response.length > 180;
+  const resp = post.aiResponse ?? '';
+  const trunc = resp.slice(0, 180);
+  const needsExpand = resp.length > 180;
   return (
     <div style={{ border: '1px solid #2d1a4a', borderRadius: 12, padding: 12, marginTop: 8, background: 'rgba(167,139,250,0.06)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -308,22 +361,12 @@ function AICard({ post }: { post: XposePost }) {
         </div>
         <span style={{ color: '#A78BFA', fontSize: 12, fontWeight: 700 }}>{post.personaName ?? 'IA'}</span>
       </div>
-      {post.aiQuestion && (
-        <p style={{ color: TEXT_SECONDARY, fontSize: 13, fontStyle: 'italic', margin: '0 0 6px' }}>
-          « {post.aiQuestion} »
-        </p>
-      )}
-      <p style={{ color: TEXT_PRIMARY, fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-        {expanded ? response : truncated}{!expanded && needsExpand && '…'}
+      {post.aiQuestion && <p style={{ color: TEXT2, fontSize: 13, fontStyle: 'italic', margin: '0 0 6px' }}>« {post.aiQuestion} »</p>}
+      <p style={{ color: TEXT, fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+        {expanded ? resp : trunc}{!expanded && needsExpand && '…'}
       </p>
       {needsExpand && (
-        <button
-          onClick={() => setExpanded(e => !e)}
-          style={{
-            background: 'none', border: 'none', color: '#A78BFA', cursor: 'pointer',
-            fontSize: 13, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 3, marginTop: 4,
-          }}
-        >
+        <button onClick={() => setExpanded(e => !e)} style={{ background: 'none', border: 'none', color: '#A78BFA', cursor: 'pointer', fontSize: 13, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 3, marginTop: 4 }}>
           {expanded ? <><ChevronUp size={14} /> Réduire</> : <><ChevronDown size={14} /> Voir plus</>}
         </button>
       )}
@@ -336,30 +379,45 @@ function AICard({ post }: { post: XposePost }) {
 function ImagesGrid({ urls }: { urls: string[] }) {
   const count = Math.min(urls.length, 4);
   if (count === 0) return null;
-  const gridCols: Record<number, string> = { 1: '1fr', 2: '1fr 1fr', 3: '1fr 1fr', 4: '1fr 1fr' };
+  if (count === 1) {
+    return <img src={urls[0]} alt="" style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 12, marginTop: 8 }} />;
+  }
   return (
-    <div style={{ display: 'grid', gap: 2, borderRadius: 12, overflow: 'hidden', marginTop: 8, gridTemplateColumns: gridCols[count] }}>
+    <div style={{ display: 'grid', gap: 2, borderRadius: 12, overflow: 'hidden', marginTop: 8, gridTemplateColumns: count === 2 ? '1fr 1fr' : '1fr 1fr' }}>
       {urls.slice(0, count).map((url, i) => (
         <img
           key={i}
           src={url}
           alt=""
-          style={{
-            width: '100%', objectFit: 'cover',
-            maxHeight: count === 1 ? 300 : 160,
-            gridColumn: count === 3 && i === 0 ? '1 / -1' : undefined,
-          }}
+          style={{ width: '100%', objectFit: 'cover', height: count === 2 ? 200 : 150, gridColumn: count === 3 && i === 0 ? '1 / -1' : undefined }}
         />
       ))}
     </div>
   );
 }
 
-// ─── Action button ────────────────────────────────────────────────────────────
+// ─── Quote Card ───────────────────────────────────────────────────────────────
 
-function ActionBtn({
-  icon, count, active, activeColor, onClick, label,
-}: {
+function QuoteCard({ post }: { post: Omit<XposePost, 'quotedPost'> }) {
+  return (
+    <div style={{ border: SEP, borderRadius: 12, padding: 12, marginTop: 8, background: 'rgba(255,255,255,0.02)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <Avatar name={post.authorArenaName} photoURL={post.authorPhotoURL} size={20} />
+        <span style={{ fontWeight: 700, color: TEXT, fontSize: 13 }}>{post.authorArenaName}</span>
+        <span style={{ color: TEXT2, fontSize: 12 }}>· {timeAgo(post.createdAt)}</span>
+      </div>
+      {post.caption && (
+        <p style={{ color: TEXT, fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+          {post.caption.length > 100 ? post.caption.slice(0, 100) + '…' : post.caption}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Action Button ────────────────────────────────────────────────────────────
+
+function ActionBtn({ icon, count, active, activeColor, onClick, label }: {
   icon: React.ReactNode; count: number; active: boolean;
   activeColor: string; onClick: () => void; label: string;
 }) {
@@ -367,13 +425,7 @@ function ActionBtn({
     <button
       onClick={onClick}
       title={label}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        background: 'none', border: 'none', cursor: 'pointer',
-        color: active ? activeColor : TEXT_SECONDARY,
-        fontSize: 14, padding: 4, borderRadius: 20,
-        transition: 'color 0.15s',
-      }}
+      style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: active ? activeColor : TEXT2, fontSize: 14, padding: 4, borderRadius: 20 }}
     >
       {icon}
       <span style={{ minWidth: 12 }}>{count > 0 ? count : ''}</span>
@@ -384,56 +436,106 @@ function ActionBtn({
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 
 function PostCard({
-  post, userId, showComments, onToggleComments, onResonate, onAmplify, onGoToArena,
+  post, userId, showComments, onToggleComments, onResonate, onAmplify,
+  onGoToArena, onViewProfile, onDelete, onVoted,
 }: {
   post: XposePost; userId: string; showComments: boolean;
-  onToggleComments: () => void; onResonate: () => void;
-  onAmplify: () => void; onGoToArena: (id?: string) => void;
+  onToggleComments: () => void; onResonate: () => void; onAmplify: () => void;
+  onGoToArena: (id?: string) => void;
+  onViewProfile: (uid: string) => void;
+  onDelete: (id: string) => void;
+  onVoted: (updated: XposePost) => void;
 }) {
   const isResonated = post.resonatedBy.includes(userId);
   const isAmplified = post.amplifiedBy.includes(userId);
+  const isOwn = post.authorId === userId;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const handleCopyLink = () => {
+  const handleCopy = () => {
     navigator.clipboard.writeText(`${window.location.origin}/xpose/${post.id}`).catch(() => {});
   };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    await deleteXposePost(post.id);
+    onDelete(post.id);
+  };
+
+  const typeBadge: Partial<Record<XposePostType, { label: string; color: string; icon: React.ReactNode }>> = {
+    sondage: { label: 'Sondage', color: '#FBBF24', icon: <BarChart3 size={12} /> },
+    question_ouverte: { label: 'Question', color: '#34D399', icon: <HelpCircle size={12} /> },
+    arene: { label: 'Arène', color: ACCENT, icon: <Swords size={12} /> },
+    echange_ia: { label: 'IA', color: '#A78BFA', icon: <span style={{ fontSize: 9, fontWeight: 800 }}>IA</span> },
+  };
+  const badge = typeBadge[post.type];
 
   return (
     <div>
       <motion.div
-        whileHover={{ background: 'rgba(255,255,255,0.03)' }}
-        style={{
-          display: 'flex', gap: 12, padding: '12px 16px',
-          borderBottom: showComments ? undefined : SEPARATOR,
-          transition: 'background 0.1s',
-        }}
+        whileHover={{ background: HOVER }}
+        style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: showComments ? undefined : SEP, cursor: 'default' }}
       >
+        {/* Avatar */}
         <div style={{ flexShrink: 0 }}>
-          <Avatar name={post.authorArenaName} photoURL={post.authorPhotoURL} size={40} />
+          <Avatar
+            name={post.authorArenaName} photoURL={post.authorPhotoURL} size={40}
+            onClick={() => post.authorId === userId ? onViewProfile(userId) : onViewProfile(post.authorId)}
+          />
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-            <span style={{ fontWeight: 700, color: TEXT_PRIMARY, fontSize: 15 }}>{post.authorArenaName}</span>
+            <span
+              style={{ fontWeight: 700, color: TEXT, fontSize: 15, cursor: 'pointer' }}
+              onClick={() => onViewProfile(post.authorId)}
+            >
+              {post.authorArenaName}
+            </span>
             {post.authorCredibilityScore !== undefined && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 2, color: '#FBBF24', fontSize: 12 }}>
-                <Star size={11} fill="#FBBF24" />
-                {post.authorCredibilityScore}
+                <Star size={11} fill="#FBBF24" />{post.authorCredibilityScore}
               </span>
             )}
-            <span style={{ color: TEXT_SECONDARY, fontSize: 14 }}>· {timeAgo(post.createdAt)}</span>
+            <span style={{ color: TEXT2, fontSize: 14 }}>· {timeAgo(post.createdAt)}</span>
             {post.visibility === 'friends' && (
-              <span style={{ fontSize: 11, color: TEXT_SECONDARY, background: '#2f3336', borderRadius: 10, padding: '1px 7px' }}>
-                Amis
+              <span style={{ fontSize: 11, color: TEXT2, background: BORDER, borderRadius: 10, padding: '1px 7px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <Globe size={10} /> Amis
               </span>
+            )}
+            {badge && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: badge.color, background: `${badge.color}22`, padding: '1px 8px', borderRadius: 12 }}>
+                {badge.icon} {badge.label}
+              </span>
+            )}
+            {isOwn && (
+              <button
+                onClick={handleDelete}
+                title={confirmDelete ? 'Confirmer la suppression' : 'Supprimer'}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: confirmDelete ? '#F87171' : TEXT2, display: 'flex', alignItems: 'center', padding: 2, borderRadius: 4 }}
+              >
+                <Trash2 size={14} />
+              </button>
             )}
           </div>
 
           {/* Caption */}
           {post.caption && (
-            <p style={{ color: TEXT_PRIMARY, fontSize: 15, margin: '0 0 4px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <p style={{ color: TEXT, fontSize: 15, margin: '0 0 4px', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {post.caption}
             </p>
+          )}
+
+          {/* Question ouverte */}
+          {post.type === 'question_ouverte' && post.questionText && (
+            <p style={{ color: TEXT, fontSize: 15, fontStyle: 'italic', fontWeight: 700, margin: '4px 0', lineHeight: 1.5 }}>
+              {post.questionText}
+            </p>
+          )}
+
+          {/* Poll */}
+          {post.type === 'sondage' && post.pollOptions && (
+            <PollCard post={post} userId={userId} onVoted={onVoted} />
           )}
 
           {/* Images */}
@@ -443,9 +545,9 @@ function PostCard({
           {post.quotedPost && <QuoteCard post={post.quotedPost} />}
 
           {/* Arena card */}
-          {post.type === 'arene' && <ArenaCard post={post} onGoToArena={onGoToArena} />}
+          {post.type === 'arene' && <ArenaCardEmbed post={post} onGoToArena={onGoToArena} />}
 
-          {/* AI Exchange */}
+          {/* AI card */}
           {post.type === 'echange_ia' && <AICard post={post} />}
 
           {/* Tags */}
@@ -457,40 +559,27 @@ function PostCard({
             </div>
           )}
 
-          {/* Actions bar */}
+          {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 12 }}>
             <ActionBtn
               icon={<MessageSquare size={17} />}
-              count={post.commentCount}
-              active={showComments}
-              activeColor={ACCENT}
-              onClick={onToggleComments}
-              label="Commenter"
+              count={post.commentCount} active={showComments} activeColor={ACCENT}
+              onClick={onToggleComments} label="Commenter"
             />
             <ActionBtn
               icon={<Repeat2 size={17} />}
-              count={post.amplifyCount}
-              active={isAmplified}
-              activeColor="#34D399"
-              onClick={onAmplify}
-              label="Amplifier"
+              count={post.amplifyCount} active={isAmplified} activeColor="#34D399"
+              onClick={onAmplify} label="Amplifier"
             />
             <ActionBtn
               icon={<Zap size={17} fill={isResonated ? RESONANCE_ACTIVE : 'none'} />}
-              count={post.resonanceCount}
-              active={isResonated}
-              activeColor={RESONANCE_ACTIVE}
-              onClick={onResonate}
-              label="Résonance"
+              count={post.resonanceCount} active={isResonated} activeColor={RESONANCE_ACTIVE}
+              onClick={onResonate} label="Résonance"
             />
             <button
-              onClick={handleCopyLink}
+              onClick={handleCopy}
               title="Copier le lien"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: TEXT_SECONDARY, display: 'flex', alignItems: 'center',
-                padding: 4, borderRadius: '50%',
-              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT2, display: 'flex', alignItems: 'center', padding: 4, borderRadius: '50%' }}
             >
               <Link2 size={17} />
             </button>
@@ -498,21 +587,16 @@ function PostCard({
         </div>
       </motion.div>
 
-      {/* Comments thread */}
+      {/* Comments inline */}
       <AnimatePresence>
         {showComments && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            style={{ overflow: 'hidden', borderBottom: SEPARATOR }}
+            style={{ overflow: 'hidden', borderBottom: SEP }}
           >
-            <CommentThread
-              postId={post.id}
-              userId={userId}
-              arenaName={post.authorArenaName}
-              photoURL={post.authorPhotoURL}
-            />
+            <CommentThread postId={post.id} userId={userId} arenaName={post.authorArenaName} photoURL={post.authorPhotoURL} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -520,22 +604,13 @@ function PostCard({
   );
 }
 
-// ─── Toolbar button ───────────────────────────────────────────────────────────
+// ─── Toolbar Button ───────────────────────────────────────────────────────────
 
-function ToolbarBtn({ icon, onClick, disabled, title }: {
-  icon: React.ReactNode; onClick: () => void; disabled?: boolean; title: string;
-}) {
+function ToolbarBtn({ icon, onClick, disabled, title }: { icon: React.ReactNode; onClick: () => void; disabled?: boolean; title: string }) {
   return (
     <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      style={{
-        background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        color: disabled ? '#333' : ACCENT, padding: 8, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: 'background 0.1s',
-      }}
+      onClick={onClick} disabled={disabled} title={title}
+      style={{ background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', color: disabled ? '#333' : ACCENT, padding: 8, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onMouseEnter={e => !disabled && (e.currentTarget.style.background = `${ACCENT}18`)}
       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
     >
@@ -558,55 +633,41 @@ function ArenaPickerModal({ onClose, onSelect }: {
   }, []);
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}
-      onClick={onClose}
-    >
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 16 }} onClick={onClose}>
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
         onClick={e => e.stopPropagation()}
-        style={{
-          background: '#000', border: SEPARATOR, borderRadius: 16,
-          width: '100%', maxWidth: 520, maxHeight: '80vh',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}
+        style={{ background: BG, border: SEP, borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: SEPARATOR }}>
-          <span style={{ color: TEXT_PRIMARY, fontWeight: 700, fontSize: 16 }}>Choisir un débat Arène</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT_SECONDARY, display: 'flex', padding: 4, borderRadius: '50%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: SEP }}>
+          <span style={{ color: TEXT, fontWeight: 700, fontSize: 16 }}>Choisir un débat Arène</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT2, display: 'flex', padding: 4, borderRadius: '50%' }}>
             <X size={20} />
           </button>
         </div>
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-              <Loader2 size={24} color={TEXT_SECONDARY} className="animate-spin" />
+              <Loader2 size={24} color={TEXT2} className="animate-spin" />
             </div>
           ) : arenaPosts.map(ap => (
             <button
               key={ap.id}
               onClick={() => onSelect(ap.id, ap.title, ap.preamble)}
-              style={{
-                width: '100%', textAlign: 'left', background: 'none', border: 'none',
-                borderBottom: SEPARATOR, padding: '12px 16px', cursor: 'pointer',
-              }}
+              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: SEP, padding: '12px 16px', cursor: 'pointer' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'none')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <Swords size={13} color={ACCENT} />
-                <span style={{ color: TEXT_SECONDARY, fontSize: 12 }}>{ap.authorArenaName} · {timeAgo(ap.createdAt)}</span>
+                <span style={{ color: TEXT2, fontSize: 12 }}>{ap.authorArenaName} · {timeAgo(ap.createdAt)}</span>
               </div>
-              <p style={{ color: TEXT_PRIMARY, fontWeight: 600, fontSize: 14, margin: '0 0 3px' }}>{ap.title}</p>
-              <p style={{ color: TEXT_SECONDARY, fontSize: 13, margin: 0 }}>
-                {ap.preamble.length > 100 ? ap.preamble.slice(0, 100) + '…' : ap.preamble}
-              </p>
+              <p style={{ color: TEXT, fontWeight: 600, fontSize: 14, margin: '0 0 3px' }}>{ap.title}</p>
+              <p style={{ color: TEXT2, fontSize: 13, margin: 0 }}>{ap.preamble.length > 100 ? ap.preamble.slice(0, 100) + '…' : ap.preamble}</p>
               <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12 }}>
                 <span style={{ color: '#34D399' }}>✓ {ap.agreeCount}</span>
                 <span style={{ color: '#F87171' }}>✗ {ap.disagreeCount}</span>
-                <span style={{ color: TEXT_SECONDARY }}>💬 {ap.commentCount}</span>
+                <span style={{ color: TEXT2 }}>💬 {ap.commentCount}</span>
               </div>
             </button>
           ))}
@@ -616,35 +677,45 @@ function ArenaPickerModal({ onClose, onSelect }: {
   );
 }
 
-// ─── Inline Composer ──────────────────────────────────────────────────────────
+// ─── Full Composer (desktop inline + mobile modal) ────────────────────────────
 
-function InlineComposer({ user, arenaUser, onPublished }: {
-  user: User; arenaUser: ArenaUser | null; onPublished: (post: XposePost) => void;
-}) {
+interface ComposerProps {
+  user: FirebaseUser;
+  arenaUser: ArenaUser | null;
+  onPublished: (post: XposePost) => void;
+  onClose?: () => void; // pour la modale mobile
+}
+
+function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
+  const [composerType, setComposerType] = useState<XposePostType>('pensee');
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
-  const [visibility] = useState<XposeVisibility>('public');
+  const [visibility, setVisibility] = useState<XposeVisibility>('public');
+  const [destination, setDestination] = useState<XposeDestination>('xpose');
   const [arenaPost, setArenaPost] = useState<{ id: string; title: string; excerpt: string } | null>(null);
-  const [showArenaModal, setShowArenaModal] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [pollDuration, setPollDuration] = useState<24 | 48 | 168>(24);
   const [publishing, setPublishing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showArenaModal, setShowArenaModal] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const arenaName = arenaUser?.arenaName ?? user.displayName ?? 'Anonyme';
   const photoURL = arenaUser?.photoURL ?? user.photoURL ?? undefined;
-  const maxLen = 500;
+
+  const maxLen = composerType === 'sondage' || composerType === 'question_ouverte' ? 280 : 500;
 
   const handleImages = (files: FileList | null) => {
     if (!files) return;
     const next = Array.from(files).slice(0, 4 - images.length);
     setImages(prev => [...prev, ...next]);
     next.forEach(f => {
-      const reader = new FileReader();
-      reader.onload = e => setPreviews(prev => [...prev, e.target?.result as string]);
-      reader.readAsDataURL(f);
+      const r = new FileReader();
+      r.onload = e => setPreviews(prev => [...prev, e.target?.result as string]);
+      r.readAsDataURL(f);
     });
   };
 
@@ -660,28 +731,58 @@ function InlineComposer({ user, arenaUser, onPublished }: {
     setShowTagInput(false);
   };
 
+  const addPollOption = () => {
+    if (pollOptions.length < 4) setPollOptions(prev => [...prev, '']);
+  };
+
+  const removePollOption = (i: number) => {
+    if (pollOptions.length > 2) setPollOptions(prev => prev.filter((_, idx) => idx !== i));
+  };
+
+  const canPublish = (() => {
+    if (publishing) return false;
+    if (composerType === 'pensee') return text.trim().length > 0 || images.length > 0;
+    if (composerType === 'sondage') return text.trim().length > 0 && pollOptions.filter(o => o.trim()).length >= 2;
+    if (composerType === 'question_ouverte') return text.trim().length > 0;
+    if (composerType === 'arene') return arenaPost !== null;
+    return text.trim().length > 0;
+  })();
+
   const handlePublish = async () => {
-    if (!text.trim() && images.length === 0) return;
+    if (!canPublish) return;
     setPublishing(true);
     try {
-      const postType = arenaPost ? 'arene' : 'pensee';
-      const newPost: Omit<XposePost, 'id' | 'resonanceCount' | 'commentCount' | 'amplifyCount' | 'resonatedBy' | 'amplifiedBy' | 'interestScore'> = {
-        authorId: user.uid,
-        authorArenaName: arenaName,
-        authorPhotoURL: photoURL,
-        authorCredibilityScore: arenaUser?.credibilityScore,
-        type: postType,
-        caption: text.trim() || undefined,
-        tags,
-        visibility,
-        createdAt: new Date().toISOString(),
-        ...(arenaPost ? {
-          arenaPostId: arenaPost.id,
-          arenaPostTitle: arenaPost.title,
-          arenaPostExcerpt: arenaPost.excerpt,
-        } : {}),
+      const base = {
+        authorId: user.uid, authorArenaName: arenaName,
+        authorPhotoURL: photoURL, authorCredibilityScore: arenaUser?.credibilityScore,
+        visibility, createdAt: new Date().toISOString(), tags, destination,
       };
-      const id = await createXposePost(newPost);
+
+      let partial: Omit<XposePost, 'id' | 'resonanceCount' | 'commentCount' | 'amplifyCount' | 'resonatedBy' | 'amplifiedBy' | 'interestScore'>;
+
+      if (composerType === 'pensee') {
+        partial = { ...base, type: 'pensee', caption: text.trim() || undefined };
+      } else if (composerType === 'sondage') {
+        const opts: PollOption[] = pollOptions
+          .filter(o => o.trim())
+          .map((o, i) => ({ id: `opt_${i}_${Date.now()}`, text: o.trim(), voteCount: 0, voterIds: [] }));
+        const endsAt = new Date(Date.now() + pollDuration * 3600000).toISOString();
+        partial = { ...base, type: 'sondage', caption: text.trim() || undefined, pollOptions: opts, pollEndsAt: endsAt, pollDurationHours: pollDuration, destination: 'xpose' };
+      } else if (composerType === 'question_ouverte') {
+        partial = { ...base, type: 'question_ouverte', questionText: text.trim(), caption: text.trim() };
+      } else if (composerType === 'arene') {
+        partial = {
+          ...base, type: 'arene',
+          caption: text.trim() || undefined,
+          arenaPostId: arenaPost!.id,
+          arenaPostTitle: arenaPost!.title,
+          arenaPostExcerpt: arenaPost!.excerpt,
+        };
+      } else {
+        partial = { ...base, type: composerType, caption: text.trim() || undefined };
+      }
+
+      const id = await createXposePost(partial);
       if (!id) return;
 
       let imageUrls: string[] = [];
@@ -691,37 +792,157 @@ function InlineComposer({ user, arenaUser, onPublished }: {
       }
 
       const full: XposePost = {
-        ...newPost, id, imageUrls,
+        ...partial, id, imageUrls,
         resonanceCount: 0, commentCount: 0, amplifyCount: 0,
         resonatedBy: [], amplifiedBy: [],
       };
       onPublished(full);
-      setText(''); setImages([]); setPreviews([]); setTags([]); setArenaPost(null);
+
+      // reset
+      setText(''); setImages([]); setPreviews([]); setTags([]);
+      setArenaPost(null); setPollOptions(['', '']);
+      setComposerType('pensee');
+      onClose?.();
     } finally {
       setPublishing(false);
     }
   };
 
-  const canPublish = (text.trim().length > 0 || images.length > 0) && !publishing;
+  const postTypes: { key: XposePostType; label: string; icon: string }[] = [
+    { key: 'pensee', label: 'Pensée', icon: '✍️' },
+    { key: 'sondage', label: 'Sondage', icon: '📊' },
+    { key: 'question_ouverte', label: 'Question', icon: '❓' },
+    { key: 'arene', label: 'Arène', icon: '🏛️' },
+  ];
+
+  const destinations: { key: XposeDestination; label: string }[] = [
+    { key: 'xpose', label: 'XPOSE' },
+    { key: 'arene', label: 'Arène' },
+    { key: 'both', label: 'Les deux' },
+  ];
 
   return (
     <>
-      <div style={{ borderBottom: SEPARATOR, padding: '12px 16px' }}>
+      <div style={{ borderBottom: SEP, padding: '12px 16px' }}>
+        {/* Post type selector */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4 }}>
+          {postTypes.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setComposerType(key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+                border: `1px solid ${composerType === key ? ACCENT : BORDER}`,
+                background: composerType === key ? `${ACCENT}22` : 'transparent',
+                color: composerType === key ? ACCENT : TEXT2, cursor: 'pointer',
+              }}
+            >
+              <span>{icon}</span> {label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ display: 'flex', gap: 12 }}>
           <Avatar name={arenaName} photoURL={photoURL} size={40} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value.slice(0, maxLen))}
-              placeholder="Quelle est votre pensée ?"
-              rows={text.length > 80 ? 4 : 2}
-              style={{
-                width: '100%', background: 'transparent', border: 'none',
-                color: TEXT_PRIMARY, fontSize: 18, resize: 'none',
-                fontFamily: 'inherit', outline: 'none', lineHeight: 1.5,
-                boxSizing: 'border-box', padding: 0,
-              }}
-            />
+
+            {/* Textarea principale */}
+            {composerType !== 'arene' && (
+              <>
+                <textarea
+                  value={text}
+                  onChange={e => setText(e.target.value.slice(0, maxLen))}
+                  placeholder={
+                    composerType === 'sondage' ? 'Posez votre question… (max 280)' :
+                    composerType === 'question_ouverte' ? 'Votre question… (max 280)' :
+                    'Quelle est votre pensée ? (max 500)'
+                  }
+                  rows={text.length > 80 || composerType === 'question_ouverte' ? 4 : 2}
+                  style={{ width: '100%', background: 'transparent', border: 'none', color: TEXT, fontSize: 18, resize: 'none', fontFamily: 'inherit', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', padding: 0 }}
+                />
+                {text.length > 0 && (
+                  <div style={{ textAlign: 'right', fontSize: 12, color: text.length > maxLen - 30 ? '#F87171' : TEXT2, marginBottom: 4 }}>
+                    {maxLen - text.length}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Sondage — options */}
+            {composerType === 'sondage' && (
+              <div style={{ marginTop: 8 }}>
+                {pollOptions.map((opt, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                    <input
+                      value={opt}
+                      onChange={e => setPollOptions(prev => prev.map((o, idx) => idx === i ? e.target.value : o))}
+                      placeholder={`Option ${i + 1}`}
+                      style={{ flex: 1, background: '#111', border: SEP, borderRadius: 8, color: TEXT, padding: '8px 12px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+                    />
+                    {pollOptions.length > 2 && (
+                      <button onClick={() => removePollOption(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT2, display: 'flex', alignItems: 'center' }}>
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {pollOptions.length < 4 && (
+                  <button
+                    onClick={addPollOption}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: `1px dashed ${BORDER}`, borderRadius: 8, color: TEXT2, padding: '7px 12px', fontSize: 14, cursor: 'pointer', width: '100%', marginBottom: 8 }}
+                  >
+                    <Plus size={15} /> Ajouter une option
+                  </button>
+                )}
+                {/* Durée */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 8 }}>
+                  <span style={{ color: TEXT2, fontSize: 13 }}>Durée :</span>
+                  {([24, 48, 168] as const).map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setPollDuration(d)}
+                      style={{ padding: '3px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: `1px solid ${pollDuration === d ? ACCENT : BORDER}`, background: pollDuration === d ? `${ACCENT}22` : 'transparent', color: pollDuration === d ? ACCENT : TEXT2, cursor: 'pointer' }}
+                    >
+                      {d === 24 ? '1j' : d === 48 ? '2j' : '7j'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Arène — picker */}
+            {composerType === 'arene' && (
+              <div style={{ marginBottom: 8 }}>
+                {arenaPost ? (
+                  <div style={{ border: '1px solid #1e2a4a', borderRadius: 10, padding: 10, background: 'rgba(93,123,255,0.06)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <Swords size={14} color={ACCENT} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ color: TEXT, fontWeight: 600, fontSize: 13, margin: '0 0 2px' }}>{arenaPost.title}</p>
+                      <p style={{ color: TEXT2, fontSize: 12, margin: 0 }}>{arenaPost.excerpt.length > 80 ? arenaPost.excerpt.slice(0, 80) + '…' : arenaPost.excerpt}</p>
+                    </div>
+                    <button onClick={() => setArenaPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT2, padding: 2, display: 'flex', alignItems: 'center' }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowArenaModal(true)}
+                    style={{ width: '100%', background: 'none', border: `1px dashed ${ACCENT}`, borderRadius: 10, color: ACCENT, padding: '12px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <Swords size={16} /> Choisir un débat Arène
+                  </button>
+                )}
+                {arenaPost && (
+                  <textarea
+                    value={text}
+                    onChange={e => setText(e.target.value.slice(0, 280))}
+                    placeholder="Commentaire optionnel…"
+                    rows={2}
+                    style={{ width: '100%', marginTop: 8, background: 'transparent', border: 'none', color: TEXT, fontSize: 16, resize: 'none', fontFamily: 'inherit', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', padding: 0 }}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Image previews */}
             {previews.length > 0 && (
@@ -731,12 +952,7 @@ function InlineComposer({ user, arenaUser, onPublished }: {
                     <img src={src} alt="" style={{ width: '100%', height: 100, objectFit: 'cover' }} />
                     <button
                       onClick={() => removeImage(i)}
-                      style={{
-                        position: 'absolute', top: 4, right: 4,
-                        background: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '50%',
-                        width: 24, height: 24, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-                      }}
+                      style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}
                     >
                       <X size={14} />
                     </button>
@@ -749,15 +965,9 @@ function InlineComposer({ user, arenaUser, onPublished }: {
             {tags.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                 {tags.map(tag => (
-                  <span
-                    key={tag}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, background: `${ACCENT}22`, color: ACCENT, padding: '2px 8px', borderRadius: 20, fontSize: 13 }}
-                  >
+                  <span key={tag} style={{ display: 'flex', alignItems: 'center', gap: 4, background: `${ACCENT}22`, color: ACCENT, padding: '2px 8px', borderRadius: 20, fontSize: 13 }}>
                     #{tag}
-                    <button
-                      onClick={() => setTags(prev => prev.filter(t => t !== tag))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: ACCENT, padding: 0, display: 'flex', alignItems: 'center' }}
-                    >
+                    <button onClick={() => setTags(prev => prev.filter(t => t !== tag))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: ACCENT, padding: 0, display: 'flex', alignItems: 'center' }}>
                       <X size={11} />
                     </button>
                   </span>
@@ -774,66 +984,56 @@ function InlineComposer({ user, arenaUser, onPublished }: {
                   onKeyDown={e => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') setShowTagInput(false); }}
                   placeholder="Ajouter un tag..."
                   autoFocus
-                  style={{
-                    background: '#111', border: SEPARATOR, borderRadius: 8,
-                    color: TEXT_PRIMARY, padding: '6px 10px', fontSize: 14,
-                    outline: 'none', fontFamily: 'inherit', flex: 1,
-                  }}
+                  style={{ background: '#111', border: SEP, borderRadius: 8, color: TEXT, padding: '6px 10px', fontSize: 14, outline: 'none', fontFamily: 'inherit', flex: 1 }}
                 />
-                <button onClick={addTag} style={{ background: ACCENT, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, padding: '6px 12px', cursor: 'pointer' }}>
-                  OK
-                </button>
-              </div>
-            )}
-
-            {/* Arena post preview */}
-            {arenaPost && (
-              <div style={{ border: '1px solid #1e2a4a', borderRadius: 10, padding: 10, marginBottom: 8, background: 'rgba(93,123,255,0.06)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <Swords size={14} color={ACCENT} style={{ flexShrink: 0, marginTop: 2 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ color: TEXT_PRIMARY, fontWeight: 600, fontSize: 13, margin: '0 0 2px' }}>{arenaPost.title}</p>
-                  <p style={{ color: TEXT_SECONDARY, fontSize: 12, margin: 0 }}>
-                    {arenaPost.excerpt.length > 80 ? arenaPost.excerpt.slice(0, 80) + '…' : arenaPost.excerpt}
-                  </p>
-                </div>
-                <button onClick={() => setArenaPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT_SECONDARY, padding: 2, display: 'flex', alignItems: 'center' }}>
-                  <X size={14} />
-                </button>
+                <button onClick={addTag} style={{ background: ACCENT, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, padding: '6px 12px', cursor: 'pointer' }}>OK</button>
               </div>
             )}
 
             {/* Toolbar */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, borderTop: `1px solid ${BORDER}`, paddingTop: 8 }}>
               <div style={{ display: 'flex', gap: 2 }}>
-                <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => handleImages(e.target.files)} />
-                <ToolbarBtn icon={<Image size={18} />} onClick={() => fileInputRef.current?.click()} disabled={images.length >= 4} title="Images" />
-                <ToolbarBtn icon={<Hash size={18} />} onClick={() => setShowTagInput(v => !v)} title="Tags" />
-                <ToolbarBtn icon={<Swords size={18} />} onClick={() => setShowArenaModal(true)} title="Arène" />
-                <ToolbarBtn icon={<AtSign size={18} />} onClick={() => setText(t => t + '@')} title="Mention" />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {text.length > 0 && (
-                  <span style={{ color: text.length > maxLen - 50 ? '#F87171' : TEXT_SECONDARY, fontSize: 13 }}>
-                    {maxLen - text.length}
-                  </span>
+                {composerType === 'pensee' && (
+                  <>
+                    <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => handleImages(e.target.files)} />
+                    <ToolbarBtn icon={<Image size={18} />} onClick={() => fileRef.current?.click()} disabled={images.length >= 4} title="Images" />
+                    <ToolbarBtn icon={<Hash size={18} />} onClick={() => setShowTagInput(v => !v)} title="Tags" />
+                    <ToolbarBtn icon={<AtSign size={18} />} onClick={() => setText(t => t + '@')} title="Mention" />
+                  </>
                 )}
+                {composerType !== 'sondage' && composerType !== 'arene' && (
+                  /* Destination pills */
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 4 }}>
+                    {destinations.map(d => (
+                      <button
+                        key={d.key}
+                        onClick={() => setDestination(d.key)}
+                        style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: `1px solid ${destination === d.key ? ACCENT : BORDER}`, background: destination === d.key ? `${ACCENT}22` : 'transparent', color: destination === d.key ? ACCENT : TEXT2, cursor: 'pointer' }}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {/* Visibilité */}
                 <button
-                  onClick={handlePublish}
-                  disabled={!canPublish}
-                  style={{
-                    background: canPublish ? ACCENT : '#1a2a4a',
-                    border: 'none', borderRadius: 20, color: canPublish ? '#fff' : '#555',
-                    fontWeight: 700, fontSize: 15, padding: '7px 18px',
-                    cursor: canPublish ? 'pointer' : 'not-allowed',
-                    transition: 'background 0.15s, color 0.15s',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}
+                  onClick={() => setVisibility(v => v === 'public' ? 'friends' : 'public')}
+                  title={visibility === 'public' ? 'Public' : 'Amis seulement'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT2, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, padding: '4px 8px' }}
                 >
-                  {publishing && <Loader2 size={15} className="animate-spin" />}
-                  Publier
+                  <Globe size={14} />
+                  <span>{visibility === 'public' ? 'Public' : 'Amis'}</span>
                 </button>
               </div>
+
+              <button
+                onClick={handlePublish}
+                disabled={!canPublish}
+                style={{ background: canPublish ? ACCENT : '#1a2a4a', border: 'none', borderRadius: 20, color: canPublish ? '#fff' : '#555', fontWeight: 700, fontSize: 15, padding: '7px 18px', cursor: canPublish ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {publishing && <Loader2 size={15} className="animate-spin" />}
+                Publier
+              </button>
             </div>
           </div>
         </div>
@@ -851,84 +1051,99 @@ function InlineComposer({ user, arenaUser, onPublished }: {
   );
 }
 
+// ─── Mobile Composer Modal ────────────────────────────────────────────────────
+
+function MobileComposerModal({ user, arenaUser, onPublished, onClose }: {
+  user: FirebaseUser; arenaUser: ArenaUser | null;
+  onPublished: (post: XposePost) => void; onClose: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+      style={{ position: 'fixed', inset: 0, background: BG, zIndex: 300, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: SEP }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT, display: 'flex', alignItems: 'center', marginRight: 16, padding: 4 }}>
+          <X size={22} />
+        </button>
+        <span style={{ color: TEXT, fontWeight: 700, fontSize: 17 }}>Nouveau post</span>
+      </div>
+      <Composer user={user} arenaUser={arenaUser} onPublished={onPublished} onClose={onClose} />
+    </motion.div>
+  );
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ recommended, trendingTags, searchQuery, onSearch, userId, myArenaName, myPhotoURL, followingIds }: {
+function Sidebar({
+  recommended, trendingTags, searchQuery, onSearch, onTagFilter,
+  userId, myArenaName, myPhotoURL, followingIds, tagFilter,
+}: {
   recommended: XposeRecommendedUser[];
   trendingTags: { tag: string; count: number }[];
   searchQuery: string;
   onSearch: (q: string) => void;
+  onTagFilter: (tag: string | null) => void;
   userId: string;
   myArenaName: string;
   myPhotoURL?: string;
   followingIds: string[];
+  tagFilter: string | null;
 }) {
   const [followedIds, setFollowedIds] = useState<string[]>([]);
-  const [showAllRec, setShowAllRec] = useState(false);
-  const displayedRec = showAllRec ? recommended : recommended.slice(0, 3);
+  const [showAll, setShowAll] = useState(false);
+  const displayed = showAll ? recommended : recommended.slice(0, 3);
 
   const handleFollow = async (targetUserId: string, targetName: string, targetPhotoURL?: string) => {
     setFollowedIds(prev => [...prev, targetUserId]);
     await sendConnection(userId, myArenaName, myPhotoURL, targetUserId, targetName, targetPhotoURL, 'follow');
   };
 
-  const panelStyle: React.CSSProperties = { border: SEPARATOR, borderRadius: 16, marginBottom: 16, overflow: 'hidden' };
-  const panelHeaderStyle: React.CSSProperties = { padding: '14px 16px', borderBottom: SEPARATOR, color: TEXT_PRIMARY, fontWeight: 800, fontSize: 18 };
+  const panelStyle: React.CSSProperties = { border: SEP, borderRadius: 16, marginBottom: 16, overflow: 'hidden' };
+  const panelHead: React.CSSProperties = { padding: '14px 16px', borderBottom: SEP, color: TEXT, fontWeight: 800, fontSize: 18 };
 
   return (
     <div>
-      {/* Search */}
+      {/* Recherche */}
       <div style={{ position: 'relative', marginBottom: 16 }}>
-        <Search size={16} color={TEXT_SECONDARY} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+        <Search size={16} color={TEXT2} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
         <input
           value={searchQuery}
           onChange={e => onSearch(e.target.value)}
           placeholder="Rechercher dans XPOSE"
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: '#111', border: SEPARATOR, borderRadius: 9999,
-            color: TEXT_PRIMARY, padding: '10px 16px 10px 38px', fontSize: 15,
-            outline: 'none', fontFamily: 'inherit',
-          }}
+          style={{ width: '100%', boxSizing: 'border-box', background: '#111', border: SEP, borderRadius: 9999, color: TEXT, padding: '10px 16px 10px 38px', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
         />
       </div>
 
       {/* Qui suivre */}
       <div style={panelStyle}>
-        <div style={panelHeaderStyle}>Qui suivre</div>
-        {displayedRec.length === 0 ? (
-          <div style={{ padding: '12px 16px', color: TEXT_SECONDARY, fontSize: 14 }}>Aucune suggestion.</div>
-        ) : displayedRec.map(rec => {
+        <div style={panelHead}>Qui suivre</div>
+        {displayed.length === 0 ? (
+          <div style={{ padding: '12px 16px', color: TEXT2, fontSize: 14 }}>Aucune suggestion.</div>
+        ) : displayed.map(rec => {
           const isFollowed = followedIds.includes(rec.userId) || followingIds.includes(rec.userId);
           return (
             <div
               key={rec.userId}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: SEPARATOR, transition: 'background 0.1s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: SEP }}
+              onMouseEnter={e => (e.currentTarget.style.background = HOVER)}
               onMouseLeave={e => (e.currentTarget.style.background = 'none')}
             >
               <Avatar name={rec.arenaName} photoURL={rec.photoURL} size={38} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontWeight: 700, color: TEXT_PRIMARY, fontSize: 14 }}>{rec.arenaName}</span>
+                  <span style={{ fontWeight: 700, color: TEXT, fontSize: 14 }}>{rec.arenaName}</span>
                   <Star size={11} color="#FBBF24" fill="#FBBF24" />
                   <span style={{ fontSize: 12, color: '#FBBF24' }}>{rec.credibilityScore}</span>
                 </div>
                 {rec.commonTags.length > 0 && (
-                  <span style={{ color: TEXT_SECONDARY, fontSize: 12 }}>#{rec.commonTags.slice(0, 2).join(' #')}</span>
+                  <span style={{ color: TEXT2, fontSize: 12 }}>#{rec.commonTags.slice(0, 2).join(' #')}</span>
                 )}
               </div>
               <button
                 onClick={() => !isFollowed && handleFollow(rec.userId, rec.arenaName, rec.photoURL)}
-                style={{
-                  background: isFollowed ? 'transparent' : '#fff',
-                  border: isFollowed ? `1px solid ${TEXT_SECONDARY}` : 'none',
-                  borderRadius: 20, color: isFollowed ? TEXT_SECONDARY : '#000',
-                  fontWeight: 700, fontSize: 13, padding: '5px 14px',
-                  cursor: isFollowed ? 'default' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  transition: 'all 0.15s', flexShrink: 0,
-                }}
+                style={{ background: isFollowed ? 'transparent' : '#fff', border: isFollowed ? `1px solid ${TEXT2}` : 'none', borderRadius: 20, color: isFollowed ? TEXT2 : '#000', fontWeight: 700, fontSize: 13, padding: '5px 14px', cursor: isFollowed ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
               >
                 {isFollowed ? <><Check size={13} /> Suivi</> : <><UserPlus size={13} /> Suivre</>}
               </button>
@@ -937,10 +1152,10 @@ function Sidebar({ recommended, trendingTags, searchQuery, onSearch, userId, myA
         })}
         {recommended.length > 3 && (
           <button
-            onClick={() => setShowAllRec(v => !v)}
+            onClick={() => setShowAll(v => !v)}
             style={{ width: '100%', background: 'none', border: 'none', color: ACCENT, fontSize: 14, padding: '12px 16px', cursor: 'pointer', textAlign: 'left' }}
           >
-            {showAllRec ? 'Voir moins' : 'Voir plus'}
+            {showAll ? 'Voir moins' : 'Voir plus'}
           </button>
         )}
       </div>
@@ -948,17 +1163,18 @@ function Sidebar({ recommended, trendingTags, searchQuery, onSearch, userId, myA
       {/* Tendances */}
       {trendingTags.length > 0 && (
         <div style={panelStyle}>
-          <div style={panelHeaderStyle}>Tendances</div>
+          <div style={panelHead}>Tendances</div>
           {trendingTags.map(({ tag, count }) => (
             <div
               key={tag}
-              style={{ padding: '10px 16px', borderBottom: SEPARATOR, transition: 'background 0.1s', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              onClick={() => onTagFilter(tagFilter === tag ? null : tag)}
+              style={{ padding: '10px 16px', borderBottom: SEP, cursor: 'pointer', background: tagFilter === tag ? `${ACCENT}11` : 'none' }}
+              onMouseEnter={e => (e.currentTarget.style.background = tagFilter === tag ? `${ACCENT}22` : HOVER)}
+              onMouseLeave={e => (e.currentTarget.style.background = tagFilter === tag ? `${ACCENT}11` : 'none')}
             >
-              <div style={{ color: TEXT_SECONDARY, fontSize: 12 }}>Tendance</div>
-              <div style={{ color: TEXT_PRIMARY, fontWeight: 700, fontSize: 15 }}>#{tag}</div>
-              <div style={{ color: TEXT_SECONDARY, fontSize: 12 }}>{count} posts</div>
+              <div style={{ color: TEXT2, fontSize: 12 }}>Tendance</div>
+              <div style={{ color: tagFilter === tag ? ACCENT : TEXT, fontWeight: 700, fontSize: 15 }}>#{tag}</div>
+              <div style={{ color: TEXT2, fontSize: 12 }}>{count} posts</div>
             </div>
           ))}
         </div>
@@ -967,48 +1183,204 @@ function Sidebar({ recommended, trendingTags, searchQuery, onSearch, userId, myA
   );
 }
 
-// ─── Mobile Composer Modal ────────────────────────────────────────────────────
+// ─── Feed Section ─────────────────────────────────────────────────────────────
 
-function MobileComposerModal({ user, arenaUser, onPublished, onClose }: {
-  user: User; arenaUser: ArenaUser | null; onPublished: (post: XposePost) => void; onClose: () => void;
+function FeedSection({
+  user, arenaUser, posts, loading, feedTab, setFeedTab, streak,
+  openCommentPostId, setOpenCommentPostId,
+  onResonate, onAmplify, onDelete, onVoted,
+  onGoToArena, onViewProfile, onPublished, onBack,
+  isMobile, onOpenComposer,
+  recommended, trendingTags, searchQuery, setSearchQuery,
+  tagFilter, setTagFilter, followingIds,
+}: {
+  user: FirebaseUser; arenaUser: ArenaUser | null;
+  posts: XposePost[]; loading: boolean;
+  feedTab: 'pour_vous' | 'abonnements';
+  setFeedTab: (t: 'pour_vous' | 'abonnements') => void;
+  streak: number;
+  openCommentPostId: string | null;
+  setOpenCommentPostId: (id: string | null) => void;
+  onResonate: (post: XposePost) => void;
+  onAmplify: (post: XposePost) => void;
+  onDelete: (id: string) => void;
+  onVoted: (updated: XposePost) => void;
+  onGoToArena: (id?: string) => void;
+  onViewProfile: (uid: string) => void;
+  onPublished: (post: XposePost) => void;
+  onBack: () => void;
+  isMobile: boolean;
+  onOpenComposer: () => void;
+  recommended: XposeRecommendedUser[];
+  trendingTags: { tag: string; count: number }[];
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  tagFilter: string | null;
+  setTagFilter: (t: string | null) => void;
+  followingIds: string[];
 }) {
+  const arenaName = arenaUser?.arenaName ?? user.displayName ?? 'Anonyme';
+  const photoURL = arenaUser?.photoURL ?? user.photoURL ?? undefined;
+
+  const displayed = posts.filter(p => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!(p.caption?.toLowerCase().includes(q) || p.tags?.some(t => t.toLowerCase().includes(q)) || p.authorArenaName.toLowerCase().includes(q))) return false;
+    }
+    if (tagFilter) {
+      if (!p.tags?.includes(tagFilter)) return false;
+    }
+    return true;
+  });
+
   return (
-    <motion.div
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      exit={{ y: '100%' }}
-      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 300, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: SEPARATOR }}>
-        <button
-          onClick={onClose}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT_PRIMARY, display: 'flex', alignItems: 'center', marginRight: 16, padding: 4 }}
-        >
-          <X size={22} />
-        </button>
-        <span style={{ color: TEXT_PRIMARY, fontWeight: 700, fontSize: 17 }}>Nouveau post</span>
+    <div style={{ display: 'flex', maxWidth: 980, margin: '0 auto', alignItems: 'flex-start' }}>
+      {/* Feed col */}
+      <div style={{ flex: 1, minWidth: 0, maxWidth: 600, borderRight: isMobile ? 'none' : SEP }}>
+        {/* Sticky header */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', borderBottom: SEP }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={onBack}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: TEXT, display: 'flex', alignItems: 'center', padding: 6, borderRadius: '50%' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.3px', color: TEXT }}>XPOSE</span>
+            </div>
+            {streak > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: RESONANCE_ACTIVE, fontWeight: 700, fontSize: 15 }}>
+                <Flame size={18} fill={RESONANCE_ACTIVE} />{streak} jour{streak > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+
+          {/* Feed tabs */}
+          <div style={{ display: 'flex', padding: '4px 0 0' }}>
+            {([['pour_vous', 'Pour vous'], ['abonnements', 'Abonnements']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setFeedTab(key)}
+                style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', color: feedTab === key ? TEXT : TEXT2, fontWeight: feedTab === key ? 700 : 400, fontSize: 15, padding: '12px 0', position: 'relative' }}
+              >
+                {label}
+                {feedTab === key && (
+                  <motion.div layoutId="feed-tab-bar" style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 56, height: 3, borderRadius: 2, background: ACCENT }} />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop composer */}
+        {!isMobile && (
+          <Composer user={user} arenaUser={arenaUser} onPublished={onPublished} />
+        )}
+
+        {/* Mobile tap-to-compose */}
+        {isMobile && (
+          <div
+            onClick={onOpenComposer}
+            style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: SEP, cursor: 'pointer' }}
+          >
+            <Avatar name={arenaName} photoURL={photoURL} size={40} />
+            <div style={{ flex: 1, background: 'transparent', border: 'none', color: TEXT2, fontSize: 18, display: 'flex', alignItems: 'center' }}>
+              Quelle est votre pensée ?
+            </div>
+          </div>
+        )}
+
+        {/* Posts */}
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 48 }}>
+            <Loader2 size={28} color={ACCENT} className="animate-spin" />
+          </div>
+        ) : displayed.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 48, color: TEXT2 }}>
+            {tagFilter
+              ? `Aucun post avec #${tagFilter}.`
+              : searchQuery
+              ? `Aucun résultat pour « ${searchQuery} ».`
+              : feedTab === 'abonnements'
+              ? 'Suivez des personnes pour voir leurs posts ici.'
+              : 'Aucun post pour l\'instant. Soyez le premier à publier !'}
+          </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {displayed.map(post => (
+              <motion.div key={post.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.18 }}>
+                <PostCard
+                  post={post}
+                  userId={user.uid}
+                  showComments={openCommentPostId === post.id}
+                  onToggleComments={() => setOpenCommentPostId(openCommentPostId === post.id ? null : post.id)}
+                  onResonate={() => onResonate(post)}
+                  onAmplify={() => onAmplify(post)}
+                  onGoToArena={onGoToArena}
+                  onViewProfile={onViewProfile}
+                  onDelete={onDelete}
+                  onVoted={onVoted}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
       </div>
-      <InlineComposer
-        user={user}
-        arenaUser={arenaUser}
-        onPublished={post => { onPublished(post); onClose(); }}
-      />
-    </motion.div>
+
+      {/* Sidebar desktop */}
+      {!isMobile && (
+        <div style={{ width: 320, flexShrink: 0, position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', padding: '16px 0 16px 16px', scrollbarWidth: 'none' }}>
+          <Sidebar
+            recommended={recommended}
+            trendingTags={trendingTags}
+            searchQuery={searchQuery}
+            onSearch={setSearchQuery}
+            onTagFilter={setTagFilter}
+            userId={user.uid}
+            myArenaName={arenaName}
+            myPhotoURL={photoURL}
+            followingIds={followingIds}
+            tagFilter={tagFilter}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
-// ─── Main XposePage ───────────────────────────────────────────────────────────
+// ─── Profile Fallback ─────────────────────────────────────────────────────────
+
+function ProfileFallback({ onBack }: { onBack: () => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: TEXT2 }}>
+      <User size={48} color={TEXT2} style={{ marginBottom: 16 }} />
+      <p style={{ fontSize: 16, fontWeight: 600, color: TEXT, marginBottom: 8 }}>Page profil non disponible</p>
+      <p style={{ fontSize: 14, marginBottom: 24 }}>Le composant XposeProfilePage n'est pas encore créé.</p>
+      <button onClick={onBack} style={{ background: ACCENT, border: 'none', borderRadius: 20, color: '#fff', fontWeight: 700, fontSize: 15, padding: '8px 20px', cursor: 'pointer' }}>
+        Retour au feed
+      </button>
+    </div>
+  );
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
-  user: import('firebase/auth').User;
-  arenaUser: import('../arena/arenaTypes').ArenaUser | null;
+  user: FirebaseUser;
+  arenaUser: ArenaUser | null;
   onBack: () => void;
   onGoToArena: (postId?: string) => void;
 }
 
+// ─── XposePage ────────────────────────────────────────────────────────────────
+
 export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Props) {
-  const [activeTab, setActiveTab] = useState<'pour_vous' | 'abonnements'>('pour_vous');
+  const [section, setSection] = useState<Section>('feed');
+  const [feedTab, setFeedTab] = useState<'pour_vous' | 'abonnements'>('pour_vous');
+  const [profileTargetId, setProfileTargetId] = useState<string | null>(null);
   const [posts, setPosts] = useState<XposePost[]>([]);
   const [loading, setLoading] = useState(true);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
@@ -1017,6 +1389,7 @@ export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Prop
   const [recommended, setRecommended] = useState<XposeRecommendedUser[]>([]);
   const [trendingTags, setTrendingTags] = useState<{ tag: string; count: number }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [openCommentPostId, setOpenCommentPostId] = useState<string | null>(null);
   const [showMobileComposer, setShowMobileComposer] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -1038,7 +1411,7 @@ export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Prop
 
       const ids = connections
         .filter(c => c.status === 'accepted')
-        .map(c => c.fromUserId === user.uid ? c.toUserId : c.fromUserId);
+        .map(c => (c.fromUserId === user.uid ? c.toUserId : c.fromUserId));
       setFollowingIds(ids);
 
       const interests = arenaUser?.passions ?? [];
@@ -1057,7 +1430,7 @@ export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Prop
   const fetchFeed = useCallback(async () => {
     setLoading(true);
     try {
-      if (activeTab === 'pour_vous') {
+      if (feedTab === 'pour_vous') {
         const raw = await getPublicFeed(60);
         const scored = raw.map(p => ({ ...p, interestScore: scorePost(p, myInterests, followingIds) }));
         scored.sort((a, b) => (b.interestScore ?? 0) - (a.interestScore ?? 0));
@@ -1069,24 +1442,18 @@ export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Prop
     } finally {
       setLoading(false);
     }
-  }, [activeTab, myInterests, followingIds]);
+  }, [feedTab, myInterests, followingIds]);
 
   useEffect(() => { fetchFeed(); }, [fetchFeed]);
 
-  const handlePostPublished = (post: XposePost) => {
-    setPosts(prev => [post, ...prev]);
-  };
+  const handlePublished = (post: XposePost) => setPosts(prev => [post, ...prev]);
 
   const handleResonate = async (post: XposePost) => {
     const isResonated = post.resonatedBy.includes(user.uid);
     await resonatePost(post.id, user.uid, isResonated);
     setPosts(prev => prev.map(p =>
       p.id === post.id
-        ? {
-          ...p,
-          resonanceCount: isResonated ? p.resonanceCount - 1 : p.resonanceCount + 1,
-          resonatedBy: isResonated ? p.resonatedBy.filter(id => id !== user.uid) : [...p.resonatedBy, user.uid],
-        }
+        ? { ...p, resonanceCount: isResonated ? p.resonanceCount - 1 : p.resonanceCount + 1, resonatedBy: isResonated ? p.resonatedBy.filter(id => id !== user.uid) : [...p.resonatedBy, user.uid] }
         : p
     ));
   };
@@ -1095,181 +1462,181 @@ export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Prop
     if (post.amplifiedBy.includes(user.uid)) return;
     await amplifyPost(post.id, user.uid);
     setPosts(prev => prev.map(p =>
-      p.id === post.id
-        ? { ...p, amplifyCount: p.amplifyCount + 1, amplifiedBy: [...p.amplifiedBy, user.uid] }
-        : p
+      p.id === post.id ? { ...p, amplifyCount: p.amplifyCount + 1, amplifiedBy: [...p.amplifiedBy, user.uid] } : p
     ));
   };
 
-  const displayedPosts = searchQuery.trim()
-    ? posts.filter(p => {
-      const q = searchQuery.toLowerCase();
+  const handleDelete = (id: string) => setPosts(prev => prev.filter(p => p.id !== id));
+
+  const handleVoted = (updated: XposePost) => setPosts(prev => prev.map(p => p.id === updated.id ? updated : p));
+
+  const handleViewProfile = (uid: string) => {
+    if (uid === user.uid) {
+      setSection('profile');
+    } else {
+      setProfileTargetId(uid);
+      setSection('profile_other');
+    }
+  };
+
+  const handleGoToArena = (postId?: string) => {
+    setSection('arene');
+    if (postId) onGoToArena(postId);
+  };
+
+  // ── Nav items ──────────────────────────────────────────────────────────────
+
+  const navItems: { key: Section; icon: React.ReactNode; label: string }[] = [
+    { key: 'feed', icon: <Home size={22} />, label: 'Feed' },
+    { key: 'arene', icon: <Swords size={22} />, label: 'Arène' },
+    { key: 'profile', icon: <User size={22} />, label: 'Profil' },
+  ];
+
+  // ── Render section ─────────────────────────────────────────────────────────
+
+  const renderSection = () => {
+    if (section === 'arene') {
       return (
-        p.caption?.toLowerCase().includes(q) ||
-        p.tags?.some(t => t.toLowerCase().includes(q)) ||
-        p.authorArenaName.toLowerCase().includes(q)
+        <ArenaPage
+          user={user}
+          supabaseUserId={user.uid}
+          onBack={() => setSection('feed')}
+          onGoToXpose={() => setSection('feed')}
+        />
       );
-    })
-    : posts;
+    }
+
+    if (section === 'profile') {
+      if (!XposeProfilePage) return <ProfileFallback onBack={() => setSection('feed')} />;
+      return (
+        <XposeProfilePage
+          user={user}
+          targetUserId={user.uid}
+          myArenaUser={arenaUser}
+          onBack={() => setSection('feed')}
+          onViewProfile={(uid) => { setProfileTargetId(uid); setSection('profile_other'); }}
+        />
+      );
+    }
+
+    if (section === 'profile_other' && profileTargetId) {
+      if (!XposeProfilePage) return <ProfileFallback onBack={() => setSection('feed')} />;
+      return (
+        <XposeProfilePage
+          user={user}
+          targetUserId={profileTargetId}
+          myArenaUser={arenaUser}
+          onBack={() => setSection('feed')}
+          onViewProfile={(uid) => setProfileTargetId(uid)}
+        />
+      );
+    }
+
+    return (
+      <FeedSection
+        user={user}
+        arenaUser={arenaUser}
+        posts={posts}
+        loading={loading}
+        feedTab={feedTab}
+        setFeedTab={(t) => { setFeedTab(t); }}
+        streak={streak}
+        openCommentPostId={openCommentPostId}
+        setOpenCommentPostId={setOpenCommentPostId}
+        onResonate={handleResonate}
+        onAmplify={handleAmplify}
+        onDelete={handleDelete}
+        onVoted={handleVoted}
+        onGoToArena={handleGoToArena}
+        onViewProfile={handleViewProfile}
+        onPublished={handlePublished}
+        onBack={onBack}
+        isMobile={isMobile}
+        onOpenComposer={() => setShowMobileComposer(true)}
+        recommended={recommended}
+        trendingTags={trendingTags}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        tagFilter={tagFilter}
+        setTagFilter={setTagFilter}
+        followingIds={followingIds}
+      />
+    );
+  };
+
+  const isFullPage = section === 'arene' || section === 'profile' || section === 'profile_other';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000', color: TEXT_PRIMARY, fontFamily: 'inherit' }}>
-      <div style={{ maxWidth: 1060, margin: '0 auto', display: 'flex', alignItems: 'flex-start' }}>
+    <div style={{ minHeight: '100vh', background: BG, color: TEXT, fontFamily: 'inherit', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
 
-        {/* ── Feed column ── */}
-        <div style={{ flex: 1, minWidth: 0, maxWidth: 600, borderRight: isMobile ? 'none' : SEPARATOR }}>
+      {/* ── Desktop left rail ──────────────────────────────────────────────────── */}
+      {!isMobile && (
+        <nav style={{ width: 60, flexShrink: 0, position: 'sticky', top: 0, height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 12, borderRight: SEP, gap: 4 }}>
+          {navItems.map(({ key, icon, label }) => (
+            <button
+              key={key}
+              onClick={() => setSection(key)}
+              title={label}
+              style={{
+                width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: (section === key || (section === 'profile_other' && key === 'profile')) ? `${ACCENT}22` : 'none',
+                color: (section === key || (section === 'profile_other' && key === 'profile')) ? ACCENT : TEXT2,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (section !== key) e.currentTarget.style.background = HOVER; }}
+              onMouseLeave={e => { if (section !== key && !(section === 'profile_other' && key === 'profile')) e.currentTarget.style.background = 'none'; }}
+            >
+              {icon}
+            </button>
+          ))}
+        </nav>
+      )}
 
-          {/* Sticky header */}
-          <div
-            style={{
-              position: 'sticky', top: 0, zIndex: 50,
-              background: 'rgba(0,0,0,0.85)',
-              backdropFilter: 'blur(12px)',
-              borderBottom: SEPARATOR,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button
-                  onClick={onBack}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: TEXT_PRIMARY, display: 'flex', alignItems: 'center',
-                    padding: 6, borderRadius: '50%', transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: '-0.3px' }}>XPOSE</span>
-              </div>
-              {streak > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: RESONANCE_ACTIVE, fontWeight: 700, fontSize: 15 }}>
-                  <Flame size={18} fill={RESONANCE_ACTIVE} />
-                  {streak} jour{streak > 1 ? 's' : ''}
-                </div>
-              )}
-            </div>
-
-            {/* Tabs */}
-            <div style={{ display: 'flex', padding: '4px 0 0' }}>
-              {([['pour_vous', 'Pour vous'], ['abonnements', 'Abonnements']] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setActiveTab(key)}
-                  style={{
-                    flex: 1, background: 'none', border: 'none', cursor: 'pointer',
-                    color: activeTab === key ? TEXT_PRIMARY : TEXT_SECONDARY,
-                    fontWeight: activeTab === key ? 700 : 400,
-                    fontSize: 15, padding: '12px 0', position: 'relative',
-                    transition: 'color 0.15s',
-                  }}
-                >
-                  {label}
-                  {activeTab === key && (
-                    <motion.div
-                      layoutId="tab-indicator"
-                      style={{
-                        position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-                        width: 56, height: 3, borderRadius: 2, background: ACCENT,
-                      }}
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Inline composer — desktop only */}
-          {!isMobile && (
-            <InlineComposer user={user} arenaUser={arenaUser} onPublished={handlePostPublished} />
-          )}
-
-          {/* Feed */}
-          {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 48 }}>
-              <Loader2 size={28} color={TEXT_SECONDARY} className="animate-spin" />
-            </div>
-          ) : displayedPosts.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 48, color: TEXT_SECONDARY }}>
-              {searchQuery
-                ? <>Aucun résultat pour « {searchQuery} ».</>
-                : activeTab === 'abonnements'
-                  ? <>Suivez des personnes pour voir leurs posts ici.</>
-                  : <>Aucun post pour l'instant. Soyez le premier à publier !</>}
-            </div>
-          ) : (
-            <AnimatePresence initial={false}>
-              {displayedPosts.map(post => (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <PostCard
-                    post={post}
-                    userId={user.uid}
-                    showComments={openCommentPostId === post.id}
-                    onToggleComments={() => setOpenCommentPostId(prev => prev === post.id ? null : post.id)}
-                    onResonate={() => handleResonate(post)}
-                    onAmplify={() => handleAmplify(post)}
-                    onGoToArena={onGoToArena}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* ── Sidebar — desktop only ── */}
-        {!isMobile && (
-          <div
-            style={{
-              width: 320, flexShrink: 0, position: 'sticky', top: 0,
-              height: '100vh', overflowY: 'auto', padding: '16px 0 16px 16px',
-              scrollbarWidth: 'none',
-            }}
-          >
-            <Sidebar
-              recommended={recommended}
-              trendingTags={trendingTags}
-              searchQuery={searchQuery}
-              onSearch={setSearchQuery}
-              userId={user.uid}
-              myArenaName={arenaUser?.arenaName ?? user.displayName ?? 'Anonyme'}
-              myPhotoURL={arenaUser?.photoURL ?? user.photoURL ?? undefined}
-              followingIds={followingIds}
-            />
-          </div>
-        )}
+      {/* ── Main content ───────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: isMobile ? 70 : 0 }}>
+        {renderSection()}
       </div>
 
-      {/* ── Mobile FAB ── */}
+      {/* ── Mobile bottom tab bar ──────────────────────────────────────────────── */}
       {isMobile && (
+        <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 60, background: 'rgba(0,0,0,0.95)', borderTop: SEP, display: 'flex', alignItems: 'center', justifyContent: 'space-around', zIndex: 100, backdropFilter: 'blur(12px)' }}>
+          {navItems.map(({ key, icon, label }) => (
+            <button
+              key={key}
+              onClick={() => setSection(key)}
+              title={label}
+              style={{
+                flex: 1, height: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                color: (section === key || (section === 'profile_other' && key === 'profile')) ? ACCENT : TEXT2,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                fontSize: 10, fontWeight: 600,
+              }}
+            >
+              {icon}
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {/* ── Mobile FAB ─────────────────────────────────────────────────────────── */}
+      {isMobile && !isFullPage && section === 'feed' && (
         <button
           onClick={() => setShowMobileComposer(true)}
-          style={{
-            position: 'fixed', bottom: 24, right: 20,
-            width: 56, height: 56, borderRadius: '50%',
-            background: ACCENT, border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 20px rgba(93,123,255,0.5)', zIndex: 100,
-          }}
+          style={{ position: 'fixed', bottom: 76, right: 20, width: 56, height: 56, borderRadius: '50%', background: ACCENT, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(93,123,255,0.5)', zIndex: 99 }}
         >
           <Plus size={26} color="#fff" />
         </button>
       )}
 
-      {/* ── Mobile Composer Modal ── */}
+      {/* ── Mobile composer modal ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {showMobileComposer && (
           <MobileComposerModal
             user={user}
             arenaUser={arenaUser}
-            onPublished={handlePostPublished}
+            onPublished={handlePublished}
             onClose={() => setShowMobileComposer(false)}
           />
         )}

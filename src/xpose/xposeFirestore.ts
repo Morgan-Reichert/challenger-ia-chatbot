@@ -270,3 +270,61 @@ export async function getTrendingTags(n = 8): Promise<{ tag: string; count: numb
     return [];
   }
 }
+
+// ─── Sondage — vote ───────────────────────────────────────────────────────────
+
+export async function votePoll(postId: string, optionId: string, userId: string): Promise<void> {
+  if (!db) return;
+  const postRef = doc(db, 'xpose_posts', postId);
+  const snap = await getDoc(postRef);
+  if (!snap.exists()) return;
+  const post = snap.data();
+  const options: any[] = post.pollOptions ?? [];
+
+  // Retire le vote existant de toutes les options, puis vote sur la cible
+  const updated = options.map((opt: any) => {
+    const voters: string[] = opt.voterIds ?? [];
+    if (opt.id === optionId) {
+      if (voters.includes(userId)) return opt; // déjà voté → rien
+      return { ...opt, voteCount: (opt.voteCount ?? 0) + 1, voterIds: [...voters, userId] };
+    }
+    if (voters.includes(userId)) {
+      return { ...opt, voteCount: Math.max(0, (opt.voteCount ?? 0) - 1), voterIds: voters.filter((id: string) => id !== userId) };
+    }
+    return opt;
+  });
+  await updateDoc(postRef, { pollOptions: updated });
+}
+
+// ─── Supprimer un post ────────────────────────────────────────────────────────
+
+export async function deleteXposePost(postId: string): Promise<void> {
+  if (!db) return;
+  const { deleteDoc } = await import('firebase/firestore');
+  await deleteDoc(doc(db, 'xpose_posts', postId));
+}
+
+// ─── Posts d'un utilisateur ───────────────────────────────────────────────────
+
+export async function getUserXposePosts(userId: string): Promise<import('./xposeTypes').XposePost[]> {
+  if (!db) return [];
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'xpose_posts'),
+      where('authorId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(50),
+    ));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as import('./xposeTypes').XposePost));
+  } catch {
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'xpose_posts'),
+        where('authorId', '==', userId),
+        limit(50),
+      ));
+      const posts = snap.docs.map(d => ({ id: d.id, ...d.data() } as import('./xposeTypes').XposePost));
+      return posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch { return []; }
+  }
+}

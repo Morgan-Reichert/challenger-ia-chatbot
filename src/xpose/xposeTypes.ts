@@ -1,6 +1,16 @@
-export type XposePostType = 'pensee' | 'echange_ia' | 'arene';
+export type XposePostType = 'pensee' | 'echange_ia' | 'arene' | 'sondage' | 'question_ouverte';
 export type XposeVisibility = 'public' | 'friends';
-export type XposeCommentType = 'argument' | 'question' | 'intuition';
+export type XposeCommentType = 'argument' | 'question' | 'intuition' | 'reponse';
+export type XposeDestination = 'xpose' | 'arene' | 'both';
+
+// ─── Poll ─────────────────────────────────────────────────────────────────────
+
+export interface PollOption {
+  id: string;
+  text: string;
+  voteCount: number;
+  voterIds: string[];
+}
 
 // ─── Post ─────────────────────────────────────────────────────────────────────
 
@@ -15,14 +25,17 @@ export interface XposePost {
   // Contenu
   caption?: string;
   tags?: string[];
-  imageUrls?: string[];          // images d'illustration (max 4)
-  mentions?: string[];           // arenaNames mentionnés (@)
+  imageUrls?: string[];
+  mentions?: string[];
   visibility: XposeVisibility;
   createdAt: string;
 
+  // Destination (cross-post)
+  destination?: XposeDestination;
+
   // Quote post
   quotedPostId?: string;
-  quotedPost?: Omit<XposePost, 'quotedPost'>;  // snapshot au moment du quote
+  quotedPost?: Omit<XposePost, 'quotedPost'>;
 
   // Type 'echange_ia'
   aiQuestion?: string;
@@ -36,6 +49,14 @@ export interface XposePost {
   arenaAgree?: number;
   arenaDisagree?: number;
   arenaTotal?: number;
+
+  // Type 'sondage'
+  pollOptions?: PollOption[];
+  pollEndsAt?: string;
+  pollDurationHours?: number;
+
+  // Type 'question_ouverte'
+  questionText?: string;
 
   // Stats
   resonanceCount: number;
