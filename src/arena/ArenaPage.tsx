@@ -345,8 +345,8 @@ const mdArena: Record<string, any> = {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function ArenaPage({ user, supabaseUserId, onBack }: {
-  user: FBUser | null; supabaseUserId: string | null; onBack: () => void;
+export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }: {
+  user: FBUser | null; supabaseUserId: string | null; onBack: () => void; onGoToXpose?: () => void;
 }) {
   const [arenaUser, setArenaUser] = useState<ArenaUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -545,6 +545,13 @@ export default function ArenaPage({ user, supabaseUserId, onBack }: {
                 <Star size={12} color="#FBBF24" />
                 <span style={{ fontSize: 11, fontWeight: 900, color: '#FBBF24' }}>{arenaUser.credibilityScore}</span>
               </div>
+            )}
+            {onGoToXpose && (
+              <button onClick={onGoToXpose}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg,#7C3AED,#5D7BFF)', border: 'none', borderRadius: 20, padding: '5px 12px', cursor: 'pointer', color: '#fff', fontSize: 9, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                <Zap size={11} />
+                XPOSE
+              </button>
             )}
             {arenaUser && (
               <button onClick={() => setView('settings')} style={{ color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}>

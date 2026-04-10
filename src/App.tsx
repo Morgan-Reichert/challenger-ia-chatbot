@@ -1166,6 +1166,7 @@ export default function App() {
   const sendingRef = useRef(false); // guard synchrone — évite les double-envois avant re-render
   const [chatError, setChatError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+  const [sidebarExtrasOpen, setSidebarExtrasOpen] = useState(false);
 
   // ── Auth state
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -2942,68 +2943,82 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
-              {/* L'Arène */}
-              <button
-                onClick={() => { setCurrentPage('arene'); setSidebarOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-[11px] font-black uppercase tracking-widest">L'Arène</span>
-                </div>
-                <ChevronRight className="w-3 h-3 opacity-50" />
-              </button>
+              {/* ── Menu dépliable ── */}
+              <div className="border-2 border-white/10 overflow-hidden">
+                <button
+                  onClick={() => setSidebarExtrasOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
+                >
+                  <span className="text-[11px] font-black uppercase tracking-widest">Navigation</span>
+                  <motion.div animate={{ rotate: sidebarExtrasOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
+                    <Plus className="w-4 h-4" />
+                  </motion.div>
+                </button>
 
-              {/* XPOSE */}
-              <button
-                onClick={() => { setCurrentPage('xpose'); setSidebarOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#A78BFA]/50 hover:text-white/80 hover:bg-[#A78BFA]/5 transition-all"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Rocket className="w-4 h-4" />
-                  <span className="text-[11px] font-black uppercase tracking-widest">XPOSE</span>
-                </div>
-                <ChevronRight className="w-3 h-3 opacity-50" />
-              </button>
+                <AnimatePresence initial={false}>
+                  {sidebarExtrasOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <div className="border-t border-white/10 divide-y divide-white/5">
+                        {/* L'Arène */}
+                        <button
+                          onClick={() => { setCurrentPage('arene'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Trophy className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">L'Arène</span>
+                          </div>
+                          <ChevronRight className="w-3 h-3 opacity-50" />
+                        </button>
 
-              {/* Bibliothèque */}
-              <button
-                onClick={() => { setCurrentPage('library'); setSidebarOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Library className="w-4 h-4" />
-                  <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
-                </div>
-                <ChevronRight className="w-3 h-3 opacity-50" />
-              </button>
+                        {/* Bibliothèque */}
+                        <button
+                          onClick={() => { setCurrentPage('library'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Library className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
+                          </div>
+                          <ChevronRight className="w-3 h-3 opacity-50" />
+                        </button>
 
-              {/* Dark mode toggle */}
-              <button
-                onClick={() => setDarkMode(d => !d)}
-                className="w-full flex items-center gap-3 px-3 py-2 text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
-                title={darkMode ? 'Mode clair' : 'Mode sombre'}
-              >
-                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                <span className="text-[11px] font-medium">{darkMode ? 'Mode clair' : 'Mode sombre'}</span>
-              </button>
+                        {/* Dark mode */}
+                        <button
+                          onClick={() => setDarkMode(d => !d)}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
+                        >
+                          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                          <span className="text-[11px] font-medium">{darkMode ? 'Mode clair' : 'Mode sombre'}</span>
+                        </button>
 
-              {/* Profil IA */}
-              <button
-                onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Settings className="w-4 h-4" />
-                  <span className="text-[11px] font-black uppercase tracking-widest">Profil IA</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {isProfileFilled(userProfile) && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                        {/* Profil IA */}
+                        <button
+                          onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Settings className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Profil IA</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isProfileFilled(userProfile) && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                            )}
+                            <ChevronRight className="w-3 h-3 opacity-50" />
+                          </div>
+                        </button>
+                      </div>
+                    </motion.div>
                   )}
-                  <ChevronRight className="w-3 h-3 opacity-50" />
-                </div>
-              </button>
+                </AnimatePresence>
+              </div>
 
               {/* Persona selector — masqué en mode débat / interview */}
               {activeConv?.interviewType ? (
@@ -3427,6 +3442,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             user={user}
             supabaseUserId={user?.uid ?? null}
             onBack={() => setCurrentPage('chat')}
+            onGoToXpose={() => setCurrentPage('xpose')}
           />
         </div>
       )}
@@ -4899,8 +4915,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       >
         {([
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
-          { icon: Trophy, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
-          { icon: Rocket, label: 'XPOSE', action: () => { setCurrentPage('xpose'); setSidebarOpen(false); }, active: currentPage === 'xpose' },
+          { icon: Trophy, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' || currentPage === 'xpose' },
           { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
           { icon: Plus, label: 'Nouveau', action: () => { startNewConv(); setSidebarOpen(false); }, active: false },
