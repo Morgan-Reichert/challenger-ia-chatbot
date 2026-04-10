@@ -9,23 +9,30 @@ export interface XposePost {
   authorId: string;
   authorArenaName: string;
   authorPhotoURL?: string;
+  authorCredibilityScore?: number;
   type: XposePostType;
 
-  // Commun à tous
-  caption?: string;           // texte libre / accroche
-  tags?: string[];            // #sujets pour l'algo
+  // Contenu
+  caption?: string;
+  tags?: string[];
+  imageUrls?: string[];          // images d'illustration (max 4)
+  mentions?: string[];           // arenaNames mentionnés (@)
   visibility: XposeVisibility;
   createdAt: string;
 
-  // Type 'echange_ia' — conversation IA
+  // Quote post
+  quotedPostId?: string;
+  quotedPost?: Omit<XposePost, 'quotedPost'>;  // snapshot au moment du quote
+
+  // Type 'echange_ia'
   aiQuestion?: string;
   aiResponse?: string;
   personaName?: string;
 
-  // Type 'arene' — extrait de débat
+  // Type 'arene'
   arenaPostId?: string;
   arenaPostTitle?: string;
-  arenaPostExcerpt?: string;  // extrait de la réponse IA
+  arenaPostExcerpt?: string;
   arenaAgree?: number;
   arenaDisagree?: number;
   arenaTotal?: number;
@@ -34,11 +41,11 @@ export interface XposePost {
   resonanceCount: number;
   commentCount: number;
   amplifyCount: number;
-  resonatedBy: string[];      // userIds
+  resonatedBy: string[];
   amplifiedBy: string[];
 
-  // Algo
-  interestScore?: number;     // calculé côté client
+  // Algo (client-side)
+  interestScore?: number;
 }
 
 // ─── Comment ──────────────────────────────────────────────────────────────────
@@ -56,10 +63,22 @@ export interface XposeComment {
   upvotedBy: string[];
 }
 
-// ─── User streak ──────────────────────────────────────────────────────────────
+// ─── Streak ───────────────────────────────────────────────────────────────────
 
 export interface XposeStreak {
   currentStreak: number;
   longestStreak: number;
-  lastActiveDate: string; // YYYY-MM-DD
+  lastActiveDate: string;
+}
+
+// ─── Recommended user ─────────────────────────────────────────────────────────
+
+export interface XposeRecommendedUser {
+  userId: string;
+  arenaName: string;
+  photoURL?: string;
+  bio?: string;
+  credibilityScore: number;
+  commonTags: string[];
+  followersCount: number;
 }
