@@ -3938,81 +3938,75 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto"
+              className="w-full max-w-2xl mx-auto flex flex-col px-4 py-4 overflow-y-auto"
             >
-              <div className="text-center mb-10">
+              {/* ── En-tête compact ── */}
+              <div className="flex items-center gap-3 mb-4">
                 <div
-                  className="w-14 h-14 bg-[#5D7BFF] mx-auto mb-6 flex items-center justify-center"
-                  style={{ boxShadow: '8px 8px 0px 0px rgba(20,20,20,1)' }}
+                  className="flex-shrink-0 w-9 h-9 bg-[#5D7BFF] flex items-center justify-center"
+                  style={{ boxShadow: '3px 3px 0px 0px rgba(20,20,20,0.8)' }}
                 >
-                  <CurrentIcon className="w-7 h-7 text-white" />
+                  <CurrentIcon className="w-4 h-4 text-white" />
                 </div>
-                <h1 className="text-3xl font-black uppercase tracking-tighter text-[#141414] mb-3">
-                  {PERSONAS[persona].name}
-                </h1>
-                <p className="text-sm font-medium text-[#141414]/50 max-w-sm mx-auto leading-relaxed">
-                  Soumettez une thèse ou une conviction.{' '}
-                  <span className="font-bold text-[#5D7BFF]">{PERSONAS[persona].shortName}</span>{' '}
-                  l'analysera en mode{' '}
-                  <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>.
-                </p>
-                {!user && FIREBASE_ENABLED && (
-                  <p className="mt-3 text-[8px] uppercase tracking-widest text-[#141414]/25 flex items-center justify-center gap-1">
-                    <CloudOff className="w-3 h-3" />
-                    Connectez-vous pour sauvegarder vos sessions
+                <div className="min-w-0">
+                  <h1 className="text-base font-black uppercase tracking-tight text-[#141414] leading-none">
+                    {PERSONAS[persona].name}
+                  </h1>
+                  <p className="text-[10px] text-[#141414]/45 mt-0.5">
+                    <span className="font-bold text-[#5D7BFF]">{PERSONAS[persona].shortName}</span>
+                    {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
+                    {' '}— {FRICTION[level].hint}
                   </p>
+                </div>
+                {!user && FIREBASE_ENABLED && (
+                  <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[#141414]/20">
+                    <CloudOff className="w-3 h-3" />
+                  </div>
                 )}
               </div>
 
               {/* ── Défi quotidien ── */}
-                {!challengeRewarded && (
-                  <div className="mb-4">
-                    <button
-                      onClick={() => {
-                        const challenge = getDailyChallenge();
-                        setInput(challenge.prompt);
-                        taRef.current?.focus();
-                      }}
-                      className="w-full text-left p-4 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
-                      style={{ borderRadius: 0 }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-8 h-8 bg-[#5D7BFF]/10 flex items-center justify-center text-sm">
-                          🎯
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
-                            <span className="text-[8px] px-1.5 py-0.5 bg-[#5D7BFF]/10 text-[#5D7BFF] font-bold">+1 crédit</span>
-                            <span className="text-[8px] text-[#141414]/30 ml-auto">{challengeProgress}/3 messages</span>
-                          </div>
-                          <p className="text-[11px] font-bold text-[#141414] leading-snug truncate">{dailyChallenge.title}</p>
-                          <p className="text-[10px] text-[#141414]/50 mt-0.5">{dailyChallenge.theme}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-[#5D7BFF]/40 group-hover:text-[#5D7BFF] transition-colors flex-shrink-0 mt-1" />
+              {!challengeRewarded ? (
+                <button
+                  onClick={() => {
+                    const challenge = getDailyChallenge();
+                    setInput(challenge.prompt);
+                    taRef.current?.focus();
+                  }}
+                  className="w-full text-left p-3 mb-3 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base flex-shrink-0">🎯</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
+                        <span className="text-[8px] px-1 py-px bg-[#5D7BFF]/10 text-[#5D7BFF] font-bold">+1 crédit</span>
+                        <span className="text-[8px] text-[#141414]/30 ml-auto">{challengeProgress}/3</span>
                       </div>
-                      {/* Progress bar */}
-                      <div className="mt-3 h-0.5 bg-[#5D7BFF]/10 overflow-hidden">
-                        <div className="h-full bg-[#5D7BFF] transition-all duration-500"
-                          style={{ width: `${Math.min(100, (challengeProgress / 3) * 100)}%` }} />
-                      </div>
-                    </button>
-                  </div>
-                )}
-                {challengeRewarded && (
-                  <div className="mb-4 p-3 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-3">
-                    <span className="text-sm">🏆</span>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
-                      <p className="text-[10px] text-[#141414]/40">Revenez demain pour un nouveau défi.</p>
+                      <p className="text-[11px] font-bold text-[#141414] leading-snug truncate">{dailyChallenge.title}</p>
                     </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-[#5D7BFF]/40 group-hover:text-[#5D7BFF] transition-colors flex-shrink-0" />
                   </div>
-                )}
+                  <div className="mt-2 h-px bg-[#5D7BFF]/10 overflow-hidden">
+                    <div className="h-full bg-[#5D7BFF] transition-all duration-500"
+                      style={{ width: `${Math.min(100, (challengeProgress / 3) * 100)}%` }} />
+                  </div>
+                </button>
+              ) : (
+                <div className="mb-3 p-2.5 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-2.5">
+                  <span className="text-sm">🏆</span>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
+                    <p className="text-[9px] text-[#141414]/40">Revenez demain pour un nouveau défi.</p>
+                  </div>
+                </div>
+              )}
 
-              <div className="w-full space-y-3">
-                <p className="text-[8px] font-black uppercase tracking-widest text-[#141414]/25 text-center mb-4">
-                  Suggestions
-                </p>
+              {/* ── Suggestions ── */}
+              <p className="text-[8px] font-black uppercase tracking-widest text-[#141414]/25 text-center mb-2">
+                Suggestions
+              </p>
+              <div className="space-y-2">
                 {SUGGESTIONS[persona].map((s, i) => {
                   const SIcon = s.icon;
                   return (
@@ -4020,14 +4014,14 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       key={i}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.08 }}
+                      transition={{ delay: i * 0.06 }}
                       onClick={() => send(s.text)}
                       disabled={sending}
-                      className="w-full text-left px-5 py-4 bg-white border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[4px_4px_0px_0px_rgba(93,123,255,1)] transition-all group disabled:opacity-40"
+                      className="w-full text-left px-4 py-3 bg-white border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[3px_3px_0px_0px_rgba(93,123,255,1)] transition-all group disabled:opacity-40"
                     >
                       <div className="flex items-start gap-3">
                         <SIcon className="w-4 h-4 text-[#5D7BFF] opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        <p className="text-sm font-medium text-[#141414] group-hover:text-[#5D7BFF] transition-colors">
+                        <p className="text-sm font-medium text-[#141414] group-hover:text-[#5D7BFF] transition-colors leading-snug">
                           {s.text}
                         </p>
                       </div>
