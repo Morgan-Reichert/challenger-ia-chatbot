@@ -178,7 +178,16 @@ Structure toujours ta réponse en Markdown avec ces conventions :
 - \`> \` blockquote avec \`> **Exemple :**\` pour illustrer par un cas concret
 - Texte normal pour l'analyse principale
 - Sépare les sections avec une ligne vide
-- Termine TOUJOURS par une section \`## Question\` avec une seule question incisive qui s'appuie sur ce qui vient d'être dit`;
+- Termine TOUJOURS par une section \`## Question\` avec une seule question incisive qui s'appuie sur ce qui vient d'être dit
+
+## Questions interactives (OPTIONNEL — à utiliser avec discernement)
+Quand une information sur les préférences, le niveau ou le contexte de l'utilisateur améliorerait significativement ta réponse suivante, tu PEUX inclure UNE question interactive à la toute fin de ton message. Deux formats disponibles :
+
+Choix multiple : [CIA_Q:{"type":"choice","q":"Ta question ?","options":["Option A","Option B","Option C"]}]
+Texte libre : [CIA_Q:{"type":"text","q":"Ta question ?","placeholder":"Ex: indice ou exemple de réponse..."}]
+
+Exemples pertinents : niveau de maîtrise du sujet, vocabulaire souhaité (technique/accessible/philosophique), secteur d'activité, objectif derrière la thèse, type d'interlocuteur visé.
+Règle : UNE seule question par message, placée en DERNIÈRE ligne, uniquement si vraiment nécessaire pour personnaliser ta réponse suivante. Ne pas abuser.`;
 
   const map: Record<Persona, Record<FrictionLevel, string>> = {
     architect: {
@@ -204,6 +213,33 @@ Structure toujours ta réponse en Markdown avec ces conventions :
     },
   };
   return map[persona][level];
+}
+
+// ─── Questions interactives ───────────────────────────────────────────────────
+
+export interface CiaQuestion {
+  type: 'choice' | 'text';
+  q: string;
+  options?: string[];
+  placeholder?: string;
+}
+
+const CIA_Q_REGEX = /\[CIA_Q:(\{[\s\S]*?\})\]/;
+
+function parseCiaQuestion(text: string): CiaQuestion | null {
+  const match = text.match(CIA_Q_REGEX);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]) as CiaQuestion;
+    if (!parsed.q || !parsed.type) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function stripCiaQuestion(text: string): string {
+  return text.replace(CIA_Q_REGEX, '').trimEnd();
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
@@ -1158,6 +1194,10 @@ export default function App() {
   const [showSharePopup, setShowSharePopup] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
 
+  // ── Question interactive IA
+  const [activeQuestion, setActiveQuestion] = useState<CiaQuestion | null>(null);
+  const [questionTextInput, setQuestionTextInput] = useState('');
+
   // ── Partage de conversation
   const [shareLoading, setShareLoading] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -1870,6 +1910,7 @@ export default function App() {
       if (!text.trim() && attachments.length === 0) return;
       if (sending || sendingRef.current) return;
       sendingRef.current = true;
+      setActiveQuestion(null); // Effacer la question interactive en cours
 
       // ── Modèle Hybride : quotas pour tous les plans ──────────────────────
       if (FIREBASE_ENABLED) {
@@ -2105,7 +2146,24 @@ export default function App() {
           }
         );
 
-        // Streaming terminé — sauvegarder l'état final dans Firestore
+        // Streaming terminé — détecter une question interactive dans la réponse
+        const question = parseCiaQuestion(accumulated);
+        if (question) {
+          setActiveQuestion(question);
+          setQuestionTextInput('');
+          // Retirer le tag CIA_Q du message affiché
+          const cleaned = stripCiaQuestion(accumulated);
+          setConversations((p) =>
+            p.map((c) =>
+              c.id !== convId ? c : {
+                ...c,
+                messages: c.messages.map((m) => m.id === asstId ? { ...m, content: cleaned } : m),
+              }
+            )
+          );
+        }
+
+        // Sauvegarder l'état final dans Firestore
         setConversations((p) => {
           const conv = p.find((c) => c.id === convId);
           if (conv && user) fsSaveConversation(user.uid, conv);
@@ -4206,6 +4264,86 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               <button onClick={() => setChatNotif(null)} className="flex-shrink-0 opacity-40 hover:opacity-70 transition-opacity">
                 <X className="w-3 h-3" style={{ color: chatNotif.type === 'error' ? '#DC2626' : chatNotif.type === 'warning' ? '#D97706' : '#2563EB' }} />
               </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Question interactive IA ────────────────────────────────────── */}
+        <AnimatePresence>
+          {activeQuestion && (
+            <motion.div
+              key="cia-question"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="flex-shrink-0 px-6 py-4 border-t-2 border-[#5D7BFF]/25 bg-[#EEF2FF]"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 bg-[#5D7BFF] flex items-center justify-center mt-0.5">
+                  <Zap className="w-3 h-3 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] mb-1">Challenger demande</p>
+                  <p className="text-[12px] font-semibold text-[#141414] mb-3 leading-snug">{activeQuestion.q}</p>
+
+                  {activeQuestion.type === 'choice' && activeQuestion.options && (
+                    <div className="flex flex-wrap gap-2">
+                      {activeQuestion.options.map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => {
+                            setActiveQuestion(null);
+                            send(opt);
+                          }}
+                          className="px-3 py-1.5 border-2 border-[#5D7BFF]/30 bg-white hover:bg-[#5D7BFF] hover:text-white hover:border-[#5D7BFF] transition-all text-[11px] font-bold text-[#141414] active:scale-95"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeQuestion.type === 'text' && (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={questionTextInput}
+                        onChange={(e) => setQuestionTextInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && questionTextInput.trim()) {
+                            setActiveQuestion(null);
+                            send(questionTextInput.trim());
+                            setQuestionTextInput('');
+                          }
+                        }}
+                        placeholder={activeQuestion.placeholder ?? 'Votre réponse…'}
+                        className="flex-1 border-2 border-[#5D7BFF]/30 bg-white px-3 py-2 text-[12px] text-[#141414] placeholder-[#141414]/30 focus:outline-none focus:border-[#5D7BFF]"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => {
+                          if (!questionTextInput.trim()) return;
+                          setActiveQuestion(null);
+                          send(questionTextInput.trim());
+                          setQuestionTextInput('');
+                        }}
+                        disabled={!questionTextInput.trim()}
+                        className="px-4 py-2 bg-[#5D7BFF] hover:bg-[#4a68e8] disabled:opacity-40 transition-colors text-white"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setActiveQuestion(null)}
+                  className="flex-shrink-0 text-[#141414]/25 hover:text-[#141414]/60 transition-colors mt-0.5"
+                  title="Ignorer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
