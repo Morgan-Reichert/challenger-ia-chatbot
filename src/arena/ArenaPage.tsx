@@ -350,6 +350,8 @@ export default function ArenaPage({
   const [comments, setComments] = useState<ArenaComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
 
+  const [aiResponseExpanded, setAiResponseExpanded] = useState(false);
+
   const [newComment, setNewComment] = useState('');
   const [newStance, setNewStance] = useState<Stance>('agree');
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
@@ -398,6 +400,7 @@ export default function ArenaPage({
     setSynthesis(null);
     setFactCheckResult(null);
     setShowFactCheckInput(false);
+    setAiResponseExpanded(false);
     setLoadingComments(true);
     const c = await getArenaComments(post.id);
     setComments(c);
@@ -731,20 +734,45 @@ export default function ArenaPage({
             </div>
             <div className="bg-[#5D7BFF] p-3">
               <p className="text-[8px] font-black uppercase tracking-widest text-white/50 mb-1.5">Réponse IA</p>
-              <div className="text-[11px] text-white/90 leading-relaxed prose-sm">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                    strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                    h2: ({ children }) => <p className="font-bold mt-2 mb-1">{children}</p>,
-                    ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1">{children}</ul>,
-                    li: ({ children }) => <li className="text-white/80">{children}</li>,
-                  }}
-                >
-                  {selectedPost.aiResponse.slice(0, 1000) + (selectedPost.aiResponse.length > 1000 ? '…' : '')}
-                </ReactMarkdown>
-              </div>
+              {(() => {
+                const THRESHOLD = 600;
+                const isLong = selectedPost.aiResponse.length > THRESHOLD;
+                const displayed = isLong && !aiResponseExpanded
+                  ? selectedPost.aiResponse.slice(0, THRESHOLD)
+                  : selectedPost.aiResponse;
+                return (
+                  <>
+                    <div className={cx('text-[11px] text-white/90 leading-relaxed prose-sm relative', isLong && !aiResponseExpanded && 'overflow-hidden')}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                          h2: ({ children }) => <p className="font-bold mt-2 mb-1">{children}</p>,
+                          ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1">{children}</ul>,
+                          li: ({ children }) => <li className="text-white/80">{children}</li>,
+                        }}
+                      >
+                        {displayed}
+                      </ReactMarkdown>
+                      {isLong && !aiResponseExpanded && (
+                        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#5D7BFF] to-transparent" />
+                      )}
+                    </div>
+                    {isLong && (
+                      <button
+                        onClick={() => setAiResponseExpanded(v => !v)}
+                        className="mt-2 text-[8px] font-black uppercase tracking-widest text-white/60 hover:text-white border border-white/20 hover:border-white/40 px-2.5 py-1 transition-all flex items-center gap-1"
+                      >
+                        {aiResponseExpanded
+                          ? <><ChevronUp className="w-2.5 h-2.5" /> Condenser</>
+                          : <><ChevronDown className="w-2.5 h-2.5" /> Voir tout</>
+                        }
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
