@@ -21,25 +21,34 @@ export async function createXposePost(
 
 export async function getPublicFeed(n = 40): Promise<XposePost[]> {
   if (!db) return [];
-  const snap = await getDocs(query(
-    collection(db, 'xpose_posts'),
-    where('visibility', '==', 'public'),
-    orderBy('createdAt', 'desc'),
-    limit(n),
-  ));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as XposePost));
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'xpose_posts'),
+      orderBy('createdAt', 'desc'),
+      limit(n),
+    ));
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as XposePost))
+      .filter(p => p.visibility === 'public');
+  } catch {
+    return [];
+  }
 }
 
 export async function getCompanionsFeed(friendIds: string[]): Promise<XposePost[]> {
   if (!db || !friendIds.length) return [];
-  const ids = friendIds.slice(0, 30);
-  const snap = await getDocs(query(
-    collection(db, 'xpose_posts'),
-    where('authorId', 'in', ids),
-    orderBy('createdAt', 'desc'),
-    limit(40),
-  ));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as XposePost));
+  try {
+    const ids = friendIds.slice(0, 10); // Firestore `in` max 10
+    const snap = await getDocs(query(
+      collection(db, 'xpose_posts'),
+      where('authorId', 'in', ids),
+      orderBy('createdAt', 'desc'),
+      limit(40),
+    ));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as XposePost));
+  } catch {
+    return [];
+  }
 }
 
 export async function getUserXposePosts(userId: string, isOwner: boolean): Promise<XposePost[]> {

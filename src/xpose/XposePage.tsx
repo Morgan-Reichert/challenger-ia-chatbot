@@ -1062,8 +1062,10 @@ export default function XposePage({ user, arenaUser, onBack, onGoToArena }: Prop
       }
 
       setPosts(data);
-    } catch {
-      setError('Impossible de charger le fil. Réessayez.');
+    } catch (e) {
+      // Erreur réseau ou auth — on affiche juste vide, pas d'erreur bloquante
+      console.warn('XPOSE feed error:', e);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
