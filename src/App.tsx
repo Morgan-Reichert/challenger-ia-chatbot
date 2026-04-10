@@ -3458,15 +3458,23 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       )}
 
       {/* ── XPOSE ────────────────────────────────────────────────────────────── */}
-      {currentPage === 'xpose' && user && (
-        <div className="flex-1 min-w-0 h-full max-md:pb-16">
-          <XposePage
-            user={user}
-            arenaUser={null}
-            onBack={() => setCurrentPage('chat')}
-            onGoToArena={(postId) => { setCurrentPage('arene'); }}
-          />
-        </div>
+      {currentPage === 'xpose' && (
+        user ? (
+          <div className="flex-1 min-w-0 h-full max-md:pb-16">
+            <XposePage
+              user={user}
+              arenaUser={null}
+              onBack={() => setCurrentPage('chat')}
+              onGoToArena={(postId) => { setCurrentPage('arene'); }}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-4" style={{ background: '#000' }}>
+            <Rocket className="w-9 h-9" style={{ color: 'rgba(93,123,255,0.4)' }} />
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Connectez-vous pour accéder à XPOSE.</p>
+            <button onClick={() => setCurrentPage('chat')} style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#5D7BFF', background: 'none', border: 'none', cursor: 'pointer' }}>← Retour</button>
+          </div>
+        )
       )}
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
