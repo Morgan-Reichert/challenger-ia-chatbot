@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft, Trophy, Flame, Star, Clock, MessageSquare,
-  ThumbsUp, AlertTriangle, Loader2, Send, Check, X, Shield,
-  Search, Sparkles, FileSearch, ChevronDown, ChevronUp,
-  Zap, Users, TrendingUp, Crown, BarChart3,
+  ArrowLeft, Trophy, Flame, Star, Clock,
+  MessageSquare, ThumbsUp, AlertTriangle, Loader2,
+  Send, Check, X, Shield, Search, Sparkles,
+  FileSearch, ChevronDown, ChevronUp, Zap,
+  Users, TrendingUp, BarChart3, Bell,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -19,124 +20,116 @@ import { deductOneCredit } from '../supabase';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const cx = (...cls: (string | false | null | undefined)[]) => cls.filter(Boolean).join(' ');
+const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'à l\'instant';
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}j`;
+function timeAgo(iso: string) {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'maintenant';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}j`;
 }
 
-function getInitials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
+const PALETTE = ['#5D7BFF','#34D399','#F87171','#FBBF24','#A78BFA','#F97316','#38BDF8','#FB7185'];
+function avatarColor(name: string) {
+  let h = 0; for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
+  return PALETTE[Math.abs(h) % PALETTE.length];
 }
+function initials(name: string) { return name.slice(0, 2).toUpperCase(); }
 
-function getAvatarColor(name: string): string {
-  const colors = ['#5D7BFF', '#34D399', '#F87171', '#FBBF24', '#A78BFA', '#F97316', '#38BDF8'];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-}
-
-const STANCE_CONFIG = {
-  agree:    { label: 'D\'accord',    emoji: '✓', color: '#34D399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.4)' },
-  disagree: { label: 'Pas d\'accord', emoji: '✗', color: '#F87171', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.4)' },
-  nuance:   { label: 'Nuance',       emoji: '~', color: '#FBBF24', bg: 'rgba(251,191,36,0.15)',  border: 'rgba(251,191,36,0.4)' },
+const STANCE = {
+  agree:    { label: "D'accord",     short: '✓', color: '#34D399', rgb: '52,211,153' },
+  disagree: { label: 'Pas d\'accord', short: '✗', color: '#F87171', rgb: '248,113,113' },
+  nuance:   { label: 'Nuance',        short: '~', color: '#FBBF24', rgb: '251,191,36' },
 } as const;
 
-// ─── Avatar ───────────────────────────────────────────────────────────────────
+// ─── Avatar circle ────────────────────────────────────────────────────────────
 
-function Avatar({ name, size = 'sm' }: { name: string; size?: 'xs' | 'sm' | 'md' }) {
-  const color = getAvatarColor(name);
-  const sz = size === 'xs' ? 'w-5 h-5 text-[7px]' : size === 'sm' ? 'w-7 h-7 text-[9px]' : 'w-9 h-9 text-[11px]';
+function Av({ name, size = 36, ring = false }: { name: string; size?: number; ring?: boolean }) {
+  const c = avatarColor(name);
   return (
-    <div
-      className={`${sz} rounded-full flex items-center justify-center font-black flex-shrink-0`}
-      style={{ background: `${color}30`, border: `1.5px solid ${color}60`, color }}
-    >
-      {getInitials(name)}
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: `${c}22`, border: `${ring ? 2.5 : 1.5}px solid ${c}55`,
+      color: c, fontSize: size * 0.3, fontWeight: 900, display: 'flex',
+      alignItems: 'center', justifyContent: 'center', letterSpacing: 1,
+    }}>
+      {initials(name)}
     </div>
   );
 }
 
-// ─── Pseudo Creation Modal ────────────────────────────────────────────────────
+// ─── Pseudo Modal ─────────────────────────────────────────────────────────────
 
-function ArenaPseudoModal({ onCreated, userId }: { onCreated: (u: ArenaUser) => void; userId: string }) {
+function PseudoModal({ userId, onCreated }: { userId: string; onCreated: (u: ArenaUser) => void }) {
   const [name, setName] = useState('');
   const [checking, setChecking] = useState(false);
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [avail, setAvail] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleChange = (v: string) => {
-    setName(v); setAvailable(null);
-    if (timer.current) clearTimeout(timer.current);
+  const onChange = (v: string) => {
+    setName(v); setAvail(null);
+    if (t.current) clearTimeout(t.current);
     if (v.length < 3) return;
     setChecking(true);
-    timer.current = setTimeout(async () => {
-      setAvailable(await checkArenaNameAvailable(v.trim()));
-      setChecking(false);
-    }, 600);
+    t.current = setTimeout(async () => { setAvail(await checkArenaNameAvailable(v.trim())); setChecking(false); }, 600);
   };
 
-  const valid = name.length >= 3 && name.length <= 24 && /^[a-zA-Z0-9_\-\.éèêëàâùûüîï ]+$/.test(name);
-
-  const handleSubmit = async () => {
-    if (!valid || !available || submitting) return;
-    setSubmitting(true);
+  const valid = name.length >= 3 && name.length <= 24;
+  const submit = async () => {
+    if (!valid || !avail || busy) return;
+    setBusy(true);
     await createArenaUser(userId, name.trim());
     onCreated({ arenaName: name.trim(), credibilityScore: 0, totalComments: 0, badges: [], createdAt: new Date().toISOString() });
   };
 
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md px-4"
+    <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xl px-4 pb-6 sm:pb-0"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <motion.div className="w-full max-w-sm bg-[#0D0F14] border border-[#5D7BFF]/30 rounded-2xl overflow-hidden"
-        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-        {/* Header */}
-        <div className="bg-gradient-to-br from-[#5D7BFF]/20 to-[#A78BFA]/10 px-6 pt-8 pb-6 text-center border-b border-white/8">
-          <div className="w-14 h-14 bg-[#5D7BFF] rounded-full flex items-center justify-center mx-auto mb-4">
-            <Trophy className="w-7 h-7 text-white" />
+      <motion.div className="w-full max-w-sm overflow-hidden"
+        style={{ borderRadius: 28, background: '#13161E', border: '1px solid rgba(255,255,255,0.08)' }}
+        initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', damping: 22 }}>
+
+        {/* Top gradient band */}
+        <div style={{ background: 'linear-gradient(135deg, #5D7BFF22, #A78BFA18)', padding: '32px 24px 24px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #5D7BFF, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Trophy size={26} color="#fff" />
           </div>
-          <h2 className="text-base font-black uppercase tracking-widest text-white">Rejoindre l'Arène</h2>
-          <p className="text-[10px] text-white/40 mt-1">Choisissez votre identité de débatteur</p>
+          <p style={{ fontWeight: 900, fontSize: 16, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', marginBottom: 4 }}>L'Arène</p>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Choisissez votre identité de débatteur</p>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="relative">
-            <input
-              type="text" value={name} onChange={e => handleChange(e.target.value)}
-              placeholder="Votre pseudonyme…" maxLength={24}
-              className="w-full bg-white/5 border border-white/12 rounded-xl text-white text-sm px-4 py-3 pr-10 focus:outline-none focus:border-[#5D7BFF]/60 placeholder:text-white/20"
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {checking && <Loader2 className="w-4 h-4 animate-spin text-white/30" />}
-              {!checking && valid && available === true && <Check className="w-4 h-4 text-[#34D399]" />}
-              {!checking && valid && available === false && <X className="w-4 h-4 text-[#F87171]" />}
+        <div style={{ padding: 24 }}>
+          {/* Input */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <input value={name} onChange={e => onChange(e.target.value)} placeholder="Votre pseudonyme…" maxLength={24}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, color: '#fff', fontSize: 14, padding: '14px 44px 14px 16px', outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)' }}>
+              {checking && <Loader2 size={16} color="rgba(255,255,255,0.3)" className="animate-spin" />}
+              {!checking && valid && avail === true  && <Check size={16} color="#34D399" />}
+              {!checking && valid && avail === false && <X    size={16} color="#F87171" />}
             </div>
           </div>
 
-          {valid && available === false && <p className="text-[10px] text-[#F87171]">Pseudonyme déjà pris.</p>}
-          {name.length > 0 && !valid && <p className="text-[10px] text-white/30">3–24 caractères, lettres et chiffres.</p>}
+          {valid && avail === false && <p style={{ fontSize: 11, color: '#F87171', marginBottom: 12 }}>Pseudonyme déjà pris.</p>}
 
-          {valid && available === true && (
-            <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-              <Avatar name={name} size="md" />
+          {/* Preview card */}
+          {valid && avail === true && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '12px 16px', marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
+              <Av name={name} size={42} ring />
               <div>
-                <p className="text-sm font-bold text-white">{name}</p>
-                <p className="text-[9px] text-white/40">⭐ 0 pts · 0 contributions</p>
+                <p style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{name}</p>
+                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>⭐ 0 pts · Nouveau débatteur</p>
               </div>
-            </div>
+            </motion.div>
           )}
 
-          <button onClick={handleSubmit} disabled={!valid || available !== true || submitting}
-            className="w-full bg-[#5D7BFF] disabled:opacity-30 text-white text-[11px] font-black uppercase tracking-widest py-3 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-[#4a69ff]">
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />}
-            {submitting ? 'Création…' : 'Entrer dans l\'Arène'}
+          <button onClick={submit} disabled={!valid || avail !== true || busy}
+            style={{ width: '100%', background: 'linear-gradient(135deg, #5D7BFF, #7B9BFF)', border: 'none', borderRadius: 16, color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', padding: '16px', cursor: 'pointer', opacity: (!valid || avail !== true || busy) ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Trophy size={16} />}
+            {busy ? 'Création…' : "Entrer dans l'Arène"}
           </button>
         </div>
       </motion.div>
@@ -144,82 +137,94 @@ function ArenaPseudoModal({ onCreated, userId }: { onCreated: (u: ArenaUser) => 
   );
 }
 
-// ─── Post Card (feed) ─────────────────────────────────────────────────────────
+// ─── Story avatar (feed top) ─────────────────────────────────────────────────
+
+function StoryDot({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
+  const name = post.isAnonymous ? 'AN' : post.authorArenaName;
+  const c = avatarColor(name);
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 flex-shrink-0">
+      <div style={{ padding: 2, borderRadius: '50%', background: `linear-gradient(135deg, ${c}, ${c}88)` }}>
+        <Av name={name} size={48} />
+      </div>
+      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', maxWidth: 52, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+        {post.isAnonymous ? 'Anonyme' : post.authorArenaName.split(' ')[0]}
+      </span>
+    </button>
+  );
+}
+
+// ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
   const total = post.agreeCount + post.disagreeCount + post.nuanceCount;
-  const agreeW  = total > 0 ? (post.agreeCount    / total) * 100 : 0;
-  const disagreeW = total > 0 ? (post.disagreeCount / total) * 100 : 0;
-  const nuanceW = 100 - agreeW - disagreeW;
-  const isHot = post.commentCount >= 5;
+  const agreeP    = total > 0 ? (post.agreeCount    / total) * 100 : 0;
+  const disagreeP = total > 0 ? (post.disagreeCount / total) * 100 : 0;
+  const nuanceP   = 100 - agreeP - disagreeP;
+  const name = post.isAnonymous ? '??' : post.authorArenaName;
+  const c = avatarColor(name);
   const isFeatured = !!post.featuredDate;
+  const isHot = post.commentCount >= 5;
 
   return (
-    <motion.button onClick={onClick} whileHover={{ y: -2 }} whileTap={{ scale: 0.99 }}
-      className="w-full text-left bg-[#13161E] border border-white/6 rounded-2xl overflow-hidden hover:border-[#5D7BFF]/30 transition-all group">
-      {/* Top accent bar */}
-      <div className="h-0.5 w-full" style={{
-        background: isFeatured
-          ? 'linear-gradient(90deg, #A78BFA, #5D7BFF)'
-          : isHot
-            ? 'linear-gradient(90deg, #F97316, #FBBF24)'
-            : 'linear-gradient(90deg, #5D7BFF40, transparent)',
-      }} />
+    <motion.button onClick={onClick} whileHover={{ y: -3 }} whileTap={{ scale: 0.985 }}
+      className="w-full text-left group"
+      style={{ borderRadius: 24, background: '#13161E', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', display: 'block' }}>
 
-      <div className="p-4">
-        {/* Badges */}
-        <div className="flex items-center gap-2 mb-2.5">
-          {isFeatured && (
-            <span className="inline-flex items-center gap-1 text-[7px] font-black uppercase tracking-widest bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 px-2 py-0.5 rounded-full">
-              <Star className="w-2.5 h-2.5" /> Défi du jour
-            </span>
-          )}
-          {isHot && !isFeatured && (
-            <span className="inline-flex items-center gap-1 text-[7px] font-black uppercase tracking-widest bg-[#F97316]/15 text-[#F97316] border border-[#F97316]/30 px-2 py-0.5 rounded-full">
-              <Flame className="w-2.5 h-2.5" /> En feu
-            </span>
-          )}
-          <span className="text-[8px] text-white/25 ml-auto">{timeAgo(post.createdAt)}</span>
+      {/* Colored top strip */}
+      <div style={{ height: 3, background: isFeatured ? 'linear-gradient(90deg,#A78BFA,#5D7BFF)' : isHot ? 'linear-gradient(90deg,#F97316,#FBBF24)' : `linear-gradient(90deg,${c}60,transparent)` }} />
+
+      <div style={{ padding: '16px 18px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <Av name={name} size={36} ring />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{post.isAnonymous ? 'Anonyme' : post.authorArenaName}</p>
+            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{timeAgo(post.createdAt)}</p>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {isFeatured && <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(167,139,250,0.15)', color: '#A78BFA', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 20, padding: '3px 8px' }}>⭐ Défi</span>}
+            {isHot && !isFeatured && <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(249,115,22,0.15)', color: '#F97316', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 20, padding: '3px 8px' }}>🔥 Hot</span>}
+          </div>
         </div>
 
         {/* Title */}
-        <h3 className="text-sm font-bold text-white leading-snug mb-1.5 group-hover:text-[#5D7BFF] transition-colors">
-          {post.title}
-        </h3>
-        {post.preamble && (
-          <p className="text-[10px] text-white/40 leading-relaxed line-clamp-2 mb-3">{post.preamble}</p>
-        )}
+        <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.4, marginBottom: 6 }}>{post.title}</p>
+        {post.preamble && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', lineHeight: 1.5, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.preamble}</p>}
 
-        {/* Persona tag */}
-        <span className="text-[8px] font-black uppercase tracking-widest text-[#5D7BFF]/60 border border-[#5D7BFF]/15 px-2 py-0.5 rounded-full">
+        {/* Persona chip */}
+        <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase', background: 'rgba(93,123,255,0.12)', color: 'rgba(93,123,255,0.8)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '3px 10px', display: 'inline-block', marginBottom: 14 }}>
           {post.personaName}
         </span>
 
         {/* Stance bar */}
         {total > 0 && (
-          <div className="mt-3 mb-2">
-            <div className="flex h-1.5 overflow-hidden rounded-full gap-0.5">
-              {agreeW > 0    && <div className="h-full bg-[#34D399] rounded-full transition-all" style={{ width: `${agreeW}%` }} />}
-              {nuanceW > 0   && <div className="h-full bg-[#FBBF24] rounded-full transition-all" style={{ width: `${nuanceW}%` }} />}
-              {disagreeW > 0 && <div className="h-full bg-[#F87171] rounded-full transition-all" style={{ width: `${disagreeW}%` }} />}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', height: 6, borderRadius: 99, overflow: 'hidden', gap: 2, marginBottom: 8 }}>
+              {agreeP    > 0 && <div style={{ width: `${agreeP}%`,    background: '#34D399', borderRadius: 99 }} />}
+              {nuanceP   > 0 && <div style={{ width: `${nuanceP}%`,   background: '#FBBF24', borderRadius: 99 }} />}
+              {disagreeP > 0 && <div style={{ width: `${disagreeP}%`, background: '#F87171', borderRadius: 99 }} />}
             </div>
-            <div className="flex gap-3 mt-1.5">
-              <span className="text-[8px] text-[#34D399]/80">✓ {post.agreeCount}</span>
-              <span className="text-[8px] text-[#FBBF24]/80">~ {post.nuanceCount}</span>
-              <span className="text-[8px] text-[#F87171]/80">✗ {post.disagreeCount}</span>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#34D399' }}>✓ {post.agreeCount}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#FBBF24' }}>~ {post.nuanceCount}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#F87171' }}>✗ {post.disagreeCount}</span>
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/5">
-          <Avatar name={post.isAnonymous ? '??' : post.authorArenaName} size="xs" />
-          <span className="text-[9px] text-white/40 flex-1 truncate">
-            {post.isAnonymous ? 'Anonyme' : post.authorArenaName}
-          </span>
-          <div className="flex items-center gap-1 text-[9px] text-white/30">
-            <Users className="w-3 h-3" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+            <MessageSquare size={13} />
+            <span>{post.commentCount}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+            <Users size={13} />
             <span>{post.commentCount} débatteur{post.commentCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div style={{ marginLeft: 'auto', background: 'rgba(93,123,255,0.12)', border: '1px solid rgba(93,123,255,0.25)', borderRadius: 20, padding: '5px 14px', color: '#5D7BFF', fontSize: 10, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase' }}>
+            Débattre →
           </div>
         </div>
       </div>
@@ -227,94 +232,71 @@ function PostCard({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
   );
 }
 
-// ─── Sophism Badge ────────────────────────────────────────────────────────────
+// ─── Sophism badge ────────────────────────────────────────────────────────────
 
 function SophismBadge({ alert }: { alert: SophismAlert }) {
   const [open, setOpen] = useState(false);
   if (!alert.detected) return null;
-  const color = alert.severity === 'high' ? '#F87171' : alert.severity === 'medium' ? '#FBBF24' : '#94A3B8';
+  const col = alert.severity === 'high' ? '#F87171' : alert.severity === 'medium' ? '#FBBF24' : '#94A3B8';
   return (
-    <div className="mt-2">
-      <button onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full border transition-all"
-        style={{ color, borderColor: `${color}40`, background: `${color}10` }}>
-        <AlertTriangle className="w-2.5 h-2.5" />
-        Sophisme détecté · {alert.type}
-        {open ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+    <div style={{ marginTop: 10 }}>
+      <button onClick={() => setOpen(v => !v)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: `${col}18`, color: col, border: `1px solid ${col}40`, borderRadius: 20, padding: '4px 10px', cursor: 'pointer' }}>
+        <AlertTriangle size={11} />
+        Sophisme · {alert.type}
+        {open ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
       </button>
-      {open && <p className="text-[10px] text-white/50 mt-1.5 pl-3 border-l-2 border-[#FBBF24]/30 leading-relaxed">{alert.explanation}</p>}
+      {open && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8, paddingLeft: 12, borderLeft: `2px solid ${col}50`, lineHeight: 1.6 }}>{alert.explanation}</p>}
     </div>
   );
 }
 
-// ─── Comment Item ─────────────────────────────────────────────────────────────
+// ─── Comment ──────────────────────────────────────────────────────────────────
 
-function CommentItem({
-  comment, userId, postId, depth, onReply, onUpdated, onCheckSophism, checkingId,
-}: {
+function CommentItem({ comment, userId, postId, depth, onReply, onUpdated, onCheck, checkingId }: {
   comment: ArenaComment; userId: string; postId: string; depth: number;
   onReply: (id: string, name: string) => void;
   onUpdated: (c: ArenaComment) => void;
-  onCheckSophism: (c: ArenaComment) => void;
+  onCheck: (c: ArenaComment) => void;
   checkingId: string | null;
 }) {
-  const cfg = STANCE_CONFIG[comment.stance];
-  const isUpvoted = comment.upvotedBy.includes(userId);
-  const isAuthor = comment.authorId === userId;
-  const isChecking = checkingId === comment.id;
-  const avatarColor = getAvatarColor(comment.authorArenaName);
+  const s = STANCE[comment.stance];
+  const up = comment.upvotedBy.includes(userId);
 
-  const handleUpvote = async () => {
-    await upvoteComment(postId, comment.id, comment.authorId, userId, isUpvoted);
-    onUpdated({
-      ...comment,
-      upvotes: comment.upvotes + (isUpvoted ? -1 : 1),
-      upvotedBy: isUpvoted ? comment.upvotedBy.filter(id => id !== userId) : [...comment.upvotedBy, userId],
-    });
+  const handleUp = async () => {
+    await upvoteComment(postId, comment.id, comment.authorId, userId, up);
+    onUpdated({ ...comment, upvotes: comment.upvotes + (up ? -1 : 1), upvotedBy: up ? comment.upvotedBy.filter(x => x !== userId) : [...comment.upvotedBy, userId] });
   };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className={cx('flex gap-3', depth > 0 && 'ml-8 pl-3 border-l-2 border-white/5')}>
-      <Avatar name={comment.authorArenaName} size="sm" />
-
-      <div className="flex-1 min-w-0">
-        {/* Card */}
-        <div className="bg-[#13161E] border border-white/6 rounded-2xl rounded-tl-sm p-3.5">
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[9px] font-black text-white">{comment.authorArenaName}</span>
-            <span className="text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-              {cfg.emoji} {cfg.label}
-            </span>
-            <span className="text-[8px] text-white/25 ml-auto">{timeAgo(comment.createdAt)}</span>
+      style={{ display: 'flex', gap: 10, paddingLeft: depth > 0 ? 44 : 0 }}>
+      <Av name={comment.authorArenaName} size={32} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Bubble */}
+        <div style={{ background: '#1C2030', borderRadius: 18, borderTopLeftRadius: 4, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{comment.authorArenaName}</span>
+            <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: `rgba(${s.rgb},0.15)`, color: s.color, border: `1px solid rgba(${s.rgb},0.35)`, borderRadius: 20, padding: '2px 8px' }}>{s.short} {s.label}</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginLeft: 'auto' }}>{timeAgo(comment.createdAt)}</span>
           </div>
-
-          <p className="text-[12px] text-white/75 leading-relaxed">{comment.content}</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>{comment.content}</p>
           {comment.sophismAlert && <SophismBadge alert={comment.sophismAlert} />}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4 mt-1.5 px-1">
-          <button onClick={handleUpvote}
-            className={cx('flex items-center gap-1.5 text-[9px] font-bold transition-all',
-              isUpvoted ? 'text-[#5D7BFF]' : 'text-white/25 hover:text-white/60')}>
-            <ThumbsUp className="w-3 h-3" />
-            {comment.upvotes > 0 ? comment.upvotes : 'J\'aime'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '6px 4px' }}>
+          <button onClick={handleUp} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: up ? '#5D7BFF' : 'rgba(255,255,255,0.3)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+            <ThumbsUp size={13} />
+            {comment.upvotes > 0 ? comment.upvotes : "J'aime"}
           </button>
-
           {depth === 0 && (
-            <button onClick={() => onReply(comment.id, comment.authorArenaName)}
-              className="text-[9px] font-bold text-white/25 hover:text-[#5D7BFF] transition-colors">
+            <button onClick={() => onReply(comment.id, comment.authorArenaName)} style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
               Répondre
             </button>
           )}
-
-          {!isAuthor && !comment.sophismAlert && (
-            <button onClick={() => onCheckSophism(comment)} disabled={isChecking}
-              className="flex items-center gap-1 text-[9px] font-bold text-white/20 hover:text-[#FBBF24] transition-colors ml-auto disabled:opacity-40">
-              {isChecking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+          {comment.authorId !== userId && !comment.sophismAlert && (
+            <button onClick={() => onCheck(comment)} disabled={checkingId === comment.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.2)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, marginLeft: 'auto', opacity: checkingId === comment.id ? 0.4 : 1 }}>
+              {checkingId === comment.id ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
               Vérifier · 0.25cr
             </button>
           )}
@@ -324,56 +306,47 @@ function CommentItem({
   );
 }
 
-// ─── MD components (même style que le chatbot) ───────────────────────────────
+// ─── mdArena (même rendu que chatbot) ────────────────────────────────────────
 
-const mdArena = {
-  p: ({ children }: any) => <p className="text-sm text-white leading-relaxed mb-3 last:mb-0">{children}</p>,
+const mdArena: Record<string, any> = {
+  p: ({ children }: any) => <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)', lineHeight: 1.7, marginBottom: 10 }}>{children}</p>,
   h2: ({ children }: any) => (
-    <div className="flex items-center gap-2 mt-4 mb-2 first:mt-0">
-      <div className="h-px flex-1 bg-white/20" />
-      <p className="text-[8px] font-black uppercase tracking-widest text-white/50 px-2 py-0.5 border border-white/20">{children}</p>
-      <div className="h-px flex-1 bg-white/20" />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0 8px', }}>
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }} />
+      <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.15)', padding: '3px 8px' }}>{children}</span>
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }} />
     </div>
   ),
-  h3: ({ children }: any) => <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-3 mb-1.5">{children}</p>,
-  strong: ({ children }: any) => <strong className="font-black text-white bg-white/15 px-1 rounded-sm">{children}</strong>,
-  em: ({ children }: any) => <em className="italic text-white/80">{children}</em>,
-  ul: ({ children }: any) => <ul className="space-y-1.5 mb-3 mt-1">{children}</ul>,
-  ol: ({ children }: any) => <ol className="space-y-1.5 mb-3 mt-1">{children}</ol>,
+  h3: ({ children }: any) => <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', margin: '12px 0 6px' }}>{children}</p>,
+  strong: ({ children }: any) => <strong style={{ fontWeight: 900, color: '#fff', background: 'rgba(255,255,255,0.12)', padding: '1px 5px', borderRadius: 3 }}>{children}</strong>,
+  em: ({ children }: any) => <em style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.7)' }}>{children}</em>,
+  ul: ({ children }: any) => <ul style={{ margin: '6px 0 10px', paddingLeft: 0, listStyle: 'none' }}>{children}</ul>,
   li: ({ children }: any) => (
-    <li className="flex items-start gap-2.5 text-sm text-white leading-relaxed">
-      <span className="w-1.5 h-1.5 bg-white/50 flex-shrink-0 mt-1.5" />
+    <li style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+      <span style={{ width: 5, height: 5, background: 'rgba(255,255,255,0.4)', borderRadius: 1, flexShrink: 0, marginTop: 7 }} />
       <span>{children}</span>
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <div className="my-3 border-l-2 border-white/50 bg-white/10 pl-3 pr-3 py-2.5">
-      <div className="text-[7px] font-black uppercase tracking-widest text-white/40 mb-1.5">Référence</div>
-      <div className="text-xs text-white/75 italic leading-relaxed">{children}</div>
+    <div style={{ borderLeft: '2px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.07)', padding: '10px 14px', margin: '10px 0' }}>
+      <div style={{ fontSize: 7, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>Référence</div>
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', lineHeight: 1.6 }}>{children}</div>
     </div>
   ),
-  code: ({ children }: any) => <code className="font-mono text-xs bg-white/20 border border-white/20 px-1.5 py-0.5 text-white rounded-sm">{children}</code>,
-  table: ({ children }: any) => <div className="overflow-x-auto my-3"><table className="w-full text-xs border-collapse">{children}</table></div>,
-  thead: ({ children }: any) => <thead className="border-b-2 border-white/30">{children}</thead>,
-  tbody: ({ children }: any) => <tbody className="divide-y divide-white/10">{children}</tbody>,
-  tr: ({ children }: any) => <tr className="hover:bg-white/5">{children}</tr>,
-  th: ({ children }: any) => <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-widest text-white/60 whitespace-nowrap">{children}</th>,
-  td: ({ children }: any) => <td className="px-3 py-2 text-[11px] text-white/80 leading-relaxed align-top">{children}</td>,
-  hr: () => <div className="border-t border-white/20 my-4" />,
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-white underline decoration-white/40 hover:decoration-white font-medium transition-all">{children}</a>,
+  code: ({ children }: any) => <code style={{ fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4, color: '#fff' }}>{children}</code>,
+  hr: () => <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', margin: '14px 0' }} />,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#7B9BFF', textDecoration: 'underline', textUnderlineOffset: 3 }}>{children}</a>,
 };
 
-// ─── Main Arena Page ──────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function ArenaPage({
-  user, supabaseUserId, onBack,
-}: {
+export default function ArenaPage({ user, supabaseUserId, onBack }: {
   user: FBUser | null; supabaseUserId: string | null; onBack: () => void;
 }) {
   const [arenaUser, setArenaUser] = useState<ArenaUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [firestoreError, setFirestoreError] = useState(false);
-  const [showPseudoModal, setShowPseudoModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const [view, setView] = useState<'feed' | 'post'>('feed');
   const [filter, setFilter] = useState<'recent' | 'trending' | 'featured'>('recent');
@@ -383,308 +356,271 @@ export default function ArenaPage({
   const [selectedPost, setSelectedPost] = useState<ArenaPost | null>(null);
   const [comments, setComments] = useState<ArenaComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
-  const [aiResponseExpanded, setAiResponseExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-  const [newComment, setNewComment] = useState('');
-  const [newStance, setNewStance] = useState<Stance>('agree');
+  const [text, setText] = useState('');
+  const [stance, setStance] = useState<Stance>('agree');
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
-  const [submittingComment, setSubmittingComment] = useState(false);
+  const [posting, setPosting] = useState(false);
 
   const [synthesis, setSynthesis] = useState<string | null>(null);
-  const [loadingSynthesis, setLoadingSynthesis] = useState(false);
-  const [factCheckClaim, setFactCheckClaim] = useState('');
-  const [factCheckResult, setFactCheckResult] = useState<string | null>(null);
-  const [loadingFactCheck, setLoadingFactCheck] = useState(false);
-  const [showFactCheckInput, setShowFactCheckInput] = useState(false);
+  const [synthLoading, setSynthLoading] = useState(false);
+  const [fcClaim, setFcClaim] = useState('');
+  const [fcResult, setFcResult] = useState<string | null>(null);
+  const [fcLoading, setFcLoading] = useState(false);
+  const [showFc, setShowFc] = useState(false);
   const [checkingId, setCheckingId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  const commentBoxRef = useRef<HTMLTextAreaElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!user) { setLoadingUser(false); return; }
     getArenaUser(user.uid)
-      .then(au => { setArenaUser(au); setLoadingUser(false); if (!au) setShowPseudoModal(true); })
+      .then(u => { setArenaUser(u); setLoadingUser(false); if (!u) setShowModal(true); })
       .catch(() => { setFirestoreError(true); setLoadingUser(false); });
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
     setLoadingPosts(true);
-    getArenaPosts(filter).then(p => setPosts(p)).catch(() => {}).finally(() => setLoadingPosts(false));
+    getArenaPosts(filter).then(setPosts).catch(() => {}).finally(() => setLoadingPosts(false));
   }, [filter, user]);
 
-  const openPost = async (post: ArenaPost) => {
-    setSelectedPost(post); setView('post');
-    setSynthesis(null); setFactCheckResult(null); setShowFactCheckInput(false); setAiResponseExpanded(false);
+  const openPost = async (p: ArenaPost) => {
+    setSelectedPost(p); setView('post');
+    setSynthesis(null); setFcResult(null); setShowFc(false); setExpanded(false);
     setLoadingComments(true);
-    const c = await getArenaComments(post.id);
-    setComments(c); setLoadingComments(false);
+    setComments(await getArenaComments(p.id));
+    setLoadingComments(false);
   };
 
   const submitComment = async () => {
-    if (!newComment.trim() || !selectedPost || !user || !arenaUser || submittingComment) return;
-    setSubmittingComment(true);
-    await addArenaComment(selectedPost.id, {
-      authorId: user.uid, authorArenaName: arenaUser.arenaName,
-      stance: newStance, content: newComment.trim(),
-      parentCommentId: replyTo?.id ?? null, createdAt: new Date().toISOString(),
-    });
-    const [newComments, refreshed] = await Promise.all([getArenaComments(selectedPost.id), getArenaPost(selectedPost.id)]);
-    setComments(newComments);
-    if (refreshed) setSelectedPost(refreshed);
-    setNewComment(''); setReplyTo(null); setSubmittingComment(false);
+    if (!text.trim() || !selectedPost || !user || !arenaUser || posting) return;
+    setPosting(true);
+    await addArenaComment(selectedPost.id, { authorId: user.uid, authorArenaName: arenaUser.arenaName, stance, content: text.trim(), parentCommentId: replyTo?.id ?? null, createdAt: new Date().toISOString() });
+    const [nc, np] = await Promise.all([getArenaComments(selectedPost.id), getArenaPost(selectedPost.id)]);
+    setComments(nc); if (np) setSelectedPost(np);
+    setText(''); setReplyTo(null); setPosting(false);
     setArenaUser(a => a ? { ...a, totalComments: a.totalComments + 1 } : a);
   };
 
-  const checkSophism = async (comment: ArenaComment) => {
+  const checkSophism = async (c: ArenaComment) => {
     if (!selectedPost || !supabaseUserId) return;
     if (!await deductOneCredit(supabaseUserId)) { alert('Crédits insuffisants.'); return; }
-    setCheckingId(comment.id);
+    setCheckingId(c.id);
     try {
-      const res = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sophism', content: comment.content, context: selectedPost.title }) });
-      const data: SophismAlert = await res.json();
-      await saveSophismAlert(selectedPost.id, comment.id, comment.authorId, data);
-      setComments(cs => cs.map(c => c.id === comment.id ? { ...c, sophismAlert: data } : c));
+      const r = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sophism', content: c.content, context: selectedPost.title }) });
+      const data: SophismAlert = await r.json();
+      await saveSophismAlert(selectedPost.id, c.id, c.authorId, data);
+      setComments(cs => cs.map(x => x.id === c.id ? { ...x, sophismAlert: data } : x));
     } finally { setCheckingId(null); }
   };
 
-  const requestSynthesis = async () => {
-    if (!selectedPost || !supabaseUserId || loadingSynthesis) return;
+  const doSynthesis = async () => {
+    if (!selectedPost || !supabaseUserId || synthLoading) return;
     if (!await deductOneCredit(supabaseUserId)) { alert('Crédits insuffisants.'); return; }
-    setLoadingSynthesis(true);
+    setSynthLoading(true);
     try {
-      const res = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'synthesis', title: selectedPost.title, preamble: selectedPost.preamble, comments: comments.map(c => ({ stance: c.stance, content: c.content })) }) });
-      setSynthesis((await res.json()).result ?? '');
-    } finally { setLoadingSynthesis(false); }
+      const r = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'synthesis', title: selectedPost.title, preamble: selectedPost.preamble, comments: comments.map(c => ({ stance: c.stance, content: c.content })) }) });
+      setSynthesis((await r.json()).result ?? '');
+    } finally { setSynthLoading(false); }
   };
 
-  const requestFactCheck = async () => {
-    if (!factCheckClaim.trim() || !selectedPost || !supabaseUserId || loadingFactCheck) return;
+  const doFactCheck = async () => {
+    if (!fcClaim.trim() || !selectedPost || !supabaseUserId || fcLoading) return;
     if (!await deductOneCredit(supabaseUserId)) { alert('Crédits insuffisants.'); return; }
-    setLoadingFactCheck(true);
+    setFcLoading(true);
     try {
-      const res = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'factcheck', claim: factCheckClaim, context: selectedPost.title }) });
-      setFactCheckResult((await res.json()).result ?? '');
-      setShowFactCheckInput(false); setFactCheckClaim('');
-    } finally { setLoadingFactCheck(false); }
+      const r = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'factcheck', claim: fcClaim, context: selectedPost.title }) });
+      setFcResult((await r.json()).result ?? ''); setShowFc(false); setFcClaim('');
+    } finally { setFcLoading(false); }
   };
 
-  const rootComments = comments.filter(c => !c.parentCommentId);
-  const getReplies = (id: string) => comments.filter(c => c.parentCommentId === id);
-  const filteredPosts = searchQuery.trim()
-    ? posts.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.preamble?.toLowerCase().includes(searchQuery.toLowerCase()))
-    : posts;
+  const roots   = comments.filter(c => !c.parentCommentId);
+  const replies = (id: string) => comments.filter(c => c.parentCommentId === id);
+  const filtered = search.trim() ? posts.filter(p => p.title.toLowerCase().includes(search.toLowerCase()) || p.preamble?.toLowerCase().includes(search.toLowerCase())) : posts;
 
-  // ── Not logged in ──
+  // Guards
   if (!user) return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 p-8 bg-[#0A0C12]">
-      <Trophy className="w-10 h-10 text-[#5D7BFF]/40" />
-      <p className="text-sm text-white/40 text-center">Connectez-vous pour accéder à l'Arène.</p>
-      <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF]">← Retour</button>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#0A0C12' }}>
+      <Trophy size={36} color="rgba(93,123,255,0.4)" />
+      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>Connectez-vous pour accéder à l'Arène.</p>
+      <button onClick={onBack} style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#5D7BFF', background: 'none', border: 'none', cursor: 'pointer' }}>← Retour</button>
     </div>
   );
 
   if (loadingUser) return (
-    <div className="h-full flex items-center justify-center bg-[#0A0C12]">
-      <Loader2 className="w-6 h-6 animate-spin text-[#5D7BFF]/40" />
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0A0C12' }}>
+      <Loader2 size={24} color="rgba(93,123,255,0.4)" className="animate-spin" />
     </div>
   );
 
   if (firestoreError) return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 p-8 bg-[#0A0C12]">
-      <AlertTriangle className="w-8 h-8 text-[#FBBF24]/60" />
-      <div className="text-center">
-        <p className="text-sm font-bold text-white mb-1">Règles Firestore non déployées</p>
-        <p className="text-[10px] text-white/40 max-w-xs leading-relaxed">
-          Firebase Console → Firestore → Règles → Publier les nouvelles règles.
-        </p>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#0A0C12', padding: 32 }}>
+      <AlertTriangle size={32} color="rgba(251,191,36,0.6)" />
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Règles Firestore non déployées</p>
+        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>Firebase Console → Firestore → Règles → Publier les nouvelles règles arena_users, arena_posts.</p>
       </div>
-      <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors">← Retour</button>
+      <button onClick={onBack} style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer' }}>← Retour</button>
     </div>
   );
 
-  // ════════════════════════════════════════════════════════════════════════════
+  // ──────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col bg-[#0A0C12] overflow-hidden">
-      {showPseudoModal && (
-        <ArenaPseudoModal userId={user.uid} onCreated={au => { setArenaUser(au); setShowPseudoModal(false); }} />
-      )}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0A0C12', overflow: 'hidden' }}>
+      {showModal && <PseudoModal userId={user.uid} onCreated={u => { setArenaUser(u); setShowModal(false); }} />}
 
-      {/* ── Hero Header ──────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 relative overflow-hidden bg-gradient-to-br from-[#0D0F18] via-[#111520] to-[#0A0C12] border-b border-white/5">
-        {/* BG glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-20 bg-[#5D7BFF]/8 blur-3xl pointer-events-none" />
+      {/* ── Top bar ──────────────────────────────────────────────────────── */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0D1018' }}>
+        <button onClick={view === 'post' ? () => { setView('feed'); setSelectedPost(null); setSynthesis(null); } : onBack}
+          style={{ color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}>
+          <ArrowLeft size={18} />
+        </button>
 
-        <div className="relative px-4 pt-4 pb-3">
-          {/* Top row */}
-          <div className="flex items-center gap-3 mb-3">
-            <button onClick={view === 'post' ? () => { setView('feed'); setSelectedPost(null); setSynthesis(null); } : onBack}
-              className="text-white/30 hover:text-white transition-colors">
-              <ArrowLeft className="w-4 h-4" />
+        {view === 'feed' ? (
+          <>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Trophy size={15} color="#5D7BFF" />
+                <span style={{ fontSize: 14, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#fff' }}>L'Arène</span>
+              </div>
+              {arenaUser && <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                Bienvenue, <span style={{ color: '#5D7BFF', fontWeight: 700 }}>{arenaUser.arenaName}</span>
+              </p>}
+            </div>
+            <button onClick={() => setShowSearch(v => !v)} style={{ color: showSearch ? '#fff' : 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}>
+              <Search size={18} />
             </button>
-
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Trophy className="w-4 h-4 text-[#5D7BFF]" />
-              <span className="text-[13px] font-black uppercase tracking-widest text-white">L'Arène</span>
-              {view === 'post' && selectedPost && (
-                <span className="text-[9px] text-white/30 truncate ml-1">· {selectedPost.title}</span>
-              )}
-            </div>
-
-            {view === 'feed' && (
-              <button onClick={() => setShowSearch(v => !v)}
-                className={cx('text-white/30 hover:text-white transition-colors', showSearch && 'text-white')}>
-                <Search className="w-4 h-4" />
-              </button>
+            {arenaUser && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 20, padding: '5px 10px' }}>
+                <Star size={12} color="#FBBF24" />
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#FBBF24' }}>{arenaUser.credibilityScore}</span>
+              </div>
             )}
+          </>
+        ) : (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPost?.title}</p>
+            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{selectedPost?.commentCount} contributions</p>
           </div>
-
-          {/* User profile strip */}
-          {arenaUser && view === 'feed' && (
-            <div className="flex items-center gap-2.5 bg-white/4 rounded-xl px-3 py-2 border border-white/5">
-              <Avatar name={arenaUser.arenaName} size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-white truncate">{arenaUser.arenaName}</p>
-                <p className="text-[8px] text-white/30">{arenaUser.totalComments} contributions</p>
-              </div>
-              <div className="flex items-center gap-1 bg-[#FBBF24]/10 border border-[#FBBF24]/20 px-2 py-1 rounded-full">
-                <Star className="w-3 h-3 text-[#FBBF24]" />
-                <span className="text-[9px] font-black text-[#FBBF24]">{arenaUser.credibilityScore}</span>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* ── Feed ─────────────────────────────────────────────────────────── */}
+      {/* ── FEED ─────────────────────────────────────────────────────────── */}
       {view === 'feed' && (
-        <div className="flex-1 overflow-y-auto">
-          {/* Search */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Search bar */}
           <AnimatePresence>
             {showSearch && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-b border-white/5 bg-[#0D0F18]">
-                <div className="px-4 py-3 flex items-center gap-2">
-                  <Search className="w-3.5 h-3.5 text-white/30" />
-                  <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher un débat…"
-                    className="flex-1 bg-transparent text-sm text-white placeholder:text-white/25 focus:outline-none" />
-                  {searchQuery && <button onClick={() => setSearchQuery('')}><X className="w-3.5 h-3.5 text-white/30" /></button>}
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0D1018' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
+                  <Search size={14} color="rgba(255,255,255,0.3)" />
+                  <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un débat…"
+                    style={{ flex: 1, background: 'none', border: 'none', color: '#fff', fontSize: 13, outline: 'none' }} />
+                  {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, color: 'rgba(255,255,255,0.3)' }}><X size={14} /></button>}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Filter tabs */}
-          <div className="flex gap-2 px-4 py-3 border-b border-white/5 bg-[#0D0F18]">
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: 8, padding: '14px 16px 10px', overflowX: 'auto' }}>
             {([
               { key: 'recent',   label: 'Récents',      icon: Clock },
               { key: 'trending', label: 'Tendance',     icon: TrendingUp },
               { key: 'featured', label: 'Défi du jour', icon: Star },
             ] as { key: typeof filter; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
-              <button key={key} onClick={() => setFilter(key)}
-                className={cx(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all',
-                  filter === key
-                    ? 'bg-[#5D7BFF] text-white'
-                    : 'bg-white/5 text-white/40 hover:bg-white/8 hover:text-white/70'
-                )}>
-                <Icon className="w-2.5 h-2.5" />{label}
+              <button key={key} onClick={() => setFilter(key)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', flexShrink: 0, fontWeight: 900, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase',
+                background: filter === key ? 'linear-gradient(135deg,#5D7BFF,#7B9BFF)' : 'rgba(255,255,255,0.06)',
+                color: filter === key ? '#fff' : 'rgba(255,255,255,0.4)',
+              }}>
+                <Icon size={11} />{label}
               </button>
             ))}
           </div>
 
+          {/* Stories strip */}
+          {filtered.length > 0 && (
+            <div style={{ padding: '0 16px 16px', overflowX: 'auto' }}>
+              <div style={{ display: 'flex', gap: 16, paddingBottom: 4 }}>
+                {filtered.slice(0, 8).map(p => <StoryDot key={p.id} post={p} onClick={() => openPost(p)} />)}
+              </div>
+            </div>
+          )}
+
           {/* Posts */}
-          <div className="p-4 space-y-3">
+          <div style={{ padding: '0 16px 120px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {loadingPosts ? (
-              <div className="flex justify-center py-16">
-                <Loader2 className="w-5 h-5 animate-spin text-[#5D7BFF]/40" />
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+                <Loader2 size={22} color="rgba(93,123,255,0.4)" className="animate-spin" />
               </div>
-            ) : filteredPosts.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-16 h-16 bg-[#5D7BFF]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Trophy className="w-7 h-7 text-[#5D7BFF]/30" />
+            ) : filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(93,123,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <Trophy size={28} color="rgba(93,123,255,0.3)" />
                 </div>
-                <p className="text-sm font-bold text-white/30 mb-1">
-                  {filter === 'featured' ? 'Aucun défi aujourd\'hui' : 'L\'Arène est vide'}
-                </p>
-                <p className="text-[10px] text-white/20">
-                  Propulsez un échange depuis le chat pour lancer le premier débat !
-                </p>
+                <p style={{ fontSize: 14, fontWeight: 800, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>L'Arène est vide</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>Propulsez un échange depuis le chat !</p>
               </div>
-            ) : (
-              filteredPosts.map(post => <PostCard key={post.id} post={post} onClick={() => openPost(post)} />)
-            )}
+            ) : filtered.map(p => <PostCard key={p.id} post={p} onClick={() => openPost(p)} />)}
           </div>
         </div>
       )}
 
-      {/* ── Post Detail ───────────────────────────────────────────────────── */}
+      {/* ── POST DETAIL ───────────────────────────────────────────────────── */}
       {view === 'post' && selectedPost && (
-        <div className="flex-1 overflow-y-auto">
-
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {/* Post meta */}
-          <div className="px-4 pt-4 pb-3 border-b border-white/5">
-            <div className="flex items-center gap-2 mb-2">
-              {selectedPost.featuredDate && (
-                <span className="text-[7px] font-black uppercase tracking-widest bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Star className="w-2.5 h-2.5" /> Défi du jour
-                </span>
-              )}
-              <span className="text-[8px] font-black uppercase tracking-widest text-[#5D7BFF]/60 border border-[#5D7BFF]/15 px-2 py-0.5 rounded-full">
-                {selectedPost.personaName}
-              </span>
-              <span className="text-[8px] text-white/25 ml-auto">{timeAgo(selectedPost.createdAt)}</span>
+          <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <Av name={selectedPost.isAnonymous ? '??' : selectedPost.authorArenaName} size={40} ring />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{selectedPost.isAnonymous ? 'Anonyme' : selectedPost.authorArenaName}</p>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(93,123,255,0.12)', color: 'rgba(93,123,255,0.8)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '2px 8px' }}>{selectedPost.personaName}</span>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{timeAgo(selectedPost.createdAt)}</span>
+                </div>
+              </div>
             </div>
-
-            <h2 className="text-base font-bold text-white leading-snug mb-2">{selectedPost.title}</h2>
-            {selectedPost.preamble && <p className="text-[11px] text-white/40 leading-relaxed mb-2">{selectedPost.preamble}</p>}
-
-            <div className="flex items-center gap-2">
-              <Avatar name={selectedPost.isAnonymous ? '??' : selectedPost.authorArenaName} size="xs" />
-              <span className="text-[9px] text-white/30">{selectedPost.isAnonymous ? 'Anonyme' : selectedPost.authorArenaName}</span>
-            </div>
+            <p style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.4, marginBottom: 8 }}>{selectedPost.title}</p>
+            {selectedPost.preamble && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>{selectedPost.preamble}</p>}
           </div>
 
-          {/* Q/A block */}
-          <div className="p-4 space-y-2 border-b border-white/5">
-            {/* Question */}
-            <div className="flex gap-2.5">
-              <div className="w-6 h-6 rounded-full bg-white/8 border border-white/12 flex items-center justify-center flex-shrink-0 mt-0.5 text-[8px] font-black text-white/40">Q</div>
-              <div className="flex-1 bg-white/4 border border-white/8 rounded-2xl rounded-tl-sm px-4 py-3">
-                <p className="text-[11px] text-white/70 leading-relaxed">{selectedPost.question}</p>
+          {/* Q/A exchange */}
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            {/* Q bubble */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)' }}>Q</div>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 18, borderTopLeftRadius: 4, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>{selectedPost.question}</p>
               </div>
             </div>
 
-            {/* AI Response */}
-            <div className="flex gap-2.5">
-              <div className="w-6 h-6 rounded-full bg-[#5D7BFF] flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Zap className="w-3 h-3 text-white" />
+            {/* AI bubble */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#5D7BFF,#A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                <Zap size={13} color="#fff" />
               </div>
-              <div className="flex-1 bg-gradient-to-br from-[#5D7BFF]/12 to-[#5D7BFF]/5 border border-[#5D7BFF]/20 rounded-2xl rounded-tl-sm px-4 py-3">
-                <p className="text-[7px] font-black uppercase tracking-widest text-[#5D7BFF]/60 mb-2">Réponse IA</p>
+              <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(93,123,255,0.1), rgba(167,139,250,0.06))', border: '1px solid rgba(93,123,255,0.18)', borderRadius: 18, borderTopLeftRadius: 4, padding: '14px 16px' }}>
+                <p style={{ fontSize: 8, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(93,123,255,0.6)', marginBottom: 10 }}>Réponse IA</p>
                 {(() => {
-                  const THRESHOLD = 600;
-                  const isLong = selectedPost.aiResponse.length > THRESHOLD;
-                  const displayed = isLong && !aiResponseExpanded ? selectedPost.aiResponse.slice(0, THRESHOLD) : selectedPost.aiResponse;
+                  const LIMIT = 600;
+                  const long = selectedPost.aiResponse.length > LIMIT;
+                  const shown = long && !expanded ? selectedPost.aiResponse.slice(0, LIMIT) : selectedPost.aiResponse;
                   return (
                     <>
-                      <div className={cx('relative', isLong && !aiResponseExpanded && 'overflow-hidden')}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{displayed}</ReactMarkdown>
-                        {isLong && !aiResponseExpanded && (
-                          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#0e1220] to-transparent" />
-                        )}
+                      <div style={{ position: 'relative', overflow: long && !expanded ? 'hidden' : 'visible' }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{shown}</ReactMarkdown>
+                        {long && !expanded && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 48, background: 'linear-gradient(to top, #0e1422, transparent)' }} />}
                       </div>
-                      {isLong && (
-                        <button onClick={() => setAiResponseExpanded(v => !v)}
-                          className="mt-2 text-[8px] font-black uppercase tracking-widest text-[#5D7BFF]/70 hover:text-[#5D7BFF] flex items-center gap-1 transition-colors">
-                          {aiResponseExpanded ? <><ChevronUp className="w-2.5 h-2.5" /> Condenser</> : <><ChevronDown className="w-2.5 h-2.5" /> Voir tout</>}
+                      {long && (
+                        <button onClick={() => setExpanded(v => !v)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(93,123,255,0.7)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                          {expanded ? <><ChevronUp size={11} />Condenser</> : <><ChevronDown size={11} />Voir tout</>}
                         </button>
                       )}
                     </>
@@ -694,113 +630,105 @@ export default function ArenaPage({
             </div>
           </div>
 
-          {/* Opinion bar */}
+          {/* Opinion summary */}
           {selectedPost.commentCount > 0 && (
-            <div className="px-4 py-3 border-b border-white/5">
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="w-3 h-3 text-white/30" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/30">
-                  Opinion · {selectedPost.commentCount} voix
-                </span>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <BarChart3 size={13} color="rgba(255,255,255,0.3)" />
+                <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Opinion · {selectedPost.commentCount} voix</span>
               </div>
-              <div className="flex h-2 overflow-hidden rounded-full gap-0.5">
-                {selectedPost.agreeCount > 0 && <div className="h-full bg-[#34D399] rounded-full" style={{ width: `${(selectedPost.agreeCount / selectedPost.commentCount) * 100}%` }} />}
-                {selectedPost.nuanceCount > 0 && <div className="h-full bg-[#FBBF24] rounded-full" style={{ width: `${(selectedPost.nuanceCount / selectedPost.commentCount) * 100}%` }} />}
-                {selectedPost.disagreeCount > 0 && <div className="h-full bg-[#F87171] rounded-full" style={{ width: `${(selectedPost.disagreeCount / selectedPost.commentCount) * 100}%` }} />}
+              <div style={{ display: 'flex', height: 8, borderRadius: 99, overflow: 'hidden', gap: 2, marginBottom: 10 }}>
+                {selectedPost.agreeCount    > 0 && <div style={{ width: `${(selectedPost.agreeCount    / selectedPost.commentCount) * 100}%`, background: '#34D399', borderRadius: 99 }} />}
+                {selectedPost.nuanceCount   > 0 && <div style={{ width: `${(selectedPost.nuanceCount   / selectedPost.commentCount) * 100}%`, background: '#FBBF24', borderRadius: 99 }} />}
+                {selectedPost.disagreeCount > 0 && <div style={{ width: `${(selectedPost.disagreeCount / selectedPost.commentCount) * 100}%`, background: '#F87171', borderRadius: 99 }} />}
               </div>
-              <div className="flex gap-4 mt-2">
-                <span className="text-[9px] font-bold text-[#34D399]">✓ {selectedPost.agreeCount} pour</span>
-                <span className="text-[9px] font-bold text-[#FBBF24]">~ {selectedPost.nuanceCount} nuances</span>
-                <span className="text-[9px] font-bold text-[#F87171]">✗ {selectedPost.disagreeCount} contre</span>
+              <div style={{ display: 'flex', gap: 20 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#34D399' }}>✓ {selectedPost.agreeCount} pour</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#FBBF24' }}>~ {selectedPost.nuanceCount} nuances</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#F87171' }}>✗ {selectedPost.disagreeCount} contre</span>
               </div>
             </div>
           )}
 
-          {/* AI Tools */}
-          <div className="px-4 py-3 border-b border-white/5 flex flex-wrap gap-2">
-            <button onClick={requestSynthesis} disabled={loadingSynthesis || comments.length === 0}
-              className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-[#5D7BFF]/25 text-[#5D7BFF]/80 hover:bg-[#5D7BFF]/10 disabled:opacity-30 transition-all">
-              {loadingSynthesis ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+          {/* AI tools */}
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={doSynthesis} disabled={synthLoading || comments.length === 0}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(93,123,255,0.1)', border: '1px solid rgba(93,123,255,0.25)', borderRadius: 99, padding: '7px 14px', color: '#7B9BFF', cursor: 'pointer', opacity: (synthLoading || comments.length === 0) ? 0.3 : 1 }}>
+              {synthLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               Synthèse · 0.25cr
             </button>
-            <button onClick={() => { setShowFactCheckInput(v => !v); setFactCheckResult(null); }}
-              className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-[#FBBF24]/25 text-[#FBBF24]/80 hover:bg-[#FBBF24]/10 transition-all">
-              <FileSearch className="w-3 h-3" />
+            <button onClick={() => { setShowFc(v => !v); setFcResult(null); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 99, padding: '7px 14px', color: '#FBBF24', cursor: 'pointer' }}>
+              <FileSearch size={12} />
               Fact-check · 0.25cr
             </button>
           </div>
 
           <AnimatePresence>
-            {showFactCheckInput && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-b border-white/5 px-4 py-3">
-                <div className="flex gap-2">
-                  <input autoFocus value={factCheckClaim} onChange={e => setFactCheckClaim(e.target.value)}
-                    placeholder="Entrez l'affirmation à vérifier…"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl text-[11px] text-white px-3 py-2 focus:outline-none focus:border-[#FBBF24]/40 placeholder:text-white/20" />
-                  <button onClick={requestFactCheck} disabled={!factCheckClaim.trim() || loadingFactCheck}
-                    className="bg-[#FBBF24] text-[#141414] px-3 rounded-xl disabled:opacity-40">
-                    {loadingFactCheck ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            {showFc && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', gap: 8, padding: '12px 16px' }}>
+                  <input autoFocus value={fcClaim} onChange={e => setFcClaim(e.target.value)} placeholder="Entrez l'affirmation à vérifier…"
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, color: '#fff', fontSize: 12, padding: '10px 14px', outline: 'none' }} />
+                  <button onClick={doFactCheck} disabled={!fcClaim.trim() || fcLoading}
+                    style={{ background: '#FBBF24', border: 'none', borderRadius: 12, padding: '0 14px', cursor: 'pointer', opacity: (!fcClaim.trim() || fcLoading) ? 0.4 : 1, lineHeight: 0 }}>
+                    {fcLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   </button>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Synthesis result */}
           <AnimatePresence>
             {synthesis && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                className="mx-4 my-3 bg-[#5D7BFF]/8 border border-[#5D7BFF]/20 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="w-3.5 h-3.5 text-[#5D7BFF]" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Synthèse de l'Arène</span>
-                  <button onClick={() => setSynthesis(null)} className="ml-auto text-white/30 hover:text-white"><X className="w-3.5 h-3.5" /></button>
+                style={{ margin: '12px 16px', background: 'rgba(93,123,255,0.08)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Sparkles size={14} color="#5D7BFF" />
+                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#5D7BFF', flex: 1 }}>Synthèse de l'Arène</span>
+                  <button onClick={() => setSynthesis(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', lineHeight: 0 }}><X size={14} /></button>
                 </div>
-                <div className="text-[11px] text-white/80 leading-relaxed">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{synthesis}</ReactMarkdown>
-                </div>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{synthesis}</ReactMarkdown>
               </motion.div>
             )}
           </AnimatePresence>
 
           <AnimatePresence>
-            {factCheckResult && (
+            {fcResult && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                className="mx-4 my-3 bg-[#FBBF24]/8 border border-[#FBBF24]/20 rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <FileSearch className="w-3.5 h-3.5 text-[#FBBF24]" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#FBBF24]">Fact-check</span>
-                  <button onClick={() => setFactCheckResult(null)} className="ml-auto text-white/30 hover:text-white"><X className="w-3.5 h-3.5" /></button>
+                style={{ margin: '12px 16px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 20, padding: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <FileSearch size={14} color="#FBBF24" />
+                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#FBBF24', flex: 1 }}>Fact-check</span>
+                  <button onClick={() => setFcResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', lineHeight: 0 }}><X size={14} /></button>
                 </div>
-                <div className="text-[11px] text-white/80 leading-relaxed">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{factCheckResult}</ReactMarkdown>
-                </div>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{fcResult}</ReactMarkdown>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Comments list */}
-          <div className="px-4 pt-3 pb-2">
-            <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-4">
+          {/* Comments */}
+          <div style={{ padding: '16px 16px 160px' }}>
+            <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 16 }}>
               {selectedPost.commentCount} contribution{selectedPost.commentCount !== 1 ? 's' : ''}
             </p>
-
             {loadingComments ? (
-              <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-[#5D7BFF]/40" /></div>
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+                <Loader2 size={20} color="rgba(93,123,255,0.4)" className="animate-spin" />
+              </div>
             ) : (
-              <div className="space-y-4">
-                {rootComments.map(c => (
-                  <div key={c.id} className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {roots.map(c => (
+                  <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <CommentItem comment={c} userId={user.uid} postId={selectedPost.id} depth={0}
-                      onReply={(id, name) => { setReplyTo({ id, name }); commentBoxRef.current?.focus(); }}
+                      onReply={(id, name) => { setReplyTo({ id, name }); boxRef.current?.focus(); }}
                       onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
-                      onCheckSophism={checkSophism} checkingId={checkingId} />
-                    {getReplies(c.id).map(reply => (
-                      <CommentItem key={reply.id} comment={reply} userId={user.uid} postId={selectedPost.id} depth={1}
+                      onCheck={checkSophism} checkingId={checkingId} />
+                    {replies(c.id).map(r => (
+                      <CommentItem key={r.id} comment={r} userId={user.uid} postId={selectedPost.id} depth={1}
                         onReply={() => {}}
                         onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
-                        onCheckSophism={checkSophism} checkingId={checkingId} />
+                        onCheck={checkSophism} checkingId={checkingId} />
                     ))}
                   </div>
                 ))}
@@ -808,44 +736,44 @@ export default function ArenaPage({
             )}
           </div>
 
-          {/* Comment form */}
-          <div className="sticky bottom-0 bg-[#0A0C12] border-t border-white/5 p-4">
+          {/* Comment form — sticky */}
+          <div style={{ position: 'sticky', bottom: 0, background: '#0D1018', borderTop: '1px solid rgba(255,255,255,0.06)', padding: 16 }}>
             {replyTo && (
-              <div className="flex items-center gap-2 mb-2 text-[9px] text-white/30">
-                <span>↩ Réponse à <strong className="text-white/50">{replyTo.name}</strong></span>
-                <button onClick={() => setReplyTo(null)} className="ml-auto hover:text-white"><X className="w-3 h-3" /></button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                <span>↩ Réponse à <strong style={{ color: 'rgba(255,255,255,0.6)' }}>{replyTo.name}</strong></span>
+                <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', lineHeight: 0 }}><X size={12} /></button>
               </div>
             )}
 
-            {/* Stance selector */}
-            <div className="flex gap-1.5 mb-3">
+            {/* Stance pills */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {(['agree', 'disagree', 'nuance'] as Stance[]).map(s => {
-                const cfg = STANCE_CONFIG[s];
-                const active = newStance === s;
+                const cfg = STANCE[s]; const active = stance === s;
                 return (
-                  <button key={s} onClick={() => setNewStance(s)}
-                    className="flex-1 py-2 text-[8px] font-black uppercase tracking-widest rounded-xl border-2 transition-all"
-                    style={active
-                      ? { background: cfg.bg, borderColor: cfg.color, color: cfg.color }
-                      : { borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.25)' }}>
-                    {cfg.emoji} {cfg.label}
+                  <button key={s} onClick={() => setStance(s)} style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 12, border: `2px solid ${active ? cfg.color : 'rgba(255,255,255,0.08)'}`,
+                    background: active ? `rgba(${cfg.rgb},0.15)` : 'transparent',
+                    color: active ? cfg.color : 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: 900, letterSpacing: 1,
+                    textTransform: 'uppercase', cursor: 'pointer',
+                  }}>
+                    {cfg.short} {cfg.label}
                   </button>
                 );
               })}
             </div>
 
-            <div className="flex gap-2 items-end">
-              {arenaUser && <Avatar name={arenaUser.arenaName} size="sm" />}
-              <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm overflow-hidden focus-within:border-[#5D7BFF]/40 transition-all">
-                <textarea ref={commentBoxRef} value={newComment} onChange={e => setNewComment(e.target.value)}
+            {/* Input + send */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              {arenaUser && <Av name={arenaUser.arenaName} size={32} />}
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.08)', borderRadius: 20, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+                <textarea ref={boxRef} value={text} onChange={e => setText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitComment(); }}
                   placeholder="Votre argument… (Ctrl+↵)"
-                  rows={2}
-                  className="w-full bg-transparent text-[11px] text-white placeholder:text-white/20 px-4 py-3 resize-none focus:outline-none" />
-                <div className="flex items-center justify-end px-3 pb-2">
-                  <button onClick={submitComment} disabled={!newComment.trim() || submittingComment}
-                    className="bg-[#5D7BFF] disabled:opacity-30 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all hover:bg-[#4a69ff]">
-                    {submittingComment ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                  rows={2} style={{ width: '100%', background: 'none', border: 'none', color: '#fff', fontSize: 12, padding: '12px 14px', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 10px 8px' }}>
+                  <button onClick={submitComment} disabled={!text.trim() || posting}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg,#5D7BFF,#7B9BFF)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 10, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', padding: '7px 14px', cursor: 'pointer', opacity: (!text.trim() || posting) ? 0.3 : 1 }}>
+                    {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                     Publier
                   </button>
                 </div>
