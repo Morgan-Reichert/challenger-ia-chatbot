@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Trophy, Flame, Star, Clock, MessageSquare, ChevronRight,
-  ThumbsUp, AlertTriangle, Loader2, Send, Check, X, Zap, Shield,
+  ThumbsUp, AlertTriangle, Loader2, Send, Check, X, Shield,
   User, Search, BarChart3, Sparkles, FileSearch, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -338,6 +338,7 @@ export default function ArenaPage({
 }) {
   const [arenaUser, setArenaUser] = useState<ArenaUser | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [firestoreError, setFirestoreError] = useState(false);
   const [showPseudoModal, setShowPseudoModal] = useState(false);
 
   const [view, setView] = useState<'feed' | 'post'>('feed');
@@ -372,22 +373,24 @@ export default function ArenaPage({
   // Load arena user
   useEffect(() => {
     if (!user) { setLoadingUser(false); return; }
-    getArenaUser(user.uid).then(au => {
-      setArenaUser(au);
-      setLoadingUser(false);
-      if (!au) setShowPseudoModal(true);
-    });
+    getArenaUser(user.uid)
+      .then(au => {
+        setArenaUser(au);
+        setLoadingUser(false);
+        if (!au) setShowPseudoModal(true);
+      })
+      .catch(() => { setFirestoreError(true); setLoadingUser(false); });
   }, [user]);
 
-  // Load posts
+  // Load posts — ne dépend plus de arenaUser pour ne pas bloquer si pas encore de profil
   useEffect(() => {
-    if (!arenaUser) return;
+    if (!user) return;
     setLoadingPosts(true);
-    getArenaPosts(filter).then(p => {
-      setPosts(p);
-      setLoadingPosts(false);
-    });
-  }, [filter, arenaUser]);
+    getArenaPosts(filter)
+      .then(p => setPosts(p))
+      .catch(() => {})
+      .finally(() => setLoadingPosts(false));
+  }, [filter, user]);
 
   const openPost = async (post: ArenaPost) => {
     setSelectedPost(post);
@@ -522,6 +525,27 @@ export default function ArenaPage({
           Connectez-vous pour accéder à l'Arène.
         </p>
         <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF]">
+          ← Retour
+        </button>
+      </div>
+    );
+  }
+
+  // ── Firestore permissions error ─────────────────────────────────────────────
+  if (firestoreError) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4 p-8 bg-[var(--bg-chat)]">
+        <AlertTriangle className="w-8 h-8 text-[#FBBF24]/60" />
+        <div className="text-center">
+          <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Règles Firestore non déployées</p>
+          <p className="text-[10px] text-[var(--text-muted)] max-w-xs leading-relaxed">
+            Les nouvelles règles pour l'Arène doivent être publiées dans la Firebase Console.
+          </p>
+          <p className="text-[10px] text-[#5D7BFF] mt-3">
+            Firebase Console → Firestore → Règles → Publier
+          </p>
+        </div>
+        <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
           ← Retour
         </button>
       </div>
