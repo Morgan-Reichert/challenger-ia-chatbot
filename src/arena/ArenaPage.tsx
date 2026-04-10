@@ -742,15 +742,46 @@ export default function ArenaPage({
                   : selectedPost.aiResponse;
                 return (
                   <>
-                    <div className={cx('text-[11px] text-white/90 leading-relaxed prose-sm relative', isLong && !aiResponseExpanded && 'overflow-hidden')}>
+                    <div className={cx('relative', isLong && !aiResponseExpanded && 'overflow-hidden')}>
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                          h2: ({ children }) => <p className="font-bold mt-2 mb-1">{children}</p>,
-                          ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 my-1">{children}</ul>,
-                          li: ({ children }) => <li className="text-white/80">{children}</li>,
+                          p: ({ children }) => <p className="text-sm text-white leading-relaxed mb-3 last:mb-0">{children}</p>,
+                          h2: ({ children }) => (
+                            <div className="flex items-center gap-2 mt-4 mb-2 first:mt-0">
+                              <div className="h-px flex-1 bg-white/20" />
+                              <p className="text-[8px] font-black uppercase tracking-widest text-white/50 px-2 py-0.5 border border-white/20">{children}</p>
+                              <div className="h-px flex-1 bg-white/20" />
+                            </div>
+                          ),
+                          h3: ({ children }) => <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-3 mb-1.5">{children}</p>,
+                          strong: ({ children }) => <strong className="font-black text-white bg-white/15 px-1 rounded-sm">{children}</strong>,
+                          em: ({ children }) => <em className="italic text-white/80">{children}</em>,
+                          ul: ({ children }) => <ul className="space-y-1.5 mb-3 mt-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="space-y-1.5 mb-3 mt-1">{children}</ol>,
+                          li: ({ children }) => (
+                            <li className="flex items-start gap-2.5 text-sm text-white leading-relaxed">
+                              <span className="w-1.5 h-1.5 bg-white/50 flex-shrink-0 mt-1.5" />
+                              <span>{children}</span>
+                            </li>
+                          ),
+                          blockquote: ({ children }) => (
+                            <div className="my-3 border-l-2 border-white/50 bg-white/10 pl-3 pr-3 py-2.5">
+                              <div className="text-[7px] font-black uppercase tracking-widest text-white/40 mb-1.5 flex items-center gap-1.5">
+                                <span className="w-3 h-px bg-white/30" />Référence
+                              </div>
+                              <div className="text-xs text-white/75 italic leading-relaxed">{children}</div>
+                            </div>
+                          ),
+                          code: ({ children }) => <code className="font-mono text-xs bg-white/20 border border-white/20 px-1.5 py-0.5 text-white rounded-sm">{children}</code>,
+                          table: ({ children }) => <div className="overflow-x-auto my-3"><table className="w-full text-xs border-collapse">{children}</table></div>,
+                          thead: ({ children }) => <thead className="border-b-2 border-white/30">{children}</thead>,
+                          tbody: ({ children }) => <tbody className="divide-y divide-white/10">{children}</tbody>,
+                          tr: ({ children }) => <tr className="hover:bg-white/5">{children}</tr>,
+                          th: ({ children }) => <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-widest text-white/60 whitespace-nowrap">{children}</th>,
+                          td: ({ children }) => <td className="px-3 py-2 text-[11px] text-white/80 leading-relaxed align-top">{children}</td>,
+                          hr: () => <div className="border-t border-white/20 my-4" />,
+                          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-white underline decoration-white/40 hover:decoration-white font-medium transition-all">{children}</a>,
                         }}
                       >
                         {displayed}
