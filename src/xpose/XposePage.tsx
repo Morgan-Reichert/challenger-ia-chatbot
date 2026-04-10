@@ -783,12 +783,19 @@ function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
       }
 
       const id = await createXposePost(partial);
-      if (!id) return;
+      if (!id) {
+        alert('Erreur : impossible de publier. Vérifiez les règles Firestore (xpose_posts) dans la Firebase Console.');
+        return;
+      }
 
       let imageUrls: string[] = [];
       if (images.length > 0) {
-        imageUrls = await uploadPostImages(id, images);
-        await updateXposePostImages(id, imageUrls);
+        try {
+          imageUrls = await uploadPostImages(id, images);
+          await updateXposePostImages(id, imageUrls);
+        } catch (e) {
+          console.warn('Image upload failed:', e);
+        }
       }
 
       const full: XposePost = {
@@ -803,6 +810,9 @@ function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
       setArenaPost(null); setPollOptions(['', '']);
       setComposerType('pensee');
       onClose?.();
+    } catch (err) {
+      console.error('Publish error:', err);
+      alert(`Erreur lors de la publication : ${err instanceof Error ? err.message : 'inconnue'}. Vérifiez que les règles Firestore xpose_posts sont publiées dans la Firebase Console.`);
     } finally {
       setPublishing(false);
     }

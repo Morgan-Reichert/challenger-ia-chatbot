@@ -10,7 +10,7 @@ import type { XposePost, XposeComment, XposeStreak, XposeRecommendedUser } from 
 export async function createXposePost(
   post: Omit<XposePost, 'id' | 'resonanceCount' | 'commentCount' | 'amplifyCount' | 'resonatedBy' | 'amplifiedBy' | 'interestScore'>
 ): Promise<string | null> {
-  if (!db) return null;
+  if (!db) throw new Error('Firebase non initialisé');
   const ref = await addDoc(collection(db, 'xpose_posts'), {
     ...post,
     resonanceCount: 0, commentCount: 0, amplifyCount: 0,
