@@ -13,6 +13,7 @@ import {
   Moon, Sun, Copy, Share2, Link,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
 import { generateMarkdown, generateNotionMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
@@ -728,6 +729,28 @@ const mdWhite = {
     <code className="font-mono text-xs bg-white/20 border border-white/20 px-1.5 py-0.5 text-white rounded-sm">
       {children}
     </code>
+  ),
+
+  // Tableaux GFM
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="overflow-x-auto my-3">
+      <table className="w-full text-xs border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: { children?: React.ReactNode }) => (
+    <thead className="border-b-2 border-white/30">{children}</thead>
+  ),
+  tbody: ({ children }: { children?: React.ReactNode }) => (
+    <tbody className="divide-y divide-white/10">{children}</tbody>
+  ),
+  tr: ({ children }: { children?: React.ReactNode }) => (
+    <tr className="transition-colors hover:bg-white/5">{children}</tr>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-widest text-white/60 whitespace-nowrap">{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="px-3 py-2 text-[11px] text-white/80 leading-relaxed align-top">{children}</td>
   ),
 
   // Séparateur horizontal
@@ -2517,12 +2540,17 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       </p>
                     )}
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         p: ({ children }) => <p className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>,
                         strong: ({ children }) => <strong className="font-bold">{children}</strong>,
                         h2: ({ children }) => <h2 className="text-sm font-black uppercase tracking-wide mt-3 mb-1">{children}</h2>,
                         ul: ({ children }) => <ul className="list-disc list-inside text-sm space-y-1 mb-2">{children}</ul>,
                         li: ({ children }) => <li className="text-sm">{children}</li>,
+                        table: ({ children }) => <div className="overflow-x-auto my-2"><table className="w-full text-xs border-collapse border border-white/20">{children}</table></div>,
+                        th: ({ children }) => <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-wide bg-white/10 border border-white/20">{children}</th>,
+                        td: ({ children }) => <td className="px-3 py-2 text-[11px] border border-white/10 align-top">{children}</td>,
+                        tr: ({ children }) => <tr className="hover:bg-white/5">{children}</tr>,
                       }}
                     >
                       {msg.content}
@@ -4133,7 +4161,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                           const displayed = isLong && isCollapsed ? msg.content.slice(0, 300) + '…' : msg.content;
                           return (
                             <>
-                              <ReactMarkdown components={mdWhite}>{displayed}</ReactMarkdown>
+                              <ReactMarkdown components={mdWhite} remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
                               {isLong && (
                                 <button
                                   onClick={() => setCollapsedMsgs(s => {
