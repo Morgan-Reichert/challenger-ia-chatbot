@@ -10,9 +10,11 @@ import {
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Library, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
-  Moon, Sun, Copy, Share2, Link,
+  Moon, Sun, Copy, Share2, Link, Trophy, Rocket,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import ArenaPage from './arena/ArenaPage';
+import PropulseModal from './arena/PropulseModal';
 import remarkGfm from 'remark-gfm';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
@@ -1191,7 +1193,8 @@ export default function App() {
   const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings'>('chat');
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene'>('chat');
+  const [propulseData, setPropulseData] = useState<{ question: string; aiResponse: string; personaName: string } | null>(null);
 
   // ── User profile (local only)
   const [userProfile, setUserProfile] = useState<UserProfile>(loadProfile);
@@ -2938,6 +2941,18 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
+              {/* L'Arène */}
+              <button
+                onClick={() => { setCurrentPage('arene'); setSidebarOpen(false); }}
+                className="w-full flex items-center justify-between px-4 py-3 border-2 border-white/10 text-white/50 hover:border-[#5D7BFF]/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trophy className="w-4 h-4" />
+                  <span className="text-[11px] font-black uppercase tracking-widest">L'Arène</span>
+                </div>
+                <ChevronRight className="w-3 h-3 opacity-50" />
+              </button>
+
               {/* Bibliothèque */}
               <button
                 onClick={() => { setCurrentPage('library'); setSidebarOpen(false); }}
@@ -3391,6 +3406,17 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           />
         )}
       </AnimatePresence>
+
+      {/* ── L'Arène ─────────────────────────────────────────────────────────── */}
+      {currentPage === 'arene' && (
+        <div className="flex-1 min-w-0 h-full max-md:pb-16">
+          <ArenaPage
+            user={user}
+            supabaseUserId={user?.uid ?? null}
+            onBack={() => setCurrentPage('chat')}
+          />
+        </div>
+      )}
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (
@@ -4247,6 +4273,23 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                                   {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
                                   {isCopied ? 'Copié !' : 'Copier'}
                                 </button>
+                                {FIREBASE_ENABLED && user && (() => {
+                                  const prevUserMsg = activeConv.messages.slice(0, msgIdx).reverse().find(m => m.role === 'user');
+                                  if (!prevUserMsg) return null;
+                                  const pName = activeConv.debatePersonaId
+                                    ? (getDP(activeConv)?.shortName ?? PERSONAS[msg.persona ?? persona].shortName)
+                                    : PERSONAS[msg.persona ?? persona].shortName;
+                                  return (
+                                    <button
+                                      onClick={() => setPropulseData({ question: prevUserMsg.content, aiResponse: msg.content, personaName: pName })}
+                                      className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-[#FBBF24]/80 border border-white/8 hover:border-[#FBBF24]/30 px-2 py-0.5 transition-all ml-auto"
+                                      title="Propulser dans l'Arène"
+                                    >
+                                      <Rocket className="w-2.5 h-2.5" />
+                                      Arène
+                                    </button>
+                                  );
+                                })()}
                               </div>
                             </>
                           );
@@ -4831,6 +4874,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       >
         {([
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
+          { icon: Trophy, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
           { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
           { icon: Plus, label: 'Nouveau', action: () => { startNewConv(); setSidebarOpen(false); }, active: false },
@@ -4852,6 +4896,21 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       </nav>
 
       </>)}
+
+      {/* ── Propulsion modale ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {propulseData && user && (
+          <PropulseModal
+            user={user}
+            question={propulseData.question}
+            aiResponse={propulseData.aiResponse}
+            personaName={propulseData.personaName}
+            onClose={() => setPropulseData(null)}
+            onSuccess={() => { setPropulseData(null); setCurrentPage('arene'); }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Interface vocale plein écran ────────────────────────────────── */}
       <AnimatePresence>
         {voiceOpen && (
