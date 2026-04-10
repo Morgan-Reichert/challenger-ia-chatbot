@@ -1253,6 +1253,7 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingPersona, setOnboardingPersona] = useState<Persona>('architect');
   const [collapsedMsgs, setCollapsedMsgs] = useState<Set<string>>(new Set());
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
   // ── Mode vocal
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -4159,21 +4160,36 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                           const isLong = msg.content.length > COLLAPSE_THRESHOLD;
                           const isCollapsed = collapsedMsgs.has(msg.id);
                           const displayed = isLong && isCollapsed ? msg.content.slice(0, 300) + '…' : msg.content;
+                          const isCopied = copiedMsgId === msg.id;
                           return (
                             <>
                               <ReactMarkdown components={mdWhite} remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
-                              {isLong && (
+                              <div className="flex items-center gap-2 mt-2">
+                                {isLong && (
+                                  <button
+                                    onClick={() => setCollapsedMsgs(s => {
+                                      const n = new Set(s);
+                                      isCollapsed ? n.delete(msg.id) : n.add(msg.id);
+                                      return n;
+                                    })}
+                                    className="text-[8px] font-black uppercase tracking-widest text-white/35 hover:text-white/70 border border-white/15 hover:border-white/35 px-2 py-0.5 transition-all"
+                                  >
+                                    {isCollapsed ? '▼ Voir tout' : '▲ Condenser'}
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => setCollapsedMsgs(s => {
-                                    const n = new Set(s);
-                                    isCollapsed ? n.delete(msg.id) : n.add(msg.id);
-                                    return n;
-                                  })}
-                                  className="mt-2 text-[8px] font-black uppercase tracking-widest text-white/35 hover:text-white/70 border border-white/15 hover:border-white/35 px-2 py-0.5 transition-all"
+                                  onClick={async () => {
+                                    await navigator.clipboard.writeText(msg.content);
+                                    setCopiedMsgId(msg.id);
+                                    setTimeout(() => setCopiedMsgId(null), 2000);
+                                  }}
+                                  className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest text-white/25 hover:text-white/60 border border-white/10 hover:border-white/30 px-2 py-0.5 transition-all"
+                                  title="Copier la réponse"
                                 >
-                                  {isCollapsed ? '▼ Voir tout' : '▲ Condenser'}
+                                  {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                                  {isCopied ? 'Copié !' : 'Copier'}
                                 </button>
-                              )}
+                              </div>
                             </>
                           );
                         })() : (
