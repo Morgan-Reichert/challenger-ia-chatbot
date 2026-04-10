@@ -825,7 +825,7 @@ function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
     <>
       <div style={{ borderBottom: SEP, padding: '12px 16px' }}>
         {/* Post type selector */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
           {postTypes.map(({ key, label, icon }) => (
             <button
               key={key}
@@ -991,8 +991,10 @@ function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
             )}
 
             {/* Toolbar */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, borderTop: `1px solid ${BORDER}`, paddingTop: 8 }}>
-              <div style={{ display: 'flex', gap: 2 }}>
+            <div style={{ marginTop: 4, borderTop: `1px solid ${BORDER}`, paddingTop: 8 }}>
+              {/* Ligne 1 : icônes + Publier */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                 {composerType === 'pensee' && (
                   <>
                     <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => handleImages(e.target.files)} />
@@ -1000,20 +1002,6 @@ function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
                     <ToolbarBtn icon={<Hash size={18} />} onClick={() => setShowTagInput(v => !v)} title="Tags" />
                     <ToolbarBtn icon={<AtSign size={18} />} onClick={() => setText(t => t + '@')} title="Mention" />
                   </>
-                )}
-                {composerType !== 'sondage' && composerType !== 'arene' && (
-                  /* Destination pills */
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 4 }}>
-                    {destinations.map(d => (
-                      <button
-                        key={d.key}
-                        onClick={() => setDestination(d.key)}
-                        style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: `1px solid ${destination === d.key ? ACCENT : BORDER}`, background: destination === d.key ? `${ACCENT}22` : 'transparent', color: destination === d.key ? ACCENT : TEXT2, cursor: 'pointer' }}
-                      >
-                        {d.label}
-                      </button>
-                    ))}
-                  </div>
                 )}
                 {/* Visibilité */}
                 <button
@@ -1029,12 +1017,28 @@ function Composer({ user, arenaUser, onPublished, onClose }: ComposerProps) {
               <button
                 onClick={handlePublish}
                 disabled={!canPublish}
-                style={{ background: canPublish ? ACCENT : '#1a2a4a', border: 'none', borderRadius: 20, color: canPublish ? '#fff' : '#555', fontWeight: 700, fontSize: 15, padding: '7px 18px', cursor: canPublish ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ background: canPublish ? ACCENT : '#1a2a4a', border: 'none', borderRadius: 20, color: canPublish ? '#fff' : '#555', fontWeight: 700, fontSize: 15, padding: '7px 18px', cursor: canPublish ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
               >
                 {publishing && <Loader2 size={15} className="animate-spin" />}
                 Publier
               </button>
-            </div>
+              </div>{/* fin ligne 1 */}
+
+              {/* Ligne 2 : destination pills (sous les icônes) */}
+              {composerType !== 'sondage' && composerType !== 'arene' && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {destinations.map(d => (
+                    <button
+                      key={d.key}
+                      onClick={() => setDestination(d.key)}
+                      style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: `1px solid ${destination === d.key ? ACCENT : BORDER}`, background: destination === d.key ? `${ACCENT}22` : 'transparent', color: destination === d.key ? ACCENT : TEXT2, cursor: 'pointer' }}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>{/* fin toolbar */}
           </div>
         </div>
       </div>
