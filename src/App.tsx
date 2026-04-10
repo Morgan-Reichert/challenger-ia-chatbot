@@ -1195,7 +1195,17 @@ export default function App() {
   const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene' | 'xpose'>('chat');
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene' | 'xpose'>(
+    () => {
+      const saved = localStorage.getItem('cia_current_page');
+      return (['chat', 'library', 'settings', 'arene', 'xpose'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'arene' | 'xpose';
+    }
+  );
+
+  // Persiste la page courante
+  useEffect(() => {
+    localStorage.setItem('cia_current_page', currentPage);
+  }, [currentPage]);
   const [propulseData, setPropulseData] = useState<{ question: string; aiResponse: string; personaName: string } | null>(null);
 
   // ── User profile (local only)
