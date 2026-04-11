@@ -967,7 +967,7 @@ function OnboardingOverlay({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#F0F4FF]/95 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-app)]/95 backdrop-blur-sm px-4"
     >
       <AnimatePresence mode="wait">
         {/* ── Étape 0 : Bienvenue ── */}
@@ -981,8 +981,8 @@ function OnboardingOverlay({
               <div className="absolute inset-[-10px] rounded-full bg-[#5D7BFF]/10 animate-ping" style={{ animationDuration: '2.5s' }} />
               <img src="https://i.postimg.cc/50kqszGt/Design-sans-titre.png" alt="CR" className="w-20 h-20 object-contain relative" style={{ animation: 'cr-breathe 2s ease-in-out infinite' }} />
             </div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter text-[#141414] mb-2">Challenger IA</h1>
-            <p className="text-sm text-[#141414]/50 mb-8 font-medium">Ton adversaire intellectuel. Challengé pour progresser.</p>
+            <h1 className="text-3xl font-black uppercase tracking-tighter text-[var(--text-primary)] mb-2">Challenger IA</h1>
+            <p className="text-sm text-[var(--text-primary)]/50 mb-8 font-medium">Ton adversaire intellectuel. Challengé pour progresser.</p>
             <button
               onClick={() => onStepChange(1)}
               className="px-8 py-3 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
@@ -990,7 +990,7 @@ function OnboardingOverlay({
             >
               Commencer →
             </button>
-            <button onClick={onClose} className="block mx-auto mt-4 text-[9px] text-[#141414]/25 hover:text-[#141414]/50 font-black uppercase tracking-widest transition-colors">
+            <button onClick={onClose} className="block mx-auto mt-4 text-[9px] text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/50 font-black uppercase tracking-widest transition-colors">
               Passer
             </button>
           </motion.div>
@@ -1003,7 +1003,7 @@ function OnboardingOverlay({
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             className="w-full max-w-lg"
           >
-            <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 text-center mb-6">Choisissez votre challenger</p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 text-center mb-6">Choisissez votre challenger</p>
             <div className="space-y-3">
               {ONBOARDING_PERSONAS.map(p => (
                 <button
@@ -1013,21 +1013,21 @@ function OnboardingOverlay({
                     'w-full text-left px-5 py-4 border-2 transition-all',
                     persona === p.key
                       ? 'border-[#5D7BFF] bg-[#5D7BFF]/5'
-                      : 'border-[#141414]/10 bg-white hover:border-[#5D7BFF]/40'
+                      : 'border-[var(--border)] bg-[var(--bg-chat)] hover:border-[#5D7BFF]/40'
                   )}
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-2xl">{p.emoji}</span>
                     <div>
-                      <p className="font-black text-[#141414] text-sm uppercase tracking-wide">{p.title}</p>
-                      <p className="text-[11px] text-[#141414]/50 mt-0.5 leading-snug">{p.desc}</p>
+                      <p className="font-black text-[var(--text-primary)] text-sm uppercase tracking-wide">{p.title}</p>
+                      <p className="text-[11px] text-[var(--text-primary)]/50 mt-0.5 leading-snug">{p.desc}</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[#141414]/20 ml-auto flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[var(--text-primary)]/20 ml-auto flex-shrink-0" />
                   </div>
                 </button>
               ))}
             </div>
-            <button onClick={onClose} className="block mx-auto mt-5 text-[9px] text-[#141414]/25 hover:text-[#141414]/50 font-black uppercase tracking-widest transition-colors">
+            <button onClick={onClose} className="block mx-auto mt-5 text-[9px] text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/50 font-black uppercase tracking-widest transition-colors">
               Passer
             </button>
           </motion.div>
@@ -1040,8 +1040,8 @@ function OnboardingOverlay({
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             className="w-full max-w-lg"
           >
-            <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 text-center mb-2">Première thèse</p>
-            <p className="text-center text-sm text-[#141414]/50 mb-6">
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 text-center mb-2">Première thèse</p>
+            <p className="text-center text-sm text-[var(--text-primary)]/50 mb-6">
               Soumets une conviction à <span className="font-black text-[#5D7BFF]">{ONBOARDING_PERSONAS.find(p => p.key === persona)?.title}</span>
             </p>
             <div className="space-y-3">
@@ -1049,7 +1049,7 @@ function OnboardingOverlay({
                 <button
                   key={i}
                   onClick={() => { onSend(s); onClose(); }}
-                  className="w-full text-left px-5 py-4 bg-white border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[4px_4px_0px_0px_rgba(93,123,255,0.8)] transition-all text-sm font-medium text-[#141414]"
+                  className="w-full text-left px-5 py-4 bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[4px_4px_0px_0px_rgba(93,123,255,0.8)] transition-all text-sm font-medium text-[var(--text-primary)]"
                 >
                   {s}
                 </button>
@@ -1057,7 +1057,7 @@ function OnboardingOverlay({
             </div>
             <button
               onClick={onClose}
-              className="block mx-auto mt-5 text-[9px] text-[#141414]/40 hover:text-[#5D7BFF] font-black uppercase tracking-widest transition-colors"
+              className="block mx-auto mt-5 text-[9px] text-[var(--text-primary)]/40 hover:text-[#5D7BFF] font-black uppercase tracking-widest transition-colors"
             >
               ✏️ Écrire moi-même
             </button>
@@ -1091,7 +1091,7 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
   }, [texts.length]);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-black/[0.06]">
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-[var(--bg-chat)] border-b border-[var(--border)]">
 
       {/* ── Logo CR animé ───────────────────────────── */}
       <div className="relative flex-shrink-0" style={{ width: 26, height: 26 }}>
@@ -1143,7 +1143,7 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -3 }}
           transition={{ duration: 0.22 }}
-          className="text-[9px] font-black uppercase tracking-widest text-[#141414]/40 select-none"
+          className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 select-none"
         >
           {texts[idx]}
         </motion.span>
@@ -2686,7 +2686,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
       {/* ── Écran de connexion / inscription ─────────────────────────────── */}
       {FIREBASE_ENABLED && !user && !authLoading && !consentPending && (
-        <div className="flex-1 bg-[#141414] overflow-y-auto flex items-center justify-center p-6">
+        <div className="flex-1 bg-[var(--bg-chat)] overflow-y-auto flex items-center justify-center p-6">
           <div className="w-full max-w-sm">
 
             {/* Logo */}
@@ -3551,7 +3551,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           )}
         </AnimatePresence>
         {/* Top bar */}
-        <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
+        <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
           {(!sidebarOpen || isMobile) && (
             <button
               onClick={() => setSidebarOpen((v) => !v)}
@@ -3572,14 +3572,14 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               return (
                 <>
                   <div className="flex items-center gap-2">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] truncate">
                       {activeConv.interviewTitle ?? ic?.label}
                     </p>
                     <span className="flex-shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 text-white" style={{ backgroundColor: ic?.accentColor ?? '#94A3B8' }}>
                       INTERVIEW
                     </span>
                   </div>
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-primary)]/35">
                     {ic?.interviewerRole}
                   </p>
                 </>
@@ -3587,23 +3587,23 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             })() : activeConv?.debatePersonaId ? (
               <>
                 <div className="flex items-center gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] truncate">
                     Débat — {getDP(activeConv)?.name}
                   </p>
                   <span className="flex-shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-[#5D7BFF] text-white">
                     DÉBAT
                   </span>
                 </div>
-                <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
+                <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-primary)]/35">
                   {getDP(activeConv)?.title}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-[11px] font-black uppercase tracking-widest text-[#141414] truncate">
+                <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] truncate">
                   {PERSONAS[persona].name}
                 </p>
-                <p className="text-[8px] font-bold uppercase tracking-widest text-[#141414]/35">
+                <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-primary)]/35">
                   Mode {FRICTION[level].label} — {FRICTION[level].hint}
                 </p>
               </>
@@ -3625,7 +3625,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     }
                   }}
                   disabled={shareLoading}
-                  className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF]/60 transition-all text-[#141414]/40 hover:text-[#5D7BFF] disabled:opacity-40"
+                  className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF]/60 transition-all text-[var(--text-primary)]/40 hover:text-[#5D7BFF] disabled:opacity-40"
                   title="Partager cette conversation"
                 >
                   {shareLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
@@ -3634,7 +3634,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               )}
               <button
                 onClick={startNewConv}
-                className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF] transition-all text-[#141414]/40 hover:text-[#5D7BFF]"
+                className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF] transition-all text-[var(--text-primary)]/40 hover:text-[#5D7BFF]"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span className="text-[8px] font-black uppercase tracking-widest">Nouvelle</span>
@@ -3884,15 +3884,15 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           const heatDots = heat === 'hot' ? 5 : heat === 'warm' ? 3 : 1;
           const PIcon = PERSONAS[activeConv.persona].icon;
           return (
-            <div className="flex-shrink-0 flex items-center gap-2.5 px-6 py-1.5 bg-white border-b border-[#5D7BFF]/10">
+            <div className="flex-shrink-0 flex items-center gap-2.5 px-6 py-1.5 bg-[var(--bg-chat)] border-b border-[#5D7BFF]/10">
               <PIcon className="w-3 h-3 flex-shrink-0" style={{ color: '#5D7BFF99' }} />
-              <p className="text-[7px] font-black uppercase tracking-widest text-[#141414]/40">
+              <p className="text-[7px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">
                 {PERSONAS[activeConv.persona].shortName}
               </p>
               <span className="text-[6px] font-black uppercase tracking-widest border px-1.5 py-px" style={{ color: '#5D7BFF', borderColor: '#5D7BFF40' }}>
                 {FRICTION[activeConv.level].label}
               </span>
-              <span className="text-[7px] text-[#141414]/20 font-mono">{msgCount} msg</span>
+              <span className="text-[7px] text-[var(--text-primary)]/20 font-mono">{msgCount} msg</span>
               <div className="flex items-center gap-1 ml-auto">
                 {[0,1,2,3,4].map(i => (
                   <div key={i} className="w-1.5 h-1.5 rounded-full transition-colors" style={{ backgroundColor: i < heatDots ? heatColor : '#14141415' }} />
@@ -4012,17 +4012,17 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   <CurrentIcon className="w-4 h-4 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-base font-black uppercase tracking-tight text-[#141414] leading-none">
+                  <h1 className="text-base font-black uppercase tracking-tight text-[var(--text-primary)] leading-none">
                     {PERSONAS[persona].name}
                   </h1>
-                  <p className="text-[10px] text-[#141414]/45 mt-0.5">
+                  <p className="text-[10px] text-[var(--text-primary)]/45 mt-0.5">
                     <span className="font-bold text-[#5D7BFF]">{PERSONAS[persona].shortName}</span>
                     {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
                     {' '}— {FRICTION[level].hint}
                   </p>
                 </div>
                 {!user && FIREBASE_ENABLED && (
-                  <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[#141414]/20">
+                  <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[var(--text-primary)]/20">
                     <CloudOff className="w-3 h-3" />
                   </div>
                 )}
@@ -4044,9 +4044,9 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
                         <span className="text-[8px] px-1 py-px bg-[#5D7BFF]/10 text-[#5D7BFF] font-bold">+1 crédit</span>
-                        <span className="text-[8px] text-[#141414]/30 ml-auto">{challengeProgress}/3</span>
+                        <span className="text-[8px] text-[var(--text-primary)]/30 ml-auto">{challengeProgress}/3</span>
                       </div>
-                      <p className="text-[11px] font-bold text-[#141414] leading-snug truncate">{dailyChallenge.title}</p>
+                      <p className="text-[11px] font-bold text-[var(--text-primary)] leading-snug truncate">{dailyChallenge.title}</p>
                     </div>
                     <ChevronRight className="w-3.5 h-3.5 text-[#5D7BFF]/40 group-hover:text-[#5D7BFF] transition-colors flex-shrink-0" />
                   </div>
@@ -4060,13 +4060,13 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   <span className="text-sm">🏆</span>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
-                    <p className="text-[9px] text-[#141414]/40">Revenez demain pour un nouveau défi.</p>
+                    <p className="text-[9px] text-[var(--text-primary)]/40">Revenez demain pour un nouveau défi.</p>
                   </div>
                 </div>
               )}
 
               {/* ── Suggestions ── */}
-              <p className="text-[8px] font-black uppercase tracking-widest text-[#141414]/25 text-center mb-2">
+              <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/25 text-center mb-2">
                 Suggestions
               </p>
               <div className="space-y-2">
@@ -4080,11 +4080,11 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       transition={{ delay: i * 0.06 }}
                       onClick={() => send(s.text)}
                       disabled={sending}
-                      className="w-full text-left px-4 py-3 bg-white border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[3px_3px_0px_0px_rgba(93,123,255,1)] transition-all group disabled:opacity-40"
+                      className="w-full text-left px-4 py-3 bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[3px_3px_0px_0px_rgba(93,123,255,1)] transition-all group disabled:opacity-40"
                     >
                       <div className="flex items-start gap-3">
                         <SIcon className="w-4 h-4 text-[#5D7BFF] opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        <p className="text-sm font-medium text-[#141414] group-hover:text-[#5D7BFF] transition-colors leading-snug">
+                        <p className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[#5D7BFF] transition-colors leading-snug">
                           {s.text}
                         </p>
                       </div>
@@ -4137,7 +4137,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 // ── Styles selon mode
                 const bubbleBg = (isInterview || isDebate) ? 'border-2'
                   : isUser
-                    ? 'bg-white border-[#5D7BFF]/25'
+                    ? 'bg-[var(--bg-chat)] border-[#5D7BFF]/25'
                     : 'bg-[#5D7BFF] border-[#5D7BFF] text-white';
 
                 const bubbleStyle = isInterview
@@ -4159,7 +4159,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       <div className="flex-1 border-t border-dashed border-current opacity-20" />
                       <p className={cx(
                         'text-[8px] font-black uppercase tracking-widest flex items-center gap-1',
-                        (isInterview || isDebate) ? 'text-white/30' : 'text-[#141414]/30'
+                        (isInterview || isDebate) ? 'text-white/30' : 'text-[var(--text-primary)]/30'
                       )}>
                         <RotateCcw className="w-2.5 h-2.5" />
                         Mémoire effacée
@@ -4199,7 +4199,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                           'text-[7px] font-black uppercase tracking-widest',
                           (isInterview || isDebate)
                             ? isUser ? 'text-white/30' : 'text-white/50'
-                            : isUser ? 'text-[#141414]/30' : 'text-white/60'
+                            : isUser ? 'text-[var(--text-primary)]/30' : 'text-white/60'
                         )}>
                           {isUser ? 'Vous'
                             : isInterview && ic ? ic.interviewerRole
@@ -4220,7 +4220,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       </div>
                       <p className={cx(
                         'text-[7px] font-mono',
-                        (isInterview || isDebate) ? 'text-white/20' : isUser ? 'text-[#141414]/25' : 'text-white/40'
+                        (isInterview || isDebate) ? 'text-white/20' : isUser ? 'text-[var(--text-primary)]/25' : 'text-white/40'
                       )}>
                         {fmtTime(msg.timestamp)}
                       </p>
@@ -4250,14 +4250,14 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                               className={cx(
                                 'flex items-center gap-2 px-2.5 py-1.5 border',
                                 msg.role === 'user'
-                                  ? 'bg-[#F0F4FF] border-[#5D7BFF]/20 text-[#141414]'
+                                  ? 'bg-[var(--bg-chat)] border-[#5D7BFF]/20 text-[var(--text-primary)]'
                                   : 'bg-white/10 border-white/20 text-white'
                               )}
                             >
                               <AttIcon className={cx('w-3.5 h-3.5 flex-shrink-0', msg.role === 'user' ? 'text-[#5D7BFF]' : 'text-white/70')} />
                               <div className="min-w-0">
                                 <p className="text-[9px] font-black truncate max-w-[120px]">{att.name}</p>
-                                <p className={cx('text-[7px]', msg.role === 'user' ? 'text-[#141414]/40' : 'text-white/40')}>{fmtBytes(att.size)}</p>
+                                <p className={cx('text-[7px]', msg.role === 'user' ? 'text-[var(--text-primary)]/40' : 'text-white/40')}>{fmtBytes(att.size)}</p>
                               </div>
                             </div>
                           );
@@ -4333,7 +4333,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                         })() : (
                           <p className={cx(
                             'text-sm leading-relaxed whitespace-pre-wrap',
-                            (isInterview || isDebate) ? 'text-white/80' : 'text-[#141414]'
+                            (isInterview || isDebate) ? 'text-white/80' : 'text-[var(--text-primary)]'
                           )}>
                             {msg.content}
                           </p>
@@ -4467,7 +4467,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] mb-1">Challenger demande</p>
-                  <p className="text-[12px] font-semibold text-[#141414] mb-3 leading-snug">{activeQuestion.q}</p>
+                  <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-3 leading-snug">{activeQuestion.q}</p>
 
                   {activeQuestion.type === 'choice' && activeQuestion.options && (
                     <div className="flex flex-wrap gap-2">
@@ -4478,7 +4478,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                             setActiveQuestion(null);
                             send(opt);
                           }}
-                          className="px-3 py-1.5 border-2 border-[#5D7BFF]/30 bg-white hover:bg-[#5D7BFF] hover:text-white hover:border-[#5D7BFF] transition-all text-[11px] font-bold text-[#141414] active:scale-95"
+                          className="px-3 py-1.5 border-2 border-[#5D7BFF]/30 bg-[var(--bg-chat)] hover:bg-[#5D7BFF] hover:text-white hover:border-[#5D7BFF] transition-all text-[11px] font-bold text-[var(--text-primary)] active:scale-95"
                         >
                           {opt}
                         </button>
@@ -4500,7 +4500,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                           }
                         }}
                         placeholder={activeQuestion.placeholder ?? 'Votre réponse…'}
-                        className="flex-1 border-2 border-[#5D7BFF]/30 bg-white px-3 py-2 text-[12px] text-[#141414] placeholder-[#141414]/30 focus:outline-none focus:border-[#5D7BFF]"
+                        className="flex-1 border-2 border-[#5D7BFF]/30 bg-[var(--bg-chat)] px-3 py-2 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/30 focus:outline-none focus:border-[#5D7BFF]"
                         autoFocus
                       />
                       <button
@@ -4520,7 +4520,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 </div>
                 <button
                   onClick={() => setActiveQuestion(null)}
-                  className="flex-shrink-0 text-[#141414]/25 hover:text-[#141414]/60 transition-colors mt-0.5"
+                  className="flex-shrink-0 text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/60 transition-colors mt-0.5"
                   title="Ignorer"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -4543,8 +4543,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               <div className="flex items-start gap-3">
                 <Coins className="w-4 h-4 text-[#F59E0B] flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-[11px] font-black text-[#141414]">Votre cerveau a besoin de repos — pas votre ambition.</p>
-                  <p className="text-[10px] text-[#141414]/60 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] font-black text-[var(--text-primary)]">Votre cerveau a besoin de repos — pas votre ambition.</p>
+                  <p className="text-[10px] text-[var(--text-primary)]/60 mt-0.5 leading-relaxed">
                     Quota gratuit épuisé. La joute intellectuelle peut continuer sur vos crédits.&nbsp;
                     <span className="font-bold text-[#F59E0B]">{userCredits} crédit{userCredits !== 1 ? 's' : ''} disponible{userCredits !== 1 ? 's' : ''}</span> — confirmez-vous ?
                   </p>
@@ -4563,7 +4563,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     </button>
                     <button
                       onClick={() => setPendingCreditSend(null)}
-                      className="px-4 py-1.5 border-2 border-[#141414]/15 text-[9px] font-black uppercase tracking-widest text-[#141414]/50 hover:border-[#141414]/30 transition-colors"
+                      className="px-4 py-1.5 border-2 border-[var(--border)] text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 hover:border-[#5D7BFF]/30 transition-colors"
                     >
                       Annuler
                     </button>
@@ -4580,7 +4580,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             'flex-shrink-0 border-t-4 px-6 py-4 transition-colors',
             (activeConv?.interviewType || activeConv?.debatePersonaId)
               ? 'bg-[#0d0f1a] border-t-2 border-t-0'
-              : 'bg-white border-[#5D7BFF]'
+              : 'bg-[var(--bg-chat)] border-[#5D7BFF]'
           )}
           style={activeConv?.interviewType
             ? { borderTop: `2px solid ${INTERVIEW_TYPES[activeConv.interviewType]?.accentColor ?? '#5D7BFF'}40` }
@@ -4598,7 +4598,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   return (
                     <div
                       key={att.id}
-                      className="flex items-center gap-2 bg-[#F0F4FF] border-2 border-[#5D7BFF]/20 px-2 py-1.5 group"
+                      className="flex items-center gap-2 bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/20 px-2 py-1.5 group"
                     >
                       {att.type === 'image' ? (
                         <img src={att.content} alt={att.name} className="h-8 w-8 object-cover border border-[#5D7BFF]/20" />
@@ -4606,13 +4606,13 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                         <Icon className="w-4 h-4 text-[#5D7BFF] flex-shrink-0" />
                       )}
                       <div className="min-w-0">
-                        <p className="text-[9px] font-black text-[#141414] truncate max-w-[120px]">{att.name}</p>
-                        <p className="text-[7px] text-[#141414]/40">{fmtBytes(att.size)}</p>
+                        <p className="text-[9px] font-black text-[var(--text-primary)] truncate max-w-[120px]">{att.name}</p>
+                        <p className="text-[7px] text-[var(--text-primary)]/40">{fmtBytes(att.size)}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setPendingAttachments((p) => p.filter((a) => a.id !== att.id))}
-                        className="text-[#141414]/25 hover:text-red-500 transition-colors ml-1"
+                        className="text-[var(--text-primary)]/25 hover:text-red-500 transition-colors ml-1"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -4679,13 +4679,13 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     'absolute bottom-full mb-2 left-0 right-0 border-2 overflow-hidden z-20',
                     (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#0d0f1a] border-white/10'
-                      : 'bg-white border-[#5D7BFF]/25'
+                      : 'bg-[var(--bg-chat)] border-[#5D7BFF]/25'
                   )}
                   style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
                 >
                   <p className={cx(
                     'text-[8px] font-black uppercase tracking-widest px-3 pt-2.5 pb-1',
-                    (activeConv?.interviewType || activeConv?.debatePersonaId) ? 'text-white/25' : 'text-[#141414]/25'
+                    (activeConv?.interviewType || activeConv?.debatePersonaId) ? 'text-white/25' : 'text-[var(--text-primary)]/25'
                   )}>
                     Commandes <span className="font-mono">↑↓ naviguer · ↵ exécuter · Esc annuler</span>
                   </p>
@@ -4707,17 +4707,17 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                               : 'bg-transparent border-white/5 hover:bg-white/5'
                             : isSelected
                               ? 'bg-[#5D7BFF]/8 border-[#5D7BFF]/10'
-                              : 'bg-transparent border-[#141414]/5 hover:bg-[#F0F4FF]'
+                              : 'bg-transparent border-[var(--border)] hover:bg-[var(--bg-chat)]'
                         )}
                       >
                         <CmdIcon className={cx(
                           'w-4 h-4 flex-shrink-0',
-                          isDark ? (isSelected ? 'text-white/80' : 'text-white/30') : (isSelected ? 'text-[#5D7BFF]' : 'text-[#141414]/30')
+                          isDark ? (isSelected ? 'text-white/80' : 'text-white/30') : (isSelected ? 'text-[#5D7BFF]' : 'text-[var(--text-primary)]/30')
                         )} />
                         <div className="flex-1 min-w-0">
                           <p className={cx(
                             'text-xs font-bold',
-                            isDark ? (isSelected ? 'text-white' : 'text-white/60') : (isSelected ? 'text-[#141414]' : 'text-[#141414]/70')
+                            isDark ? (isSelected ? 'text-white' : 'text-white/60') : (isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]/70')
                           )}>
                             {cmd.label}
                             {cmd.id === 'noprofil' && (activeConv?.noProfile || noProfileMode) && (
@@ -4727,7 +4727,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                               <span className="ml-2 text-[8px] font-black text-[#5D7BFF]">EN COURS…</span>
                             )}
                           </p>
-                          <p className={cx('text-[10px]', isDark ? 'text-white/25' : 'text-[#141414]/40')}>
+                          <p className={cx('text-[10px]', isDark ? 'text-white/25' : 'text-[var(--text-primary)]/40')}>
                             {cmd.id === 'resumepdf' && resumeGenerating ? 'Génération en cours, patiente…' : cmd.desc}
                           </p>
                         </div>
@@ -4736,7 +4736,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                         ) : (
                         <span className={cx(
                           'flex-shrink-0 text-[9px] font-mono px-1.5 py-0.5 border',
-                          isDark ? 'text-white/20 border-white/10' : 'text-[#141414]/25 border-[#141414]/10'
+                          isDark ? 'text-white/20 border-white/10' : 'text-[var(--text-primary)]/25 border-[var(--border)]'
                         )}>
                           {cmd.shortcut}
                         </span>
@@ -4768,8 +4768,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   isMobile && inputFocused ? 'hidden' : 'flex',
                   isMobile ? 'rounded-xl' : '',
                   subscription === 'pro'
-                    ? 'border-[#5D7BFF]/20 text-[#141414]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
-                    : 'border-[#141414]/10 text-[#141414]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
+                    ? 'border-[#5D7BFF]/20 text-[var(--text-primary)]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
+                    : 'border-[var(--border)] text-[var(--text-primary)]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
                 )}
               >
                 <Paperclip className="w-5 h-5" />
@@ -4806,7 +4806,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
                       : (activeConv?.interviewType || activeConv?.debatePersonaId)
                         ? 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
-                        : 'border-[#5D7BFF]/20 text-[#141414]/30 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
+                        : 'border-[#5D7BFF]/20 text-[var(--text-primary)]/30 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
                   )}
                 >
                   <Slash className="w-5 h-5" />
@@ -4857,7 +4857,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     isMobile && inputFocused ? 'rounded-xl' : '',
                     (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
-                      : 'bg-[#F0F4FF] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[#141414] placeholder:text-[#141414]/30'
+                      : 'bg-[var(--bg-chat)] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/30'
                   )}
                 />
                 {subscription === 'free' && FIREBASE_ENABLED && (() => {
@@ -4875,7 +4875,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   );
                 })()}
                 {subscription === 'pro' && (
-                  <p className="absolute bottom-2 right-3 text-[7px] font-mono text-[#141414]/15 pointer-events-none select-none hidden sm:block">
+                  <p className="absolute bottom-2 right-3 text-[7px] font-mono text-[var(--text-primary)]/15 pointer-events-none select-none hidden sm:block">
                     ↵ envoyer &middot; Shift+↵ saut
                   </p>
                 )}
@@ -4896,7 +4896,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             </form>
 
             {/* Disclaimer IA */}
-            <p className="text-center text-[8px] text-[#141414]/20 pointer-events-none select-none tracking-wide mt-2 hidden sm:block">
+            <p className="text-center text-[8px] text-[var(--text-primary)]/20 pointer-events-none select-none tracking-wide mt-2 hidden sm:block">
               Challenger IA peut se tromper — vérifiez les informations importantes
             </p>
 
