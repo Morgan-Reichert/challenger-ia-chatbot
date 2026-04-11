@@ -133,20 +133,25 @@ function CommentThread({
   const handleSubmit = async () => {
     if (!replyText.trim()) return;
     setSubmitting(true);
-    const id = await addXposeComment(postId, {
-      authorId: userId, authorArenaName: arenaName, authorPhotoURL: photoURL,
-      type: replyType, content: replyText.trim(),
-      parentCommentId: null, createdAt: new Date().toISOString(),
-    });
-    if (id) {
-      setComments(prev => [...prev, {
-        id, authorId: userId, authorArenaName: arenaName, authorPhotoURL: photoURL,
-        type: replyType, content: replyText.trim(), parentCommentId: null,
-        createdAt: new Date().toISOString(), upvotes: 0, upvotedBy: [],
-      }]);
-      setReplyText('');
+    try {
+      const id = await addXposeComment(postId, {
+        authorId: userId, authorArenaName: arenaName, authorPhotoURL: photoURL,
+        type: replyType, content: replyText.trim(),
+        parentCommentId: null, createdAt: new Date().toISOString(),
+      });
+      if (id) {
+        setComments(prev => [...prev, {
+          id, authorId: userId, authorArenaName: arenaName, authorPhotoURL: photoURL,
+          type: replyType, content: replyText.trim(), parentCommentId: null,
+          createdAt: new Date().toISOString(), upvotes: 0, upvotedBy: [],
+        }]);
+        setReplyText('');
+      }
+    } catch (err) {
+      alert(`Erreur lors de la réponse : ${err instanceof Error ? err.message : 'inconnue'}`);
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   const handleUpvote = async (c: XposeComment) => {
@@ -449,16 +454,19 @@ function PostCard({
   const isResonated = post.resonatedBy.includes(userId);
   const isAmplified = post.amplifiedBy.includes(userId);
   const isOwn = post.authorId === userId;
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`${window.location.origin}/xpose/${post.id}`).catch(() => {});
   };
 
   const handleDelete = async () => {
-    if (!confirmDelete) { setConfirmDelete(true); return; }
-    await deleteXposePost(post.id);
-    onDelete(post.id);
+    if (!window.confirm('Supprimer ce post ?')) return;
+    try {
+      await deleteXposePost(post.id);
+      onDelete(post.id);
+    } catch (err) {
+      alert(`Erreur lors de la suppression : ${err instanceof Error ? err.message : 'inconnue'}`);
+    }
   };
 
   const typeBadge: Partial<Record<XposePostType, { label: string; color: string; icon: React.ReactNode }>> = {
@@ -511,8 +519,8 @@ function PostCard({
             {isOwn && (
               <button
                 onClick={handleDelete}
-                title={confirmDelete ? 'Confirmer la suppression' : 'Supprimer'}
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: confirmDelete ? '#F87171' : TEXT2, display: 'flex', alignItems: 'center', padding: 2, borderRadius: 4 }}
+                title="Supprimer"
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: TEXT2, display: 'flex', alignItems: 'center', padding: 2, borderRadius: 4 }}
               >
                 <Trash2 size={14} />
               </button>

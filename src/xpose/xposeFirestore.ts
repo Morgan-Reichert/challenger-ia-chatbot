@@ -109,9 +109,11 @@ export async function addXposeComment(
   comment: Omit<XposeComment, 'id' | 'upvotes' | 'upvotedBy'>
 ): Promise<string | null> {
   if (!db) return null;
-  const ref = await addDoc(collection(db, 'xpose_posts', postId, 'comments'), {
-    ...comment, upvotes: 0, upvotedBy: [],
-  });
+  const clean = Object.fromEntries(
+    Object.entries({ ...comment, upvotes: 0, upvotedBy: [] })
+      .filter(([, v]) => v !== undefined)
+  );
+  const ref = await addDoc(collection(db, 'xpose_posts', postId, 'comments'), clean);
   await updateDoc(doc(db, 'xpose_posts', postId), { commentCount: increment(1) });
   return ref.id;
 }
