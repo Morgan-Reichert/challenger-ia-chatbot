@@ -11,11 +11,12 @@ export async function createXposePost(
   post: Omit<XposePost, 'id' | 'resonanceCount' | 'commentCount' | 'amplifyCount' | 'resonatedBy' | 'amplifiedBy' | 'interestScore'>
 ): Promise<string | null> {
   if (!db) throw new Error('Firebase non initialisé');
-  const ref = await addDoc(collection(db, 'xpose_posts'), {
-    ...post,
-    resonanceCount: 0, commentCount: 0, amplifyCount: 0,
-    resonatedBy: [], amplifiedBy: [],
-  });
+  // Firestore rejette les valeurs undefined — on les supprime
+  const clean = Object.fromEntries(
+    Object.entries({ ...post, resonanceCount: 0, commentCount: 0, amplifyCount: 0, resonatedBy: [], amplifiedBy: [] })
+      .filter(([, v]) => v !== undefined)
+  );
+  const ref = await addDoc(collection(db, 'xpose_posts'), clean);
   return ref.id;
 }
 
