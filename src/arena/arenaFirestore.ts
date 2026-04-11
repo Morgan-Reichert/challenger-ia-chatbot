@@ -7,7 +7,7 @@ import { db } from '../firebase';
 import type {
   ArenaUser, ArenaPost, ArenaComment, Stance, SophismAlert,
   ArenaConnection, ConnectionType, ConnectionStatus,
-  PersonalPost, PersonalComment, Visibility,
+  PersonalPost, PersonalComment, Visibility, ArenaPollOption,
 } from './arenaTypes';
 
 // ─── Arena Users ──────────────────────────────────────────────────────────────
@@ -64,10 +64,32 @@ export async function createArenaPost(
   post: Omit<ArenaPost, 'id' | 'commentCount' | 'agreeCount' | 'disagreeCount' | 'nuanceCount'>
 ): Promise<string | null> {
   if (!db) return null;
-  const ref = await addDoc(collection(db, 'arena_posts'), {
-    ...post, commentCount: 0, agreeCount: 0, disagreeCount: 0, nuanceCount: 0,
-  });
+  const clean = Object.fromEntries(
+    Object.entries({ ...post, commentCount: 0, agreeCount: 0, disagreeCount: 0, nuanceCount: 0 })
+      .filter(([, v]) => v !== undefined)
+  );
+  const ref = await addDoc(collection(db, 'arena_posts'), clean);
   return ref.id;
+}
+
+export async function voteArenaPoll(postId: string, optionId: string, userId: string): Promise<void> {
+  if (!db) return;
+  const postRef = doc(db, 'arena_posts', postId);
+  const snap = await getDoc(postRef);
+  if (!snap.exists()) return;
+  const options: ArenaPollOption[] = snap.data().pollOptions ?? [];
+  const updated = options.map((opt) => {
+    const voters: string[] = opt.voterIds ?? [];
+    if (opt.id === optionId) {
+      if (voters.includes(userId)) return opt;
+      return { ...opt, voteCount: (opt.voteCount ?? 0) + 1, voterIds: [...voters, userId] };
+    }
+    if (voters.includes(userId)) {
+      return { ...opt, voteCount: Math.max(0, (opt.voteCount ?? 0) - 1), voterIds: voters.filter(id => id !== userId) };
+    }
+    return opt;
+  });
+  await updateDoc(postRef, { pollOptions: updated });
 }
 
 // ─── Arena Comments (débats) ──────────────────────────────────────────────────

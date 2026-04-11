@@ -13,9 +13,9 @@ import type { User as FBUser } from 'firebase/auth';
 import {
   getArenaUser, createArenaUser, checkArenaNameAvailable,
   getArenaPosts, getArenaPost, getArenaComments,
-  addArenaComment, upvoteComment, saveSophismAlert,
+  addArenaComment, upvoteComment, saveSophismAlert, voteArenaPoll,
 } from './arenaFirestore';
-import type { ArenaUser, ArenaPost, ArenaComment, Stance, SophismAlert } from './arenaTypes';
+import type { ArenaUser, ArenaPost, ArenaComment, Stance, SophismAlert, ArenaPollOption } from './arenaTypes';
 import { deductOneCredit } from '../supabase';
 import ArenaProfilePage from './ArenaProfilePage';
 import ArenaProfileSettings from './ArenaProfileSettings';
@@ -157,9 +157,68 @@ function StoryDot({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
   );
 }
 
+// ─── Poll Card ────────────────────────────────────────────────────────────────
+
+function PollBlock({ options, postId, userId, onVoted }: {
+  options: ArenaPollOption[]; postId: string; userId: string;
+  onVoted: (updated: ArenaPollOption[]) => void;
+}) {
+  const total = options.reduce((s, o) => s + (o.voteCount ?? 0), 0);
+  const myVote = options.find(o => o.voterIds?.includes(userId));
+
+  const handleVote = async (optId: string) => {
+    await voteArenaPoll(postId, optId, userId);
+    const updated = options.map(o => {
+      const voters = o.voterIds ?? [];
+      if (o.id === optId) {
+        if (voters.includes(userId)) return o;
+        return { ...o, voteCount: (o.voteCount ?? 0) + 1, voterIds: [...voters, userId] };
+      }
+      if (voters.includes(userId)) {
+        return { ...o, voteCount: Math.max(0, (o.voteCount ?? 0) - 1), voterIds: voters.filter(id => id !== userId) };
+      }
+      return o;
+    });
+    onVoted(updated);
+  };
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      {options.map(opt => {
+        const pct = total > 0 ? Math.round(((opt.voteCount ?? 0) / total) * 100) : 0;
+        const isMyVote = opt.voterIds?.includes(userId);
+        return (
+          <button
+            key={opt.id}
+            onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
+            style={{
+              position: 'relative', width: '100%', marginBottom: 8,
+              background: 'rgba(255,255,255,0.04)', border: `1.5px solid ${isMyVote ? '#5D7BFF' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: 10, padding: '8px 12px', textAlign: 'left', cursor: 'pointer',
+              overflow: 'hidden',
+            }}
+          >
+            {myVote && (
+              <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: isMyVote ? 'rgba(93,123,255,0.18)' : 'rgba(255,255,255,0.06)', transition: 'width 0.4s' }} />
+            )}
+            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: isMyVote ? '#7B9BFF' : '#fff', fontWeight: isMyVote ? 700 : 400 }}>{opt.text}</span>
+              {myVote && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>{pct}%</span>}
+            </div>
+          </button>
+        );
+      })}
+      <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{total} vote{total !== 1 ? 's' : ''}</p>
+    </div>
+  );
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, onClick, onAvatarClick }: { post: ArenaPost; onClick: () => void; onAvatarClick?: () => void }) {
+function PostCard({ post, onClick, onAvatarClick, userId, onPollVoted }: {
+  post: ArenaPost; onClick: () => void; onAvatarClick?: () => void;
+  userId: string; onPollVoted?: (postId: string, options: ArenaPollOption[]) => void;
+}) {
   const total = post.agreeCount + post.disagreeCount + post.nuanceCount;
   const agreeP    = total > 0 ? (post.agreeCount    / total) * 100 : 0;
   const disagreeP = total > 0 ? (post.disagreeCount / total) * 100 : 0;
@@ -196,6 +255,29 @@ function PostCard({ post, onClick, onAvatarClick }: { post: ArenaPost; onClick: 
         {/* Title */}
         <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.4, marginBottom: 6 }}>{post.title}</p>
         {post.preamble && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', lineHeight: 1.5, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.preamble}</p>}
+
+        {/* Tags */}
+        {post.tags && post.tags.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {post.tags.map(t => (
+              <span key={t} style={{ fontSize: 10, fontWeight: 700, color: 'rgba(93,123,255,0.8)', background: 'rgba(93,123,255,0.1)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '2px 8px' }}>
+                #{t}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Sondage */}
+        {post.pollOptions && post.pollOptions.length >= 2 && (
+          <div onClick={e => e.stopPropagation()}>
+            <PollBlock
+              options={post.pollOptions}
+              postId={post.id}
+              userId={userId}
+              onVoted={(updated) => onPollVoted?.(post.id, updated)}
+            />
+          </div>
+        )}
 
         {/* Persona chip */}
         <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase', background: 'rgba(93,123,255,0.12)', color: 'rgba(93,123,255,0.8)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '3px 10px', display: 'inline-block', marginBottom: 14 }}>
@@ -624,7 +706,16 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
                 <p style={{ fontSize: 14, fontWeight: 800, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>L'Arène est vide</p>
                 <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>Propulsez un échange depuis le chat !</p>
               </div>
-            ) : filtered.map(p => <PostCard key={p.id} post={p} onClick={() => openPost(p)} onAvatarClick={p.authorId && !p.isAnonymous ? () => { if (arenaUser) setUserModalId(p.authorId); } : undefined} />)}
+            ) : filtered.map(p => (
+              <PostCard
+                key={p.id}
+                post={p}
+                userId={user?.uid ?? ''}
+                onClick={() => openPost(p)}
+                onAvatarClick={p.authorId && !p.isAnonymous ? () => { if (arenaUser) setUserModalId(p.authorId); } : undefined}
+                onPollVoted={(postId, opts) => setPosts(prev => prev.map(x => x.id === postId ? { ...x, pollOptions: opts } : x))}
+              />
+            ))}
           </div>
         </div>
       )}

@@ -15,7 +15,6 @@ import {
 import ReactMarkdown from 'react-markdown';
 import ArenaPage from './arena/ArenaPage';
 import PropulseModal from './arena/PropulseModal';
-import XposePage from './xpose/XposePage';
 import remarkGfm from 'remark-gfm';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
@@ -1195,10 +1194,10 @@ export default function App() {
   const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene' | 'xpose'>(
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene'>(
     () => {
       const saved = localStorage.getItem('cia_current_page');
-      return (['chat', 'library', 'settings', 'arene', 'xpose'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'arene' | 'xpose';
+      return (['chat', 'library', 'settings', 'arene'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'arene';
     }
   );
 
@@ -2975,14 +2974,14 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       style={{ overflow: 'hidden' }}
                     >
                       <div className="border-t border-white/10 divide-y divide-white/5">
-                        {/* XPOSE */}
+                        {/* Arène */}
                         <button
-                          onClick={() => { setCurrentPage('xpose'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          onClick={() => { setCurrentPage('arene'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
                           className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
                         >
                           <div className="flex items-center gap-2.5">
-                            <Rocket className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">XPOSE</span>
+                            <Swords className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Arène</span>
                           </div>
                           <ChevronRight className="w-3 h-3 opacity-50" />
                         </button>
@@ -3445,24 +3444,15 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         )}
       </AnimatePresence>
 
-      {/* ── XPOSE (hub unifié : feed + Arène + Profil) ───────────────────────── */}
-      {(currentPage === 'xpose' || currentPage === 'arene') && (
-        user ? (
-          <div className="flex-1 min-w-0 h-full max-md:pb-16">
-            <XposePage
-              user={user}
-              arenaUser={null}
-              onBack={() => setCurrentPage('chat')}
-              onGoToArena={() => {}}
-            />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-0 h-full flex flex-col items-center justify-center gap-4" style={{ background: '#000' }}>
-            <Rocket className="w-9 h-9" style={{ color: 'rgba(93,123,255,0.4)' }} />
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Connectez-vous pour accéder à XPOSE.</p>
-            <button onClick={() => setCurrentPage('chat')} style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#5D7BFF', background: 'none', border: 'none', cursor: 'pointer' }}>← Retour</button>
-          </div>
-        )
+      {/* ── Arène ─────────────────────────────────────────────────────────── */}
+      {currentPage === 'arene' && (
+        <div className="flex-1 min-w-0 h-full max-md:pb-16">
+          <ArenaPage
+            user={user}
+            supabaseUserId={null}
+            onBack={() => setCurrentPage('chat')}
+          />
+        </div>
       )}
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
@@ -4921,7 +4911,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       >
         {([
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
-          { icon: Rocket, label: 'XPOSE', action: () => { setCurrentPage('xpose'); setSidebarOpen(false); }, active: currentPage === 'xpose' || currentPage === 'arene' },
+          { icon: Swords, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
           { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
           { icon: Plus, label: 'Nouveau', action: () => { startNewConv(); setSidebarOpen(false); }, active: false },

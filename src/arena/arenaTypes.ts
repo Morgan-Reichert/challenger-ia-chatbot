@@ -32,6 +32,13 @@ export interface ArenaUser {
   personalPostsCount?: number;
 }
 
+export interface ArenaPollOption {
+  id: string;
+  text: string;
+  voteCount: number;
+  voterIds: string[];
+}
+
 export interface ArenaPost {
   id: string;
   authorId: string | null;
@@ -48,6 +55,11 @@ export interface ArenaPost {
   disagreeCount: number;
   nuanceCount: number;
   featuredDate: string | null;
+  // Hashtags
+  tags?: string[];
+  // Sondage optionnel
+  pollOptions?: ArenaPollOption[];
+  pollEndsAt?: string;
 }
 
 export interface SophismAlert {
