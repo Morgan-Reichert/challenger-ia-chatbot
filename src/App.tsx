@@ -4459,7 +4459,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
               transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              className="flex-shrink-0 px-6 py-4 border-t-2 border-[#5D7BFF]/25 bg-[#EEF2FF]"
+              className="flex-shrink-0 px-6 py-4 border-t-2 border-[#5D7BFF]/25 bg-[#5D7BFF]/8"
             >
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-5 h-5 bg-[#5D7BFF] flex items-center justify-center mt-0.5">
