@@ -161,6 +161,9 @@ function EditModal({ arenaUser, userId, onClose, onSaved }: EditModalProps) {
       };
       await updateArenaUserProfile(userId, updated);
       onSaved({ ...arenaUser, ...updated });
+      onClose();
+    } catch (err) {
+      alert(`Erreur lors de la sauvegarde : ${err instanceof Error ? err.message : 'inconnue'}`);
     } finally {
       setSaving(false);
     }
