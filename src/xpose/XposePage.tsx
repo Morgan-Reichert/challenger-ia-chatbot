@@ -22,21 +22,7 @@ import { uploadPostImages } from './xposeStorage';
 import { getMyConnections, sendConnection, getArenaPosts } from '../arena/arenaFirestore';
 import type { ArenaPost } from '../arena/arenaTypes';
 import ArenaPage from '../arena/ArenaPage';
-
-// ─── XposeProfilePage stub (import dynamique selon existence) ──────────────────
-let XposeProfilePage: React.ComponentType<{
-  user: FirebaseUser;
-  targetUserId: string;
-  myArenaUser: ArenaUser | null;
-  onBack: () => void;
-  onViewProfile: (uid: string) => void;
-}> | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  XposeProfilePage = require('./XposeProfilePage').default;
-} catch {
-  XposeProfilePage = null;
-}
+import XposeProfilePage from './XposeProfilePage';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
