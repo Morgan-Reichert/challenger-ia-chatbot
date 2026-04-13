@@ -4001,21 +4001,21 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full max-w-2xl mx-auto flex flex-col px-4 py-4 overflow-y-auto"
+              className="w-full max-w-2xl mx-auto flex flex-col px-4 py-4 md:px-10 md:py-12 overflow-y-auto"
             >
-              {/* ── En-tête compact ── */}
-              <div className="flex items-center gap-3 mb-4">
+              {/* ── En-tête ── */}
+              <div className="flex items-center gap-3 md:gap-5 mb-4 md:mb-8">
                 <div
-                  className="flex-shrink-0 w-9 h-9 bg-[#5D7BFF] flex items-center justify-center"
+                  className="flex-shrink-0 w-9 h-9 md:w-14 md:h-14 bg-[#5D7BFF] flex items-center justify-center"
                   style={{ boxShadow: '3px 3px 0px 0px rgba(20,20,20,0.8)' }}
                 >
-                  <CurrentIcon className="w-4 h-4 text-white" />
+                  <CurrentIcon className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-base font-black uppercase tracking-tight text-[var(--text-primary)] leading-none">
+                  <h1 className="text-base md:text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] leading-none">
                     {PERSONAS[persona].name}
                   </h1>
-                  <p className="text-[10px] text-[var(--text-primary)]/45 mt-0.5">
+                  <p className="text-[10px] md:text-[12px] text-[var(--text-primary)]/45 mt-0.5 md:mt-1.5">
                     <span className="font-bold text-[#5D7BFF]">{PERSONAS[persona].shortName}</span>
                     {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
                     {' '}— {FRICTION[level].hint}
@@ -4036,40 +4036,40 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                     setInput(challenge.prompt);
                     taRef.current?.focus();
                   }}
-                  className="w-full text-left p-3 mb-3 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
+                  className="w-full text-left p-3 md:p-5 mb-3 md:mb-6 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base flex-shrink-0">🎯</span>
+                  <div className="flex items-center gap-2.5 md:gap-4">
+                    <span className="text-base md:text-2xl flex-shrink-0">🎯</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
-                        <span className="text-[8px] px-1 py-px bg-[#5D7BFF]/10 text-[#5D7BFF] font-bold">+1 crédit</span>
+                      <div className="flex items-center gap-1.5 mb-0.5 md:mb-1">
+                        <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
+                        <span className="text-[8px] md:text-[9px] px-1 py-px bg-[#5D7BFF]/10 text-[#5D7BFF] font-bold">+1 crédit</span>
                         <span className="text-[8px] text-[var(--text-primary)]/30 ml-auto">{challengeProgress}/3</span>
                       </div>
-                      <p className="text-[11px] font-bold text-[var(--text-primary)] leading-snug truncate">{dailyChallenge.title}</p>
+                      <p className="text-[11px] md:text-[14px] font-bold text-[var(--text-primary)] leading-snug truncate">{dailyChallenge.title}</p>
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-[#5D7BFF]/40 group-hover:text-[#5D7BFF] transition-colors flex-shrink-0" />
+                    <ChevronRight className="w-3.5 h-3.5 md:w-5 md:h-5 text-[#5D7BFF]/40 group-hover:text-[#5D7BFF] transition-colors flex-shrink-0" />
                   </div>
-                  <div className="mt-2 h-px bg-[#5D7BFF]/10 overflow-hidden">
+                  <div className="mt-2 md:mt-3 h-px bg-[#5D7BFF]/10 overflow-hidden">
                     <div className="h-full bg-[#5D7BFF] transition-all duration-500"
                       style={{ width: `${Math.min(100, (challengeProgress / 3) * 100)}%` }} />
                   </div>
                 </button>
               ) : (
-                <div className="mb-3 p-2.5 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-2.5">
-                  <span className="text-sm">🏆</span>
+                <div className="mb-3 md:mb-6 p-2.5 md:p-4 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-2.5">
+                  <span className="text-sm md:text-xl">🏆</span>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
-                    <p className="text-[9px] text-[var(--text-primary)]/40">Revenez demain pour un nouveau défi.</p>
+                    <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
+                    <p className="text-[9px] md:text-[10px] text-[var(--text-primary)]/40">Revenez demain pour un nouveau défi.</p>
                   </div>
                 </div>
               )}
 
               {/* ── Suggestions ── */}
-              <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/25 text-center mb-2">
+              <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/25 text-center mb-2 md:mb-4">
                 Suggestions
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2 md:space-y-3">
                 {SUGGESTIONS[persona].map((s, i) => {
                   const SIcon = s.icon;
                   return (
@@ -4080,11 +4080,11 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                       transition={{ delay: i * 0.06 }}
                       onClick={() => send(s.text)}
                       disabled={sending}
-                      className="w-full text-left px-4 py-3 bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[3px_3px_0px_0px_rgba(93,123,255,1)] transition-all group disabled:opacity-40"
+                      className="w-full text-left px-4 py-3 md:px-6 md:py-4 bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/15 hover:border-[#5D7BFF] hover:shadow-[3px_3px_0px_0px_rgba(93,123,255,1)] transition-all group disabled:opacity-40"
                     >
-                      <div className="flex items-start gap-3">
-                        <SIcon className="w-4 h-4 text-[#5D7BFF] opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                        <p className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[#5D7BFF] transition-colors leading-snug">
+                      <div className="flex items-start gap-3 md:gap-4">
+                        <SIcon className="w-4 h-4 md:w-5 md:h-5 text-[#5D7BFF] opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                        <p className="text-sm md:text-[15px] font-medium text-[var(--text-primary)] group-hover:text-[#5D7BFF] transition-colors leading-snug">
                           {s.text}
                         </p>
                       </div>
