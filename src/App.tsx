@@ -10,7 +10,7 @@ import {
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Library, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
-  Moon, Sun, Copy, Share2, Link, Trophy, Rocket,
+  Moon, Sun, Copy, Share2, Link, Trophy, Rocket, Wrench,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ArenaPage from './arena/ArenaPage';
@@ -21,8 +21,9 @@ import { generateSessionPDF } from './pdfExport';
 import { generateMarkdown, generateNotionMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
 import { getDailyChallenge, getChallengeProgress, incrementChallengeProgress } from './dailyChallenges';
 import LibraryPage from './LibraryPage';
+import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
-import { DEBATE_PERSONAS, type DebatePersona, type DebateDisplayData } from './debatePersonas';
+import { DEBATE_PERSONAS, type DebateDisplayData } from './debatePersonas';
 import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from './interviewTypes';
 import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
 import {
@@ -1194,10 +1195,10 @@ export default function App() {
   const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene'>(
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene' | 'outils'>(
     () => {
       const saved = localStorage.getItem('cia_current_page');
-      return (['chat', 'library', 'settings', 'arene'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'arene';
+      return (['chat', 'library', 'settings', 'arene', 'outils'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'arene' | 'outils';
     }
   );
 
@@ -1470,60 +1471,6 @@ export default function App() {
     voiceOpenRef.current = false;
     lastSpokenIdRef.current = null;
   }, [stopListening]);
-
-  // ── Démarrer un débat depuis la bibliothèque
-  const startDebate = useCallback(async (debatePersona: DebatePersona) => {
-    // 1. Fetch contexte web seulement pour les personas de bibliothèque (pas custom)
-    let webContext = '';
-    if (debatePersona.id !== 'custom' && debatePersona.wikiSlug) {
-      try {
-        const res = await fetch(
-          `/api/search-context?query=${encodeURIComponent(debatePersona.wikiSlug)}&lang=${debatePersona.wikiLang}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          webContext = data.context ?? '';
-        }
-      } catch { /* silencieux — le débat fonctionne sans contexte web */ }
-    }
-
-    // 2. Construire le system prompt enrichi
-    const currentDate = new Date().toLocaleDateString('fr-FR', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    });
-    const profileCtx = buildProfileContext(userProfile);
-    const systemPrompt = debatePersona.buildSystemPrompt(webContext, currentDate) +
-      (profileCtx ? '\n\n' + profileCtx : '');
-
-    // 3. Créer une nouvelle conversation de débat
-    const convId = uid();
-    const now = new Date();
-    const conv: Conversation = {
-      id: convId,
-      title: `Débat — ${debatePersona.name}`,
-      messages: [],
-      persona: 'opponent',
-      level: 'extreme',
-      createdAt: now,
-      updatedAt: now,
-      debatePrompt: systemPrompt,
-      debatePersonaId: debatePersona.id,
-      // Pour les personas custom, stocker les données d'affichage
-      debatePersonaCustomData: debatePersona.id === 'custom' ? {
-        name: debatePersona.name,
-        shortName: debatePersona.shortName,
-        title: debatePersona.title,
-        color: debatePersona.color,
-        flag: debatePersona.flag,
-        country: debatePersona.country,
-        category: debatePersona.category,
-      } : undefined,
-    };
-    setConversations((p) => [conv, ...p]);
-    setActiveId(convId);
-    if (user) fsSaveConversation(user.uid, conv);
-    setCurrentPage('chat');
-  }, [user]);
 
   // ── Start Interview ───────────────────────────────────────────────────────
   const startInterview = useCallback(async (
@@ -2998,6 +2945,18 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                           <ChevronRight className="w-3 h-3 opacity-50" />
                         </button>
 
+                        {/* Nos Outils Partenaires */}
+                        <button
+                          onClick={() => { setCurrentPage('outils'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Wrench className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Nos Outils</span>
+                          </div>
+                          <ChevronRight className="w-3 h-3 opacity-50" />
+                        </button>
+
                         {/* Dark mode */}
                         <button
                           onClick={() => setDarkMode(d => !d)}
@@ -3455,12 +3414,21 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         </div>
       )}
 
+      {/* ── Nos Outils Partenaires ──────────────────────────────────────────── */}
+      {currentPage === 'outils' && (
+        <div className="flex-1 min-w-0 h-full max-md:pb-16">
+          <OutilsPage
+            onBack={() => setCurrentPage('chat')}
+            user={user}
+          />
+        </div>
+      )}
+
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (
         <div className={cx('flex-1 min-w-0 h-full max-md:pb-16', currentPage !== 'library' && 'hidden')}>
           <LibraryPage
             onBack={() => setCurrentPage('chat')}
-            onStartDebate={startDebate}
             onStartInterview={startInterview}
             userProfile={userProfile}
           />
@@ -3837,42 +3805,6 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           );
         })()}
 
-        {/* ── Bannière arène de débat ── */}
-        {!activeConv?.interviewType && activeConv?.debatePersonaId && (() => {
-          const dp = getDP(activeConv);
-          if (!dp) return null;
-          const rounds = Math.ceil(activeConv.messages.length / 2);
-          return (
-            <div className="flex-shrink-0 border-b border-white/5" style={{ background: 'linear-gradient(90deg, #091a10 0%, #0a0c14 35%, #0a0c14 65%, #1a0909 100%)' }}>
-              <div className="flex items-stretch" style={{ minHeight: '72px' }}>
-                {/* Gauche — Challenger (vert) */}
-                <div className="flex-1 flex flex-col justify-center px-6 py-3" style={{ background: 'linear-gradient(90deg, rgba(34,197,94,0.18) 0%, transparent 100%)' }}>
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'rgba(74,222,128,0.65)' }}>Vous</p>
-                  <p className="text-[15px] font-black text-white leading-tight">Challenger</p>
-                  <div className="mt-1.5 w-10 h-0.5 rounded-full" style={{ background: 'rgba(74,222,128,0.5)' }} />
-                </div>
-
-                {/* Centre — VS */}
-                <div className="flex flex-col items-center justify-center px-10 relative">
-                  <div className="absolute inset-y-0 left-0 w-px" style={{ background: 'linear-gradient(180deg, transparent, rgba(74,222,128,0.3), transparent)' }} />
-                  <div className="absolute inset-y-0 right-0 w-px" style={{ background: 'linear-gradient(180deg, transparent, rgba(239,68,68,0.3), transparent)' }} />
-                  <p className="text-[30px] font-black leading-none text-white" style={{ textShadow: '0 0 40px rgba(255,255,255,0.2)' }}>VS</p>
-                  <p className="text-[8px] font-black uppercase tracking-widest mt-1" style={{ color: dp.color }}>
-                    {rounds > 0 ? `Round ${rounds}` : 'Prêt'}
-                  </p>
-                </div>
-
-                {/* Droite — Persona (rouge) */}
-                <div className="flex-1 flex flex-col justify-center items-end px-6 py-3" style={{ background: 'linear-gradient(270deg, rgba(239,68,68,0.18) 0%, transparent 100%)' }}>
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'rgba(248,113,113,0.65)' }}>{dp.country} {dp.flag}</p>
-                  <p className="text-[15px] font-black text-white leading-tight">{dp.shortName}</p>
-                  <div className="mt-1.5 w-10 h-0.5 rounded-full ml-auto" style={{ background: 'rgba(239,68,68,0.5)' }} />
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
         {/* ── Barre de contexte (hors scroll) ── */}
         {activeConv && activeConv.messages.filter(m => m.role !== 'command').length > 0
           && !activeConv.interviewType && !activeConv.debatePersonaId && (() => {
@@ -3926,78 +3858,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                   </p>
                 </div>
               </div>
-            ) : activeConv?.debatePersonaId ? (() => {
-              const dp2 = getDP(activeConv);
-              const SUGGESTION_ICONS = [Target, Brain, TrendingUp];
-              const personaFromLib = activeConv.debatePersonaId !== 'custom'
-                ? DEBATE_PERSONAS[activeConv.debatePersonaId as keyof typeof DEBATE_PERSONAS]
-                : undefined;
-              const rawTopics = personaFromLib?.suggestedTopics ?? [
-                `La liberté d'expression doit-elle avoir des limites dans une démocratie ?`,
-                `L'égalité parfaite entre les individus est-elle possible ?`,
-                `La technologie nous rend-elle plus libres ou plus dépendants ?`,
-              ];
-              const debateSuggestions = rawTopics.map((text, i) => ({ text, icon: SUGGESTION_ICONS[i] }));
-              return (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto"
-                >
-                  {/* Arena header */}
-                  <div className="w-full flex items-center gap-0 mb-8" style={{ maxWidth: '560px' }}>
-                    <div className="flex-1 flex flex-col items-center py-5 px-4 border border-green-400/20" style={{ background: 'rgba(34,197,94,0.08)' }}>
-                      <div className="w-10 h-10 flex items-center justify-center mb-2" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(74,222,128,0.3)' }}>
-                        <span className="text-[18px]">🧑</span>
-                      </div>
-                      <p className="text-[8px] font-black uppercase tracking-widest text-green-400/60 mb-0.5">Vous</p>
-                      <p className="text-[13px] font-black text-white">Challenger</p>
-                    </div>
-                    <div className="flex flex-col items-center justify-center px-6 py-5 border-y border-white/5" style={{ background: 'rgba(10,12,20,0.8)' }}>
-                      <p className="text-[26px] font-black text-white leading-none" style={{ textShadow: '0 0 30px rgba(255,255,255,0.15)' }}>VS</p>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center py-5 px-4 border border-red-400/20" style={{ background: 'rgba(239,68,68,0.08)' }}>
-                      <div className="w-10 h-10 flex items-center justify-center mb-2 text-[18px]" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(248,113,113,0.3)' }}>
-                        {dp2?.flag ?? '🌍'}
-                      </div>
-                      <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'rgba(248,113,113,0.65)' }}>{dp2?.country}</p>
-                      <p className="text-[13px] font-black text-white">{dp2?.shortName}</p>
-                    </div>
-                  </div>
-
-                  {/* Suggestions */}
-                  <div className="w-full space-y-3" style={{ maxWidth: '560px' }}>
-                    <p className="text-[8px] font-black uppercase tracking-widest text-white/25 text-center mb-4">
-                      Lancez le débat
-                    </p>
-                    {debateSuggestions.map((s, i) => {
-                      const SIcon = s.icon;
-                      return (
-                        <motion.button
-                          key={i}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.08 }}
-                          onClick={() => send(s.text)}
-                          disabled={sending}
-                          className="w-full text-left px-5 py-4 border transition-all group disabled:opacity-40"
-                          style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.08)' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(74,222,128,0.4)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(34,197,94,0.07)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
-                        >
-                          <div className="flex items-start gap-3">
-                            <SIcon className="w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" style={{ color: 'rgba(74,222,128,0.8)' }} />
-                            <p className="text-sm font-medium text-white/70 group-hover:text-white transition-colors">
-                              {s.text}
-                            </p>
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              );
-            })() : (
+            ) : (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -4913,8 +4774,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
           { icon: Swords, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
           { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
+          { icon: Wrench, label: 'Outils', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
-          { icon: Plus, label: 'Nouveau', action: () => { startNewConv(); setSidebarOpen(false); }, active: false },
           { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
         ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
           <button
