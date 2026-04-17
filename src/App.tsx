@@ -23,6 +23,9 @@ import { getDailyChallenge, getChallengeProgress, incrementChallengeProgress } f
 import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
+import { mirrorBaseChatConvs } from './outils/JournalismeApp';
+import { getPinnedTools, type OutilId } from './outils/useOutilSessions';
+import { OUTILS_MAP } from './outils/outilsTypes';
 import { DEBATE_PERSONAS, type DebateDisplayData } from './debatePersonas';
 import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from './interviewTypes';
 import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
@@ -1206,6 +1209,19 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('cia_current_page', currentPage);
   }, [currentPage]);
+
+  // ── Pinned tools (outils épinglés dans la sidebar)
+  const [pinnedTools, setPinnedTools] = useState<OutilId[]>(() => getPinnedTools());
+  const [openToolId, setOpenToolId] = useState<OutilId | undefined>(undefined);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setPinnedTools((e as CustomEvent<OutilId[]>).detail);
+    };
+    window.addEventListener('cr-pinned-changed', handler);
+    return () => window.removeEventListener('cr-pinned-changed', handler);
+  }, []);
+
   const [propulseData, setPropulseData] = useState<{ question: string; aiResponse: string; personaName: string } | null>(null);
 
   // ── User profile (local only)
@@ -2976,6 +2992,31 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 </AnimatePresence>
               </div>
 
+              {/* ── Outils épinglés ─────────────────────────────────────── */}
+              {pinnedTools.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-white/25 px-1 mb-2">Outils épinglés</p>
+                  {pinnedTools.map(toolId => {
+                    const outil = OUTILS_MAP[toolId];
+                    if (!outil) return null;
+                    return (
+                      <button
+                        key={toolId}
+                        onClick={() => { setOpenToolId(toolId); setCurrentPage('outils'); setSidebarOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 transition-all hover:bg-white/5"
+                        style={{ borderLeft: `2px solid ${outil.accentColor}` }}
+                      >
+                        <span className="text-base leading-none">{outil.icon}</span>
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-white/70 truncate">{outil.name}</p>
+                          <p className="text-[8px] text-white/30 truncate">{outil.tagline}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Persona selector — masqué en mode débat / interview */}
               {activeConv?.interviewType ? (
                 <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
@@ -3403,14 +3444,25 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       )}
 
       {/* ── Nos Outils Partenaires ──────────────────────────────────────────── */}
-      {currentPage === 'outils' && (
-        <div className="flex-1 min-w-0 h-full max-md:pb-16">
-          <OutilsPage
-            onBack={() => setCurrentPage('chat')}
-            user={user}
-          />
-        </div>
-      )}
+      {currentPage === 'outils' && (() => {
+        // Mirror conversations so JournalismeApp can import them
+        mirrorBaseChatConvs(conversations.map(c => ({
+          id: c.id,
+          title: c.title,
+          messages: c.messages.map(m => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp.toISOString() })),
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+        })));
+        return (
+          <div className="flex-1 min-w-0 h-full max-md:pb-16">
+            <OutilsPage
+              onBack={() => { setCurrentPage('chat'); setOpenToolId(undefined); }}
+              user={user}
+              openToolId={openToolId}
+            />
+          </div>
+        );
+      })()}
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (

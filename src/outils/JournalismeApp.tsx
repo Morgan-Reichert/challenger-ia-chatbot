@@ -5,50 +5,43 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Send, Loader2, X, Sparkles, Paperclip, Mic, MicOff,
   Search, AlertTriangle, FileText, Scale, Eye, Zap, Target, RotateCcw,
-  Star, Eraser, UserMinus, FileDown, Copy, Slash, ChevronDown,
-  ImageIcon, FileCode, File, FileSpreadsheet, Plus, ChevronRight,
+  Star, Eraser, UserMinus, FileDown, Copy, Slash, ChevronDown, ChevronRight,
+  ImageIcon, FileCode, File, FileSpreadsheet, Plus, FolderPlus, Folder,
+  FolderOpen, Pin, PinOff, MessageSquare, MoreVertical, Trash2, Edit3,
+  Check, Import,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+  useOutilSessions,
+  type OutilSession,
+  type OutilProject,
+  type OutilSessionMsg,
+} from './useOutilSessions';
 
 function cx(...c: (string | boolean | undefined | null)[]) { return c.filter(Boolean).join(' '); }
 function uid() { return Math.random().toString(36).slice(2, 11); }
 
-// ─── Inline CR logo (SVG) ──────────────────────────────────────────────────
-function CRLogo({ size = 28, className = '' }: { size?: number; className?: string }) {
+// ─── Inline CR logo ───────────────────────────────────────────────────────────
+function CRLogo({ size = 28 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      {/* Orange background */}
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="100" height="100" fill="#E85D04" />
-      {/* Arch (white negative space) */}
       <path d="M18 100 L18 52 Q18 14 50 14 Q82 14 82 52 L82 100" fill="white" />
-      {/* Mic body */}
       <ellipse cx="50" cy="38" rx="11" ry="15" fill="#E85D04" />
-      {/* Mic grille lines */}
       <line x1="40" y1="33" x2="60" y2="33" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
       <line x1="39" y1="38" x2="61" y2="38" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
       <line x1="40" y1="43" x2="60" y2="43" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      {/* Mic stand arc */}
       <path d="M35 50 Q35 62 50 62 Q65 62 65 50" stroke="#E85D04" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-      {/* Mic pole */}
       <line x1="50" y1="62" x2="50" y2="70" stroke="#E85D04" strokeWidth="3.5" strokeLinecap="round" />
-      {/* Mic base */}
       <rect x="43" y="70" width="14" height="5" rx="2" fill="#E85D04" />
-      {/* CR text */}
       <text x="50" y="94" textAnchor="middle" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="16" fill="#E85D04">CR</text>
     </svg>
   );
 }
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── Mode types ───────────────────────────────────────────────────────────────
 type ModeId = 'fact_check' | 'biais' | 'sources' | 'interview_prep' | 'communique' | 'spin' | 'redaction' | 'angle';
 
 interface ModeConfig {
@@ -69,26 +62,9 @@ interface Attachment {
   content: string;
 }
 
-interface Msg {
-  id: string;
-  role: 'user' | 'assistant' | 'command';
-  content: string;
-  modeId: ModeId;
-  attachments?: Attachment[];
-  ts: Date;
-}
-
-interface Session {
-  id: string;
-  title: string;
-  modeId: ModeId;
-  msgs: Msg[];
-  createdAt: Date;
-}
-
-// ─── Slash commands ────────────────────────────────────────────────────────
+// ─── Slash commands ────────────────────────────────────────────────────────────
 const SLASH = [
-  { id: 'note', label: 'Recevoir une note', desc: 'L\'IA évalue et donne des conseils', icon: Star, shortcut: '/note' },
+  { id: 'note', label: 'Recevoir une note', desc: 'L\'IA évalue et conseille', icon: Star, shortcut: '/note' },
   { id: 'clear', label: 'Effacer la session', desc: 'Supprimer tous les messages', icon: Eraser, shortcut: '/clear' },
   { id: 'oublier', label: 'Oublier le contexte', desc: 'L\'IA repart de zéro', icon: RotateCcw, shortcut: '/oublier' },
   { id: 'resumepdf', label: 'Résumé PDF', desc: 'Génère un résumé structuré', icon: FileDown, shortcut: '/resumepdf' },
@@ -99,12 +75,12 @@ const SLASH = [
 
 type SlashId = (typeof SLASH)[number]['id'];
 
-// ─── Modes ─────────────────────────────────────────────────────────────────
+// ─── Modes ─────────────────────────────────────────────────────────────────────
 const MODES: ModeConfig[] = [
   {
     id: 'fact_check', label: 'Fact-Check', short: 'Fact', icon: Search, color: '#E85D04',
     desc: 'Vérification rigoureuse d\'affirmations',
-    systemPrompt: `Tu es un fact-checker professionnel senior, méthodique et impartial. Tu analyses les affirmations soumises avec la rigueur d'une rédaction de vérification des faits.
+    systemPrompt: `Tu es un fact-checker professionnel senior. Analyse toute affirmation avec la rigueur d'une rédaction de vérification des faits.
 
 Structure OBLIGATOIRE :
 ## Verdict
@@ -116,145 +92,77 @@ Données officielles, études, organismes de référence.
 ## Contexte manquant
 Ce que l'affirmation omet ou déforme.
 ## Conclusion
-Reformulation précise et honnête.
-
-Sois direct, sans concession. Continue la conversation sur ce mode si des questions de suivi sont posées.`,
+Reformulation précise et honnête.`,
   },
   {
     id: 'biais', label: 'Détection de biais', short: 'Biais', icon: Scale, color: '#7C3AED',
     desc: 'Biais cognitifs, rhétoriques et idéologiques',
-    systemPrompt: `Tu es un expert en analyse critique des médias et détection des biais. Tu identifies et décortiques les biais dans les textes soumis.
+    systemPrompt: `Tu es un expert en analyse critique des médias et détection des biais.
 
-Structure OBLIGATOIRE pour la première analyse :
 ## Biais détectés
-Liste exhaustive : nom, définition courte, exemple précis dans le texte.
+Nom, définition courte, exemple précis dans le texte.
 ## Biais cognitifs / Biais rhétoriques / Biais idéologiques
-Catégories détaillées.
 ## Techniques de manipulation
-Loaded language, whataboutism, fausse équivalence.
 ## Score de neutralité
 X/10 — justification.
-## Reformulation neutre
-Comment réécrire l'argument clé de façon impartiale.
-
-Pour les questions de suivi, adapte ta réponse au fil de la conversation.`,
+## Reformulation neutre`,
   },
   {
     id: 'sources', label: 'Analyse de sources', short: 'Sources', icon: Eye, color: '#0891B2',
     desc: 'Crédibilité et fiabilité des sources',
-    systemPrompt: `Tu es un expert en évaluation des sources journalistiques et scientifiques. Tu analyses chaque source avec rigueur.
-
-Pour chaque source identifiée :
-- **Crédibilité** : A/B/C/D avec justification
-- **Intérêts & conflits** : financement, affiliations
-- **Expertise réelle** : est-ce vraiment un expert du sujet ?
-- **Vérifiabilité** : primaire / secondaire / anonyme
-- **Signaux d'alerte** : antécédents, biais connus
-- **Recommandation** : utiliser / précaution / éviter
-
-**Synthèse globale** à la fin. Continue la conversation si l'utilisateur pose des questions.`,
+    systemPrompt: `Tu es un expert en évaluation des sources journalistiques. Pour chaque source :
+- **Crédibilité** : A/B/C/D
+- **Intérêts & conflits** ; **Expertise réelle** ; **Vérifiabilité**
+- **Signaux d'alerte** ; **Recommandation**
+**Synthèse globale** à la fin.`,
   },
   {
-    id: 'interview_prep', label: 'Préparation Interview', short: 'Interview', icon: FileText, color: '#E85D04',
-    desc: 'Questions incisives pour interviews',
-    systemPrompt: `Tu es un journaliste d'investigation senior spécialisé dans les interviews confrontationnelles. Tu prépares des dossiers d'interview complets.
-
-Structure pour la première demande :
+    id: 'interview_prep', label: 'Préparation Interview', short: 'Interview', icon: Mic, color: '#E85D04',
+    desc: 'Questions incisives pour interviews journalistiques',
+    systemPrompt: `Tu es un journaliste d'investigation senior spécialisé dans les interviews confrontationnelles.
 ## Contexte stratégique
-Ce que l'interviewé veut éviter, ses angles morts, ses contradictions connues.
 ## Questions d'ouverture (3)
-Directes, non-complaisantes.
 ## Questions de fond (6)
-Pour creuser les contradictions et positions fragiles.
 ## Questions pièges (3)
-En apparence anodines mais révélatrices.
 ## Relances préparées
-Pour les 3 réponses évasives probables.
-## Documents à avoir en main
-Chiffres, déclarations passées à citer.
-
-Continue et affine selon les retours de l'utilisateur.`,
+## Documents à avoir en main`,
   },
   {
     id: 'communique', label: 'Décryptage CP', short: 'CP', icon: FileText, color: '#059669',
     desc: 'Analyse critique de communiqués de presse',
-    systemPrompt: `Tu es un journaliste senior expert en décryptage de communication institutionnelle.
-
-## Message voulu
-Ce que l'émetteur veut que vous reteniez.
-## Ce qui est dit vs ce qui est tu
-Informations absentes, contexte omis délibérément.
-## Chiffres & données
-Cherry-picking, ordres de grandeur, comparaisons manquantes.
-## Langage codé
-Traduction en langage direct de chaque formulation édulcorée.
-## Spin identifié
-Techniques de communication utilisées.
-## 5 questions à poser à l'émetteur
-## Angle journalistique indépendant
-## Note de transparence
-X/10 — évaluation globale.`,
+    systemPrompt: `Tu es un journaliste expert en décryptage institutionnel.
+## Message voulu ; ## Ce qui est dit vs ce qui est tu ; ## Chiffres & données
+## Langage codé ; ## Spin identifié ; ## 5 questions à poser ; ## Note de transparence X/10`,
   },
   {
     id: 'spin', label: 'Anti-Spin', short: 'Spin', icon: AlertTriangle, color: '#DC2626',
     desc: 'Détection de propagande et manipulation',
-    systemPrompt: `Tu es un expert en techniques de propagande, spin politique et manipulation de l'opinion.
-
-## Techniques de spin utilisées
-Liste exhaustive avec exemple précis dans le texte.
-## Charged language & Structures de manipulation
-Fausse urgence, faux consensus, enemy framing, appels irrationnels.
-## Omissions stratégiques
-Ce qui est délibérément absent.
-## Réalité vs message
-Ce que les faits disent vs ce que le message implique.
-## Objectif caché
-Quel comportement ou opinion veut-on induire ?
-## Version désintoxiquée
-Réécriture du message clé sans manipulation.
-
-**Score de manipulation : X/10** — verdict final.`,
+    systemPrompt: `Tu es un expert en techniques de propagande et spin politique.
+## Techniques de spin ; ## Charged language ; ## Structures de manipulation
+## Omissions stratégiques ; ## Objectif caché ; ## Version désintoxiquée
+**Score de manipulation : X/10**`,
   },
   {
     id: 'redaction', label: 'Critique Rédaction', short: 'Rédac.', icon: Zap, color: '#B45309',
     desc: 'Critique professionnelle de textes journalistiques',
-    systemPrompt: `Tu es un rédacteur en chef exigeant d'un grand quotidien national. Tu critiques les textes soumis sans ménagement.
-
-## Jugement global
-**Publiable / À retravailler / À refaire** — justification immédiate.
-## Structure
-Accroche, transitions, conclusion — ce qui fonctionne et non.
-## Clarté & précision / Équilibre & contradictoire / Solidité factuelle
-## Style
-Longueur des phrases, répétitions, ton.
-## Titre & chapeau
-Reflètent-ils honnêtement le contenu ?
-## 3 coupures prioritaires / 3 ajouts nécessaires
-
-Pour les questions de suivi, affine ta critique selon les retours.`,
+    systemPrompt: `Tu es un rédacteur en chef exigeant d'un grand quotidien national.
+## Jugement global — Publiable / À retravailler / À refaire
+## Structure ; ## Clarté & précision ; ## Équilibre & contradictoire ; ## Solidité factuelle
+## 3 coupures prioritaires ; ## 3 ajouts nécessaires`,
   },
   {
     id: 'angle', label: 'Story Angle', short: 'Angle', icon: Target, color: '#0891B2',
     desc: 'Angle original et percutant pour un sujet',
     systemPrompt: `Tu es un journaliste d'investigation créatif, reconnu pour tes angles originaux.
-
-## Angle principal recommandé
-Le plus fort et original. Titre provisoire + pourquoi ça marche.
-## 4 angles alternatifs
-Chacun avec titre et problématique.
-## L'angle contre-intuitif
-Celui que personne ne prendrait mais qui révèle quelque chose de plus profond.
-## L'angle données
-Si des chiffres peuvent transformer ce sujet en investigation.
-## Public cible & Potentiel de série
-## À éviter
-Les angles trop évidents ou déjà traités.`,
+## Angle principal recommandé (titre + justification)
+## 4 angles alternatifs ; ## L'angle contre-intuitif ; ## L'angle données
+## Public cible ; ## Potentiel de série ; ## À éviter`,
   },
 ];
 
 const MODES_MAP = Object.fromEntries(MODES.map(m => [m.id, m])) as Record<ModeId, ModeConfig>;
 
-// ─── File helpers ───────────────────────────────────────────────────────────
+// ─── File helpers ──────────────────────────────────────────────────────────────
 function getFileType(name: string): Attachment['type'] {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (['png','jpg','jpeg','gif','webp','svg'].includes(ext)) return 'image';
@@ -279,36 +187,75 @@ function fmtSize(b: number) {
   return `${(b / 1048576).toFixed(1)}MB`;
 }
 
-async function readFile(file: File): Promise<Attachment> {
+async function readFileAttachment(file: File): Promise<Attachment> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     const type = getFileType(file.name);
     reader.onload = (e) => {
-      const content = e.target?.result as string ?? '';
-      resolve({ id: uid(), name: file.name, type, size: file.size, content });
+      resolve({ id: uid(), name: file.name, type, size: file.size, content: e.target?.result as string ?? '' });
     };
-    if (type === 'image') {
-      reader.readAsDataURL(file);
-    } else {
-      reader.readAsText(file);
-    }
+    if (type === 'image') reader.readAsDataURL(file);
+    else reader.readAsText(file);
   });
 }
 
-// ─── Main component ────────────────────────────────────────────────────────
+// ─── Base chat conversation type (from localStorage) ──────────────────────────
+interface BaseChatConv {
+  id: string;
+  title: string;
+  messages: Array<{ id: string; role: string; content: string; timestamp: string }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function loadBaseChatConvs(): BaseChatConv[] {
+  try {
+    // Try Firestore-backed local cache key (if exists) or in-memory
+    // The App stores conversations in React state, not localStorage directly
+    // We store a mirror in sessionStorage when user navigates to an outil
+    const raw = sessionStorage.getItem('cr_base_convs_mirror');
+    if (raw) return JSON.parse(raw) as BaseChatConv[];
+    return [];
+  } catch { return []; }
+}
+
+// App.tsx will call this when rendering OutilsPage to mirror conversations
+export function mirrorBaseChatConvs(convs: Array<{ id: string; title: string; messages: Array<{ id: string; role: string; content: string; timestamp: string | Date }>; createdAt: string | Date; updatedAt: string | Date }>) {
+  try {
+    const serialized = convs.map(c => ({
+      id: c.id,
+      title: c.title,
+      createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
+      updatedAt: c.updatedAt instanceof Date ? c.updatedAt.toISOString() : c.updatedAt,
+      messages: c.messages.map(m => ({
+        id: m.id,
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content.slice(0, 500) : '',
+        timestamp: m.timestamp instanceof Date ? (m.timestamp as Date).toISOString() : String(m.timestamp),
+      })),
+    }));
+    sessionStorage.setItem('cr_base_convs_mirror', JSON.stringify(serialized));
+  } catch { /* quota */ }
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 type Props = { onBack: () => void; user: FirebaseUser | null };
 
 export default function JournalismeApp({ onBack }: Props) {
-  // Sessions & messages
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const {
+    sessions, projects, isPinned, togglePin,
+    addSession, updateSession, deleteSession, assignProject,
+    createProject, renameProject, deleteProject,
+    importFromChat,
+  } = useOutilSessions('journalisme');
+
+  // Active session / mode
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeSession = sessions.find(s => s.id === activeId) ?? null;
-
-  // Mode
   const [mode, setMode] = useState<ModeConfig>(MODES[0]);
-  const [modePickerOpen, setModePickerOpen] = useState(false);
+  const currentMode = activeSession ? (MODES_MAP[activeSession.modeId as ModeId] ?? mode) : mode;
 
-  // Input
+  // Input state
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sending, setSending] = useState(false);
@@ -317,10 +264,26 @@ export default function JournalismeApp({ onBack }: Props) {
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Slash commands
-  const slashMatches = input.startsWith('/')
-    ? SLASH.filter(c => c.shortcut.includes(input.toLowerCase()))
-    : [];
+  // UI state
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Project management
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
+  const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
+
+  // Import from chat modal
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [baseChatConvs, setBaseChatConvs] = useState<BaseChatConv[]>([]);
+  const [importModeId, setImportModeId] = useState<ModeId>('fact_check');
+
+  // Slash
+  const slashMatches = input.startsWith('/') ? SLASH.filter(c => c.shortcut.includes(input.toLowerCase())) : [];
   const slashOpen = slashMatches.length > 0;
   const [slashIdx, setSlashIdx] = useState(0);
   const safeIdx = Math.min(slashIdx, slashMatches.length - 1);
@@ -331,30 +294,32 @@ export default function JournalismeApp({ onBack }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null);
 
-  // Sidebar (mobile)
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.msgs.length, sending]);
 
-  // Auto-resize textarea
+  // Auto-resize
   useEffect(() => {
     if (!taRef.current) return;
     taRef.current.style.height = 'auto';
     taRef.current.style.height = Math.min(taRef.current.scrollHeight, 140) + 'px';
   }, [input]);
 
-  // ── File handling ─────────────────────────────────────────────────────────
+  // Load base chat convs when import modal opens
+  useEffect(() => {
+    if (importModalOpen) setBaseChatConvs(loadBaseChatConvs());
+  }, [importModalOpen]);
+
+  // ── File handling ──────────────────────────────────────────────────────────
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return;
     const arr = Array.from(files).slice(0, 3);
-    const processed = await Promise.all(arr.map(readFile));
+    const processed = await Promise.all(arr.map(readFileAttachment));
     setAttachments(prev => [...prev, ...processed].slice(0, 3));
   }, []);
 
-  // ── Voice ─────────────────────────────────────────────────────────────────
+  // ── Voice ──────────────────────────────────────────────────────────────────
   const startVoice = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
@@ -383,113 +348,20 @@ export default function JournalismeApp({ onBack }: Props) {
     setVoiceOpen(false);
   }, []);
 
-  // ── Slash command handler ─────────────────────────────────────────────────
-  const handleSlash = useCallback((id: SlashId) => {
-    setInput('');
-    setModePickerOpen(false);
-    if (!activeSession) return;
-
-    if (id === 'clear') {
-      setSessions(prev => prev.map(s => s.id === activeId ? { ...s, msgs: [] } : s));
-      return;
-    }
-    if (id === 'oublier') {
-      const cmdMsg: Msg = { id: uid(), role: 'command', content: '— Contexte effacé — L\'IA repart de zéro —', modeId: mode.id, ts: new Date() };
-      setSessions(prev => prev.map(s => s.id === activeId ? { ...s, msgs: [...s.msgs, cmdMsg] } : s));
-      return;
-    }
-    if (id === 'note') {
-      sendMessage('/note — Évalue notre échange et donne-moi des conseils ciblés sur ma façon de travailler le sujet.', []);
-      return;
-    }
-    if (id === 'resumepdf') {
-      sendMessage('/resumepdf — Génère un résumé structuré de notre analyse.', []);
-      return;
-    }
-    if (id === 'exportmd') {
-      if (!activeSession.msgs.length) return;
-      const md = activeSession.msgs
-        .filter(m => m.role !== 'command')
-        .map(m => `**${m.role === 'user' ? 'Utilisateur' : 'Challenger Reporter'}**\n\n${m.content}`)
-        .join('\n\n---\n\n');
-      const blob = new Blob([md], { type: 'text/markdown' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `CR-${activeSession.title.slice(0, 30)}.md`;
-      a.click();
-      return;
-    }
-    if (id === 'copiernotion') {
-      if (!activeSession.msgs.length) return;
-      const md = activeSession.msgs
-        .filter(m => m.role !== 'command')
-        .map(m => `**${m.role === 'user' ? 'Vous' : 'Challenger Reporter'}**\n\n${m.content}`)
-        .join('\n\n---\n\n');
-      navigator.clipboard.writeText(md).catch(() => {});
-      return;
-    }
-    if (id === 'noprofil') {
-      const cmdMsg: Msg = { id: uid(), role: 'command', content: '— Mode sans profil activé —', modeId: mode.id, ts: new Date() };
-      setSessions(prev => prev.map(s => s.id === activeId ? { ...s, msgs: [...s.msgs, cmdMsg] } : s));
-      return;
-    }
-  }, [activeSession, activeId, mode.id]);
-
-  // ── Send message ──────────────────────────────────────────────────────────
-  const sendMessage = useCallback(async (text: string, atts: Attachment[]) => {
-    if ((!text.trim() && atts.length === 0) || sending) return;
-
-    const currentMode = mode;
-
-    // Build attachment content for API
-    let fullText = text.trim();
-    if (atts.length > 0) {
-      const attParts = atts.map(a => {
-        if (a.type === 'image') return `[Image: ${a.name}]`;
-        return `\n\n--- Fichier: ${a.name} ---\n${a.content.slice(0, 4000)}`;
-      });
-      fullText += attParts.join('');
-    }
-
-    const userMsgId = uid();
-    const asstMsgId = uid();
-    const now = new Date();
-
-    const userMsg: Msg = { id: userMsgId, role: 'user', content: text.trim(), modeId: currentMode.id, attachments: atts, ts: now };
-    const asstMsg: Msg = { id: asstMsgId, role: 'assistant', content: '', modeId: currentMode.id, ts: now };
-
-    let targetId = activeId;
-
-    if (!activeId) {
-      // New session
-      const sid = uid();
-      const session: Session = {
-        id: sid,
-        title: `${currentMode.label} — ${text.slice(0, 40)}${text.length > 40 ? '…' : ''}`,
-        modeId: currentMode.id,
-        msgs: [userMsg, asstMsg],
-        createdAt: now,
-      };
-      setSessions(prev => [session, ...prev]);
-      setActiveId(sid);
-      targetId = sid;
-    } else {
-      setSessions(prev => prev.map(s =>
-        s.id !== activeId ? s : { ...s, msgs: [...s.msgs, userMsg, asstMsg] }
-      ));
-    }
-
+  // ── Stream AI response ─────────────────────────────────────────────────────
+  const streamResponse = useCallback(async (
+    targetId: string,
+    asstMsgId: string,
+    modeConfig: ModeConfig,
+    history: { role: string; content: string }[],
+    userText: string
+  ) => {
     setSending(true);
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
     try {
-      // Build history from current session (excluding the new pair)
-      const history = (activeSession?.msgs ?? [])
-        .filter(m => m.role !== 'command')
-        .map(m => ({ role: m.role, content: m.content }));
-
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -499,9 +371,9 @@ export default function JournalismeApp({ onBack }: Props) {
           temperature: 0.3,
           stream: true,
           messages: [
-            { role: 'system', content: currentMode.systemPrompt },
+            { role: 'system', content: modeConfig.systemPrompt },
             ...history,
-            { role: 'user', content: fullText },
+            { role: 'user', content: userText },
           ],
         }),
       });
@@ -526,67 +398,163 @@ export default function JournalismeApp({ onBack }: Props) {
             const delta = JSON.parse(t).choices?.[0]?.delta?.content ?? '';
             if (delta) {
               acc += delta;
-              setSessions(prev => prev.map(s =>
-                s.id !== targetId ? s : {
-                  ...s,
-                  msgs: s.msgs.map(m => m.id === asstMsgId ? { ...m, content: acc } : m),
-                }
-              ));
+              updateSession(targetId, s => ({
+                ...s,
+                msgs: s.msgs.map(m => m.id === asstMsgId ? { ...m, content: acc } : m),
+                updatedAt: new Date().toISOString(),
+              }));
             }
           } catch { /* skip */ }
         }
       }
     } catch (e: unknown) {
       if ((e as Error).name !== 'AbortError') {
-        setSessions(prev => prev.map(s =>
-          s.id !== targetId ? s : {
-            ...s,
-            msgs: s.msgs.map(m => m.id === asstMsgId ? { ...m, content: '*Erreur de connexion. Réessayez.*' } : m),
-          }
-        ));
+        updateSession(targetId, s => ({
+          ...s,
+          msgs: s.msgs.map(m => m.id === asstMsgId ? { ...m, content: '*Erreur de connexion. Réessayez.*' } : m),
+        }));
       }
     } finally {
       setSending(false);
     }
-  }, [mode, activeId, activeSession, sending]);
+  }, [updateSession]);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Send message ────────────────────────────────────────────────────────────
+  const sendMessage = useCallback(async (text: string, atts: Attachment[]) => {
+    if ((!text.trim() && atts.length === 0) || sending) return;
+    const modeConfig = currentMode;
+    let fullText = text.trim();
+    if (atts.length > 0) {
+      fullText += atts.map(a => a.type === 'image' ? `\n[Image: ${a.name}]` : `\n\n--- ${a.name} ---\n${a.content.slice(0, 4000)}`).join('');
+    }
+
+    const userMsgId = uid();
+    const asstMsgId = uid();
+    const now = new Date().toISOString();
+
+    const userMsg: OutilSessionMsg = {
+      id: userMsgId, role: 'user', content: text.trim(), modeId: modeConfig.id,
+      attachments: atts.map(a => ({ id: a.id, name: a.name, type: a.type, size: a.size })),
+      ts: now,
+    };
+    const asstMsg: OutilSessionMsg = { id: asstMsgId, role: 'assistant', content: '', modeId: modeConfig.id, ts: now };
+
+    let targetId = activeId;
+
+    if (!activeId) {
+      const sid = uid();
+      const session: OutilSession = {
+        id: sid, toolId: 'journalisme',
+        title: `${modeConfig.label} — ${text.slice(0, 40)}${text.length > 40 ? '…' : ''}`,
+        modeId: modeConfig.id,
+        msgs: [userMsg, asstMsg],
+        createdAt: now, updatedAt: now,
+      };
+      addSession(session);
+      setActiveId(sid);
+      targetId = sid;
+    } else {
+      updateSession(activeId, s => ({
+        ...s, msgs: [...s.msgs, userMsg, asstMsg], updatedAt: now,
+      }));
+    }
+
+    const history = (activeSession?.msgs ?? [])
+      .filter(m => m.role !== 'command')
+      .map(m => ({ role: m.role, content: m.content }));
+
+    await streamResponse(targetId!, asstMsgId, modeConfig, history, fullText);
+  }, [mode, currentMode, activeId, activeSession, sending, addSession, updateSession, streamResponse]);
+
+  // ── Slash handler ───────────────────────────────────────────────────────────
+  const handleSlash = useCallback((id: SlashId) => {
+    setInput('');
+    if (!activeSession || !activeId) return;
+    if (id === 'clear') {
+      updateSession(activeId, s => ({ ...s, msgs: [] }));
+      return;
+    }
+    if (id === 'oublier') {
+      updateSession(activeId, s => ({
+        ...s,
+        msgs: [...s.msgs, { id: uid(), role: 'command', content: '— Contexte effacé — L\'IA repart de zéro —', ts: new Date().toISOString() }],
+      }));
+      return;
+    }
+    if (id === 'exportmd') {
+      const md = activeSession.msgs.filter(m => m.role !== 'command')
+        .map(m => `**${m.role === 'user' ? 'Vous' : 'Challenger Reporter'}**\n\n${m.content}`).join('\n\n---\n\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
+      a.download = `CR-${activeSession.title.slice(0, 30)}.md`;
+      a.click();
+      return;
+    }
+    if (id === 'copiernotion') {
+      const md = activeSession.msgs.filter(m => m.role !== 'command')
+        .map(m => `**${m.role === 'user' ? 'Vous' : 'Challenger Reporter'}**\n\n${m.content}`).join('\n\n---\n\n');
+      navigator.clipboard.writeText(md).catch(() => {});
+      return;
+    }
+    // For note, resumepdf, noprofil — send as messages
+    const slashTexts: Record<string, string> = {
+      note: 'Évalue notre échange et donne-moi des conseils ciblés sur ma façon de travailler le sujet.',
+      resumepdf: 'Génère un résumé structuré de notre analyse en cours.',
+      noprofil: '/noprofil — ignore les informations de profil pour la suite.',
+    };
+    if (slashTexts[id]) sendMessage(slashTexts[id], []);
+  }, [activeSession, activeId, updateSession, sendMessage]);
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (slashOpen && slashMatches[safeIdx]) {
       handleSlash(slashMatches[safeIdx].id as SlashId);
-      setInput('');
       return;
     }
     const text = input;
+    const atts = attachments;
     setInput('');
     setAttachments([]);
-    await sendMessage(text, attachments);
+    await sendMessage(text, atts);
   }, [slashOpen, slashMatches, safeIdx, handleSlash, input, attachments, sendMessage]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx(i => Math.min(i + 1, slashMatches.length - 1)); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIdx(i => Math.max(i - 1, 0)); return; }
-      if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); handleSlash(slashMatches[safeIdx].id as SlashId); setInput(''); return; }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) { e.preventDefault(); handleSlash(slashMatches[safeIdx].id as SlashId); setInput(''); return; }
       if (e.key === 'Escape') { setInput(''); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
   }, [slashOpen, slashMatches, safeIdx, handleSlash, handleSubmit]);
 
-  const currentMode = activeSession ? MODES_MAP[activeSession.modeId] : mode;
+  // ── Session rename ───────────────────────────────────────────────────────────
+  const confirmRenameSession = useCallback((id: string) => {
+    if (renameValue.trim()) updateSession(id, s => ({ ...s, title: renameValue.trim() }));
+    setRenameSessionId(null);
+    setRenameValue('');
+  }, [renameValue, updateSession]);
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ── Import from chat ─────────────────────────────────────────────────────────
+  const handleImport = useCallback((conv: BaseChatConv) => {
+    const session = importFromChat(conv, importModeId);
+    setActiveId(session.id);
+    setImportModalOpen(false);
+  }, [importFromChat, importModeId]);
+
+  // ── Grouped sessions ─────────────────────────────────────────────────────────
+  const unassignedSessions = sessions.filter(s => !s.projectId);
+  const sessionsByProject = (projectId: string) => sessions.filter(s => s.projectId === projectId);
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden" style={{ background: '#0d0d0d' }}>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          TOP BAR
-      ════════════════════════════════════════════════════════════════════ */}
+      {/* ═══════════ TOP BAR ═════════════════════════════════════════════════ */}
       <div
         className="flex-shrink-0 flex items-stretch border-b z-20"
         style={{ background: '#111', borderColor: '#E85D04', borderBottomWidth: '2px', minHeight: '52px' }}
       >
-        {/* Back */}
         <button
           onClick={onBack}
           className="flex items-center justify-center w-12 flex-shrink-0 hover:bg-white/5 transition-colors"
@@ -595,33 +563,47 @@ export default function JournalismeApp({ onBack }: Props) {
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        {/* Logo + title */}
         <div className="flex items-center gap-3 px-4 flex-1 min-w-0">
           <CRLogo size={30} />
           <div className="min-w-0">
-            <p className="text-[13px] font-black uppercase tracking-widest text-white leading-none truncate">
-              Challenger Reporter
-            </p>
-            <p className="text-[8px] font-bold uppercase tracking-widest mt-0.5 truncate" style={{ color: 'rgba(232,93,4,0.55)' }}>
+            <p className="text-[13px] font-black uppercase tracking-widest text-white leading-none truncate">Challenger Reporter</p>
+            <p className="text-[8px] font-bold uppercase tracking-widest mt-0.5" style={{ color: 'rgba(232,93,4,0.55)' }}>
               Suite journalisme · Moteur Challenger IA
             </p>
           </div>
         </div>
 
-        {/* Right actions */}
         <div className="flex items-stretch flex-shrink-0" style={{ borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
+          {/* Import from chat */}
+          <button
+            onClick={() => setImportModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 text-white/25 hover:text-white/60 hover:bg-white/5 transition-all text-[9px] font-black uppercase tracking-widest"
+            title="Importer une discussion Challenger IA"
+          >
+            <Import className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Importer</span>
+          </button>
           {/* New session */}
           <button
-            onClick={() => { setActiveId(null); setInput(''); setAttachments([]); setSidebarOpen(false); }}
-            className="flex items-center gap-1.5 px-4 text-white/25 hover:text-white/70 hover:bg-white/5 transition-all text-[9px] font-black uppercase tracking-widest"
+            onClick={() => { setActiveId(null); setInput(''); setAttachments([]); }}
+            className="flex items-center gap-1.5 px-3 text-white/25 hover:text-white/60 hover:bg-white/5 transition-all text-[9px] font-black uppercase tracking-widest"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Nouveau</span>
           </button>
-          {/* Mobile sessions toggle */}
+          {/* Pin */}
           <button
-            onClick={() => setSidebarOpen(v => !v)}
-            className="flex items-center justify-center w-11 text-white/30 hover:text-white/70 hover:bg-white/5 transition-all md:hidden"
+            onClick={() => togglePin()}
+            className="flex items-center justify-center w-10 transition-all hover:bg-white/5"
+            title={isPinned ? 'Désépingler de la sidebar' : 'Épingler à la sidebar'}
+            style={{ color: isPinned ? '#E85D04' : 'rgba(255,255,255,0.2)' }}
+          >
+            {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+          </button>
+          {/* Mobile sidebar */}
+          <button
+            onClick={() => setMobileSidebarOpen(v => !v)}
+            className="flex items-center justify-center w-10 text-white/30 hover:text-white/70 md:hidden"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
@@ -630,159 +612,252 @@ export default function JournalismeApp({ onBack }: Props) {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          BODY: sidebar + chat
-      ════════════════════════════════════════════════════════════════════ */}
+      {/* ═══════════ BODY ════════════════════════════════════════════════════ */}
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
 
-        {/* ── Left sidebar ── */}
-        <AnimatePresence>
-          {(sidebarOpen || true) && (
-            <motion.div
-              initial={false}
-              className={cx(
-                'flex-shrink-0 flex-col border-r overflow-y-auto',
-                'w-52 hidden md:flex',
-              )}
-              style={{ background: '#0a0a0a', borderColor: 'rgba(255,255,255,0.05)' }}
-            >
-              {/* Modes */}
-              <div className="px-3 pt-5 pb-2">
-                <p className="text-[7px] font-black uppercase tracking-widest text-white/20 px-1 mb-2">Modes d'analyse</p>
-                <div className="space-y-0.5">
-                  {MODES.map((m) => {
-                    const Icon = m.icon;
-                    const isActive = (activeSession?.modeId ?? mode.id) === m.id;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => { setMode(m); if (!activeSession) return; }}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left transition-all group"
-                        style={{ borderLeft: `2px solid ${isActive ? m.color : 'transparent'}` }}
-                        onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                      >
-                        <Icon className="w-3 h-3 flex-shrink-0 transition-colors" style={{ color: isActive ? m.color : 'rgba(255,255,255,0.28)' }} />
-                        <span className="text-[10px] font-bold truncate transition-colors" style={{ color: isActive ? m.color : 'rgba(255,255,255,0.38)' }}>
-                          {m.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+        {/* ── Desktop Sidebar ── */}
+        <div
+          className="hidden md:flex flex-shrink-0 flex-col border-r overflow-y-auto w-52"
+          style={{ background: '#0a0a0a', borderColor: 'rgba(255,255,255,0.05)' }}
+        >
+          {/* Modes */}
+          <div className="px-3 pt-4 pb-2">
+            <p className="text-[7px] font-black uppercase tracking-widest text-white/20 px-1 mb-1.5">Modes d'analyse</p>
+            {MODES.map(m => {
+              const Icon = m.icon;
+              const isActive = (activeSession?.modeId ?? mode.id) === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => { setMode(m); }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-all"
+                  style={{ borderLeft: `2px solid ${isActive ? m.color : 'transparent'}` }}
+                >
+                  <Icon className="w-3 h-3 flex-shrink-0" style={{ color: isActive ? m.color : 'rgba(255,255,255,0.25)' }} />
+                  <span className="text-[9px] font-bold truncate" style={{ color: isActive ? m.color : 'rgba(255,255,255,0.35)' }}>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Projects + sessions */}
+          <div className="flex-1 px-3 pb-3 border-t mt-1" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+            <div className="flex items-center justify-between mt-3 mb-1.5 px-1">
+              <p className="text-[7px] font-black uppercase tracking-widest text-white/20">Projets</p>
+              <button
+                onClick={() => setCreatingProject(true)}
+                className="text-white/20 hover:text-white/60 transition-colors"
+                title="Nouveau projet"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* New project input */}
+            {creatingProject && (
+              <div className="flex items-center gap-1.5 mb-2">
+                <input
+                  autoFocus
+                  value={newProjectName}
+                  onChange={e => setNewProjectName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newProjectName.trim()) {
+                      createProject(newProjectName);
+                      setNewProjectName('');
+                      setCreatingProject(false);
+                    }
+                    if (e.key === 'Escape') { setCreatingProject(false); setNewProjectName(''); }
+                  }}
+                  placeholder="Nom du projet…"
+                  className="flex-1 bg-white/5 border border-white/10 px-2 py-1 text-[10px] text-white placeholder:text-white/20 focus:outline-none focus:border-[#E85D04]/40"
+                />
+                <button onClick={() => { if (newProjectName.trim()) { createProject(newProjectName); } setCreatingProject(false); setNewProjectName(''); }}>
+                  <Check className="w-3.5 h-3.5 text-[#E85D04]" />
+                </button>
               </div>
+            )}
 
-              {/* Sessions */}
-              {sessions.length > 0 && (
-                <div className="px-3 py-3 border-t mt-2" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-                  <p className="text-[7px] font-black uppercase tracking-widest text-white/20 px-1 mb-2">Sessions</p>
-                  <div className="space-y-0.5">
-                    {sessions.map(s => {
-                      const sm = MODES_MAP[s.modeId];
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={() => setActiveId(s.id)}
-                          className={cx('w-full text-left px-2.5 py-2 transition-all')}
-                          style={{ background: activeId === s.id ? 'rgba(255,255,255,0.05)' : 'transparent', borderLeft: `2px solid ${activeId === s.id ? sm.color : 'transparent'}` }}
-                        >
-                          <p className="text-[7px] font-black uppercase tracking-widest mb-0.5" style={{ color: sm.color }}>{sm.short}</p>
-                          <p className="text-[9px] text-white/35 leading-tight truncate">{s.title.replace(`${sm.label} — `, '')}</p>
-                        </button>
-                      );
-                    })}
+            {/* Projects */}
+            {projects.map(proj => {
+              const projSessions = sessionsByProject(proj.id);
+              const isExpanded = expandedProjectId === proj.id;
+              return (
+                <div key={proj.id} className="mb-1">
+                  <div className="flex items-center gap-1.5 group">
+                    <button
+                      onClick={() => setExpandedProjectId(isExpanded ? null : proj.id)}
+                      className="flex items-center gap-1.5 flex-1 min-w-0 px-1.5 py-1 text-left hover:bg-white/4 transition-all"
+                    >
+                      {isExpanded ? (
+                        <FolderOpen className="w-3 h-3 flex-shrink-0" style={{ color: proj.color }} />
+                      ) : (
+                        <Folder className="w-3 h-3 flex-shrink-0" style={{ color: proj.color }} />
+                      )}
+                      {renameProjectId === proj.id ? (
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { renameProject(proj.id, renameValue); setRenameProjectId(null); }
+                            if (e.key === 'Escape') setRenameProjectId(null);
+                          }}
+                          onBlur={() => { renameProject(proj.id, renameValue); setRenameProjectId(null); }}
+                          className="flex-1 bg-transparent border-b border-[#E85D04]/40 text-[10px] text-white focus:outline-none"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-[10px] font-bold text-white/45 truncate">{proj.name}</span>
+                      )}
+                      <span className="text-[7px] text-white/20 flex-shrink-0">{projSessions.length}</span>
+                    </button>
+                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity flex-shrink-0">
+                      <button onClick={() => { setRenameProjectId(proj.id); setRenameValue(proj.name); }} className="p-0.5 text-white/20 hover:text-white/60"><Edit3 className="w-2.5 h-2.5" /></button>
+                      <button onClick={() => deleteProject(proj.id)} className="p-0.5 text-white/20 hover:text-red-400"><Trash2 className="w-2.5 h-2.5" /></button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Mobile sidebar overlay */}
+                  {/* Project sessions */}
+                  {isExpanded && projSessions.map(s => (
+                    <SessionItem
+                      key={s.id}
+                      session={s}
+                      isActive={activeId === s.id}
+                      projects={projects}
+                      menuOpen={sessionMenuId === s.id}
+                      onSelect={() => setActiveId(s.id)}
+                      onMenuToggle={() => setSessionMenuId(sessionMenuId === s.id ? null : s.id)}
+                      onDelete={() => { deleteSession(s.id); if (activeId === s.id) setActiveId(null); setSessionMenuId(null); }}
+                      onAssign={pid => { assignProject(s.id, pid); setSessionMenuId(null); }}
+                      onRename={() => { setRenameSessionId(s.id); setRenameValue(s.title); setSessionMenuId(null); }}
+                      renaming={renameSessionId === s.id}
+                      renameValue={renameValue}
+                      setRenameValue={setRenameValue}
+                      confirmRename={() => confirmRenameSession(s.id)}
+                      indent
+                    />
+                  ))}
+                </div>
+              );
+            })}
+
+            {/* Unassigned sessions */}
+            {unassignedSessions.length > 0 && (
+              <div className="mt-2">
+                {projects.length > 0 && (
+                  <p className="text-[7px] font-black uppercase tracking-widest text-white/15 px-1 mb-1">Sans projet</p>
+                )}
+                {unassignedSessions.map(s => (
+                  <SessionItem
+                    key={s.id}
+                    session={s}
+                    isActive={activeId === s.id}
+                    projects={projects}
+                    menuOpen={sessionMenuId === s.id}
+                    onSelect={() => setActiveId(s.id)}
+                    onMenuToggle={() => setSessionMenuId(sessionMenuId === s.id ? null : s.id)}
+                    onDelete={() => { deleteSession(s.id); if (activeId === s.id) setActiveId(null); setSessionMenuId(null); }}
+                    onAssign={pid => { assignProject(s.id, pid); setSessionMenuId(null); }}
+                    onRename={() => { setRenameSessionId(s.id); setRenameValue(s.title); setSessionMenuId(null); }}
+                    renaming={renameSessionId === s.id}
+                    renameValue={renameValue}
+                    setRenameValue={setRenameValue}
+                    confirmRename={() => confirmRenameSession(s.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Mobile Sidebar Overlay ── */}
         <AnimatePresence>
-          {sidebarOpen && (
+          {mobileSidebarOpen && (
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               className="fixed inset-0 z-50 flex md:hidden"
             >
-              <div className="w-64 h-full flex flex-col border-r overflow-y-auto" style={{ background: '#0d0d0d', borderColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="flex items-center justify-between px-4 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Modes</p>
-                  <button onClick={() => setSidebarOpen(false)} className="text-white/30 hover:text-white/70"><X className="w-4 h-4" /></button>
+              <div className="w-72 h-full flex flex-col overflow-y-auto border-r" style={{ background: '#0d0d0d', borderColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Modes & Sessions</p>
+                  <button onClick={() => setMobileSidebarOpen(false)} className="text-white/30"><X className="w-4 h-4" /></button>
                 </div>
                 <div className="p-3 space-y-0.5">
                   {MODES.map(m => {
                     const Icon = m.icon;
                     return (
-                      <button
-                        key={m.id}
-                        onClick={() => { setMode(m); setSidebarOpen(false); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all"
+                      <button key={m.id} onClick={() => { setMode(m); setMobileSidebarOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left"
                         style={{ borderLeft: `2px solid ${mode.id === m.id ? m.color : 'transparent'}` }}
                       >
                         <Icon className="w-3.5 h-3.5" style={{ color: mode.id === m.id ? m.color : 'rgba(255,255,255,0.3)' }} />
-                        <div>
-                          <p className="text-[11px] font-bold" style={{ color: mode.id === m.id ? m.color : 'rgba(255,255,255,0.5)' }}>{m.label}</p>
-                          <p className="text-[9px] text-white/25">{m.desc}</p>
-                        </div>
+                        <span className="text-[11px] font-bold" style={{ color: mode.id === m.id ? m.color : 'rgba(255,255,255,0.45)' }}>{m.label}</span>
                       </button>
                     );
                   })}
                 </div>
+                {sessions.length > 0 && (
+                  <div className="px-3 pt-3 pb-6 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                    <p className="text-[7px] font-black uppercase tracking-widest text-white/20 mb-2">Sessions</p>
+                    {sessions.map(s => (
+                      <button key={s.id} onClick={() => { setActiveId(s.id); setMobileSidebarOpen(false); }}
+                        className={cx('w-full text-left px-2.5 py-2 mb-0.5 transition-all', activeId === s.id ? 'bg-white/6' : 'hover:bg-white/3')}
+                        style={{ borderLeft: `2px solid ${activeId === s.id ? '#E85D04' : 'transparent'}` }}
+                      >
+                        <p className="text-[9px] text-white/35 truncate">{s.title}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex-1 bg-black/60" onClick={() => setSidebarOpen(false)} />
+              <div className="flex-1" onClick={() => setMobileSidebarOpen(false)} />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ── Main chat ── */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {/* ── Main Chat ── */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0" onClick={() => { modePickerOpen && setModePickerOpen(false); sessionMenuId && setSessionMenuId(null); }}>
 
-          {/* Active mode indicator bar */}
+          {/* Mode bar */}
           <div
             className="flex-shrink-0 flex items-center gap-3 px-5 py-2 border-b"
-            style={{ background: `${currentMode.color}08`, borderColor: `${currentMode.color}18` }}
+            style={{ background: `${currentMode.color}06`, borderColor: `${currentMode.color}15` }}
           >
-            {/* Mode selector pill */}
             <div className="relative">
               <button
-                onClick={() => setModePickerOpen(v => !v)}
-                className="flex items-center gap-1.5 px-2.5 py-1 transition-all"
+                onClick={e => { e.stopPropagation(); setModePickerOpen(v => !v); }}
+                className="flex items-center gap-1.5 px-2.5 py-1"
                 style={{ background: `${currentMode.color}18`, border: `1px solid ${currentMode.color}30` }}
               >
                 {(() => { const Icon = currentMode.icon; return <Icon className="w-3 h-3" style={{ color: currentMode.color }} />; })()}
-                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: currentMode.color }}>
-                  {currentMode.label}
-                </span>
+                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: currentMode.color }}>{currentMode.label}</span>
                 <ChevronDown className="w-2.5 h-2.5" style={{ color: currentMode.color }} />
               </button>
 
-              {/* Mode picker dropdown */}
               <AnimatePresence>
                 {modePickerOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                    className="absolute left-0 top-full mt-2 z-50 border overflow-hidden"
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    className="absolute left-0 top-full mt-1.5 z-50 border overflow-hidden"
                     style={{ background: '#161616', borderColor: 'rgba(255,255,255,0.1)', minWidth: '200px', boxShadow: '0 16px 40px rgba(0,0,0,0.6)' }}
+                    onClick={e => e.stopPropagation()}
                   >
                     {MODES.map(m => {
                       const Icon = m.icon;
                       return (
-                        <button
-                          key={m.id}
-                          onClick={() => { setMode(m); setModePickerOpen(false); }}
+                        <button key={m.id} onClick={() => { setMode(m); setModePickerOpen(false); }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors border-b border-white/5 last:border-0 hover:bg-white/5"
                         >
                           <Icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: m.color }} />
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <p className="text-[11px] font-bold text-white">{m.label}</p>
-                            <p className="text-[9px] text-white/30">{m.desc}</p>
+                            <p className="text-[9px] text-white/25 truncate">{m.desc}</p>
                           </div>
-                          {mode.id === m.id && <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: m.color }} />}
+                          {mode.id === m.id && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />}
                         </button>
                       );
                     })}
@@ -792,81 +867,54 @@ export default function JournalismeApp({ onBack }: Props) {
             </div>
 
             <div className="w-px h-3 bg-white/10" />
-            <span className="text-[8px] text-white/20 font-medium">{activeSession ? `${activeSession.msgs.filter(m => m.role === 'user').length} analyse(s)` : 'Nouvelle session'}</span>
-            {activeSession && (
+            <span className="text-[8px] text-white/20">{activeSession ? `${activeSession.msgs.filter(m => m.role === 'user').length} analyse(s)` : 'Nouvelle session'}</span>
+            {activeSession?.importedFromChatId && (
               <>
                 <div className="w-px h-3 bg-white/10" />
-                <button
-                  onClick={() => { abortRef.current?.abort(); setSessions(prev => prev.filter(s => s.id !== activeId)); setActiveId(null); }}
-                  className="text-[8px] text-white/20 hover:text-white/50 font-medium transition-colors flex items-center gap-1"
-                >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  <span>Reset</span>
-                </button>
+                <span className="flex items-center gap-1 text-[8px] text-white/25">
+                  <MessageSquare className="w-2.5 h-2.5" />Importé de Challenger IA
+                </span>
               </>
             )}
           </div>
 
-          {/* Messages zone */}
-          <div
-            className="flex-1 overflow-y-auto px-5 py-6 space-y-5"
-            onClick={() => modePickerOpen && setModePickerOpen(false)}
-          >
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
             {!activeSession || activeSession.msgs.length === 0 ? (
-              /* Empty state */
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-12"
               >
                 <div className="mb-6 relative">
-                  <div
-                    className="w-16 h-16 flex items-center justify-center mx-auto border-2"
-                    style={{ background: 'rgba(232,93,4,0.08)', borderColor: 'rgba(232,93,4,0.2)' }}
-                  >
+                  <div className="w-16 h-16 flex items-center justify-center mx-auto border-2" style={{ background: 'rgba(232,93,4,0.08)', borderColor: 'rgba(232,93,4,0.2)' }}>
                     <CRLogo size={42} />
                   </div>
-                  <div
-                    className="absolute -bottom-1 -right-1 w-5 h-5 flex items-center justify-center"
-                    style={{ background: currentMode.color }}
-                  >
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 flex items-center justify-center" style={{ background: currentMode.color }}>
                     <Sparkles className="w-2.5 h-2.5 text-white" />
                   </div>
                 </div>
-                <h2 className="text-[18px] font-black text-white uppercase tracking-tight mb-1">
-                  {currentMode.label}
-                </h2>
-                <p className="text-[11px] text-white/30 leading-relaxed mb-8">{currentMode.desc}</p>
-
-                {/* Suggestion chips */}
+                <h2 className="text-[17px] font-black text-white uppercase tracking-tight mb-1">{currentMode.label}</h2>
+                <p className="text-[11px] text-white/30 leading-relaxed mb-6">{currentMode.desc}</p>
                 <div className="grid grid-cols-1 gap-2 w-full max-w-sm text-left">
                   {[
-                    mode.id === 'fact_check' ? '"La France est le premier producteur de vin mondial"' :
-                    mode.id === 'biais' ? 'Collez un article de presse à analyser…' :
-                    mode.id === 'angle' ? 'Un événement local devient viral sur les réseaux sociaux' :
-                    mode.id === 'interview_prep' ? 'Interview d\'un PDG sur les licenciements de son groupe' :
-                    'Collez votre contenu à analyser…',
-                    mode.id === 'spin' ? 'Analysez un discours politique récent' :
-                    mode.id === 'redaction' ? 'Critiquez votre brouillon d\'article' :
-                    mode.id === 'communique' ? 'Collez un communiqué de presse officiel' :
-                    'Ou posez une question sur la méthode…',
+                    currentMode.id === 'fact_check' ? '"La France est le premier producteur de vin mondial"' :
+                    currentMode.id === 'biais' ? 'Collez un article à analyser pour détecter ses biais…' :
+                    currentMode.id === 'angle' ? 'Un maire local impliqué dans un scandale d\'urbanisme' :
+                    currentMode.id === 'spin' ? 'Collez un discours ou communiqué suspect…' :
+                    'Commencez votre analyse…',
+                    'Ou posez une question sur la méthode journalistique…',
                   ].map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { setInput(s); taRef.current?.focus(); }}
-                      className="text-left px-3 py-2.5 border text-[11px] text-white/40 hover:text-white/70 transition-all"
+                    <button key={i} onClick={() => { setInput(s); taRef.current?.focus(); }}
+                      className="text-left px-3 py-2 border text-[11px] text-white/35 hover:text-white/65 transition-all"
                       style={{ borderColor: 'rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${currentMode.color}30`; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.07)'; }}
-                    >
-                      {s}
-                    </button>
+                    >{s}</button>
                   ))}
                 </div>
               </motion.div>
             ) : (
-              activeSession.msgs.map((msg) => {
-                const modeCfg = MODES_MAP[msg.modeId];
+              activeSession.msgs.map(msg => {
+                const modeCfg = msg.modeId ? (MODES_MAP[msg.modeId as ModeId] ?? currentMode) : currentMode;
 
                 if (msg.role === 'command') {
                   return (
@@ -878,24 +926,19 @@ export default function JournalismeApp({ onBack }: Props) {
 
                 if (msg.role === 'user') {
                   return (
-                    <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end gap-3">
+                    <motion.div key={msg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
                       <div className="max-w-[75%]">
-                        {/* Attachments */}
                         {msg.attachments && msg.attachments.length > 0 && (
-                          <div className="flex flex-wrap gap-2 justify-end mb-2">
+                          <div className="flex flex-wrap gap-1.5 justify-end mb-1.5">
                             {msg.attachments.map(att => (
-                              <div key={att.id} className="flex items-center gap-1.5 px-2.5 py-1.5 border text-[10px] text-white/50" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}>
-                                <FileIcon type={att.type} />
-                                <span className="max-w-[120px] truncate">{att.name}</span>
-                                <span className="text-white/25">{fmtSize(att.size)}</span>
+                              <div key={att.id} className="flex items-center gap-1.5 px-2 py-1 border text-[9px] text-white/40" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+                                <FileIcon type={att.type as Attachment['type']} />
+                                <span className="max-w-[100px] truncate">{att.name}</span>
                               </div>
                             ))}
                           </div>
                         )}
-                        <div
-                          className="px-4 py-3 text-[12px] text-white/85 leading-relaxed border"
-                          style={{ background: `${modeCfg.color}12`, borderColor: `${modeCfg.color}25` }}
-                        >
+                        <div className="px-4 py-3 border text-[12px] text-white/85 leading-relaxed" style={{ background: `${modeCfg.color}10`, borderColor: `${modeCfg.color}22` }}>
                           <p className="whitespace-pre-wrap">{msg.content}</p>
                         </div>
                       </div>
@@ -904,37 +947,26 @@ export default function JournalismeApp({ onBack }: Props) {
                 }
 
                 return (
-                  <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-3">
+                  <motion.div key={msg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex gap-3">
                     <div className="flex-shrink-0 mt-0.5">
                       <div className="w-7 h-7 flex items-center justify-center" style={{ background: `${modeCfg.color}18` }}>
                         <CRLogo size={18} />
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: modeCfg.color }}>Challenger Reporter</span>
                         <span className="text-[7px] text-white/15">· {modeCfg.label}</span>
                       </div>
-                      <div
-                        className="px-5 py-4 border text-[12px] leading-relaxed"
-                        style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.06)' }}
-                      >
+                      <div className="px-5 py-4 border" style={{ background: 'rgba(255,255,255,0.025)', borderColor: 'rgba(255,255,255,0.06)' }}>
                         {msg.content ? (
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
-                              h2: ({ children }) => (
-                                <h2 className="text-[10px] font-black uppercase tracking-widest mt-5 mb-2 first:mt-0" style={{ color: modeCfg.color }}>{children}</h2>
-                              ),
-                              h3: ({ children }) => (
-                                <h3 className="text-[10px] font-black text-white/60 uppercase tracking-wider mt-3 mb-1">{children}</h3>
-                              ),
-                              p: ({ children }) => (
-                                <p className="text-[12px] text-white/70 mb-2.5 leading-relaxed last:mb-0">{children}</p>
-                              ),
-                              strong: ({ children }) => (
-                                <strong className="font-bold text-white">{children}</strong>
-                              ),
+                              h2: ({ children }) => <h2 className="text-[10px] font-black uppercase tracking-widest mt-5 mb-2 first:mt-0" style={{ color: modeCfg.color }}>{children}</h2>,
+                              h3: ({ children }) => <h3 className="text-[10px] font-black text-white/55 uppercase tracking-wider mt-3 mb-1">{children}</h3>,
+                              p: ({ children }) => <p className="text-[12px] text-white/68 mb-2.5 leading-relaxed last:mb-0">{children}</p>,
+                              strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
                               ul: ({ children }) => <ul className="mb-3 space-y-1.5">{children}</ul>,
                               ol: ({ children }) => <ol className="mb-3 space-y-1.5 list-decimal list-inside">{children}</ol>,
                               li: ({ children }) => (
@@ -943,10 +975,8 @@ export default function JournalismeApp({ onBack }: Props) {
                                   <span>{children}</span>
                                 </li>
                               ),
-                              hr: () => <div className="my-4 border-t border-white/8" />,
-                              code: ({ children }) => (
-                                <code className="px-1.5 py-0.5 text-[11px] font-mono" style={{ background: 'rgba(255,255,255,0.07)', color: modeCfg.color }}>{children}</code>
-                              ),
+                              hr: () => <div className="my-3 border-t border-white/8" />,
+                              code: ({ children }) => <code className="px-1.5 py-0.5 text-[11px] font-mono" style={{ background: 'rgba(255,255,255,0.07)', color: modeCfg.color }}>{children}</code>,
                             }}
                           >
                             {msg.content}
@@ -968,30 +998,18 @@ export default function JournalismeApp({ onBack }: Props) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════
-              INPUT ZONE
-          ══════════════════════════════════════════════════════════════ */}
-          <div
-            className="flex-shrink-0 border-t"
-            style={{ background: '#0f0f0f', borderColor: 'rgba(255,255,255,0.06)' }}
-          >
+          {/* ═══════════ INPUT ZONE ══════════════════════════════════════════ */}
+          <div className="flex-shrink-0 border-t" style={{ background: '#0f0f0f', borderColor: 'rgba(255,255,255,0.06)' }}>
             {/* Attachments preview */}
             <AnimatePresence>
               {attachments.length > 0 && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="px-4 pt-3 flex flex-wrap gap-2"
-                >
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 pt-3 flex flex-wrap gap-2">
                   {attachments.map(att => (
                     <div key={att.id} className="flex items-center gap-1.5 px-2.5 py-1.5 border text-[10px] text-white/50" style={{ background: 'rgba(255,255,255,0.04)', borderColor: `${currentMode.color}25` }}>
                       <FileIcon type={att.type} />
                       <span className="max-w-[120px] truncate">{att.name}</span>
                       <span className="text-white/25">{fmtSize(att.size)}</span>
-                      <button onClick={() => setAttachments(prev => prev.filter(a => a.id !== att.id))} className="ml-1 text-white/25 hover:text-white/70">
-                        <X className="w-3 h-3" />
-                      </button>
+                      <button onClick={() => setAttachments(prev => prev.filter(a => a.id !== att.id))} className="ml-1 text-white/25 hover:text-white/70"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                 </motion.div>
@@ -1001,21 +1019,12 @@ export default function JournalismeApp({ onBack }: Props) {
             {/* Slash suggestions */}
             <AnimatePresence>
               {slashOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  className="border-t mx-4 mt-3"
-                  style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#161616' }}
-                >
+                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} className="border-t mx-4 mt-3" style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#161616' }}>
                   <p className="text-[7px] font-black uppercase tracking-widest text-white/20 px-3 pt-2 pb-1">Commandes</p>
                   {slashMatches.map((cmd, i) => {
                     const CmdIcon = cmd.icon;
                     return (
-                      <button
-                        key={cmd.id}
-                        onClick={() => { handleSlash(cmd.id as SlashId); setInput(''); }}
-                        onMouseEnter={() => setSlashIdx(i)}
+                      <button key={cmd.id} onClick={() => { handleSlash(cmd.id as SlashId); setInput(''); }} onMouseEnter={() => setSlashIdx(i)}
                         className={cx('w-full flex items-center gap-3 px-3 py-2.5 text-left border-t border-white/4 transition-colors', i === safeIdx ? 'bg-white/6' : 'hover:bg-white/4')}
                       >
                         <CmdIcon className="w-3.5 h-3.5 flex-shrink-0 text-white/30" />
@@ -1034,97 +1043,51 @@ export default function JournalismeApp({ onBack }: Props) {
             {/* Voice overlay */}
             <AnimatePresence>
               {voiceOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="px-4 py-4 flex items-center gap-4 border-t"
-                  style={{ borderColor: `${currentMode.color}20`, background: `${currentMode.color}08` }}
-                >
-                  <div className="flex items-center gap-2">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-4 py-3 flex items-center gap-4 border-t" style={{ borderColor: `${currentMode.color}20`, background: `${currentMode.color}06` }}>
+                  <div className="flex items-center gap-1">
                     {[0,1,2,3,4].map(i => (
-                      <motion.div
-                        key={i}
-                        animate={listening ? { scaleY: [0.3, 1, 0.3], transition: { repeat: Infinity, duration: 0.6, delay: i * 0.1 } } : { scaleY: 0.3 }}
-                        className="w-1 rounded-full origin-bottom"
-                        style={{ height: '24px', backgroundColor: currentMode.color }}
-                      />
+                      <motion.div key={i} animate={listening ? { scaleY: [0.3, 1, 0.3], transition: { repeat: Infinity, duration: 0.6, delay: i * 0.1 } } : { scaleY: 0.3 }} className="w-1 rounded-full origin-bottom" style={{ height: '20px', backgroundColor: currentMode.color }} />
                     ))}
                   </div>
-                  <p className="text-[11px] font-bold text-white/60 flex-1">
-                    {listening ? 'En écoute…' : 'Appuyez sur le micro pour parler'}
-                  </p>
-                  <button
-                    onClick={listening ? stopVoice : startVoice}
-                    className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition-colors"
-                    style={{ background: listening ? '#DC2626' : currentMode.color }}
-                  >
+                  <p className="text-[11px] font-bold text-white/50 flex-1">{listening ? 'En écoute…' : 'Appuyez pour parler'}</p>
+                  <button onClick={listening ? stopVoice : startVoice} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white" style={{ background: listening ? '#DC2626' : currentMode.color }}>
                     {listening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
                     {listening ? 'Stop' : 'Parler'}
                   </button>
-                  <button onClick={() => { stopVoice(); setVoiceOpen(false); }} className="text-white/25 hover:text-white/70">
-                    <X className="w-4 h-4" />
-                  </button>
+                  <button onClick={() => { stopVoice(); setVoiceOpen(false); }} className="text-white/25 hover:text-white/70"><X className="w-4 h-4" /></button>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Input bar */}
+            {/* Input row */}
             <div className="flex gap-2 items-end p-3">
-              {/* File input hidden */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
+              <input ref={fileInputRef} type="file" multiple className="hidden"
                 accept="image/*,.pdf,.docx,.txt,.md,.csv,.json,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.go,.rs,.html,.css,.xml,.yaml,.yml,.sh,.sql"
-                onChange={e => handleFiles(e.target.files)}
-              />
+                onChange={e => handleFiles(e.target.files)} />
 
-              {/* Paperclip */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                className="flex-shrink-0 w-10 h-10 flex items-center justify-center border transition-all disabled:opacity-30"
-                style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.3)' }}
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={sending}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center border transition-all disabled:opacity-30"
+                style={{ borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.3)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${currentMode.color}50`; (e.currentTarget as HTMLButtonElement).style.color = currentMode.color; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.3)'; }}
               >
-                <Paperclip className="w-4 h-4" />
+                <Paperclip className="w-3.5 h-3.5" />
               </button>
 
-              {/* Mic */}
-              <button
-                type="button"
-                onClick={() => setVoiceOpen(v => !v)}
-                disabled={sending}
-                className="flex-shrink-0 w-10 h-10 flex items-center justify-center border transition-all disabled:opacity-30"
-                style={{
-                  borderColor: voiceOpen ? `${currentMode.color}60` : 'rgba(255,255,255,0.08)',
-                  background: voiceOpen ? `${currentMode.color}15` : 'transparent',
-                  color: voiceOpen ? currentMode.color : 'rgba(255,255,255,0.3)',
-                }}
+              <button type="button" onClick={() => setVoiceOpen(v => !v)} disabled={sending}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center border transition-all disabled:opacity-30"
+                style={{ borderColor: voiceOpen ? `${currentMode.color}60` : 'rgba(255,255,255,0.08)', background: voiceOpen ? `${currentMode.color}12` : 'transparent', color: voiceOpen ? currentMode.color : 'rgba(255,255,255,0.3)' }}
               >
-                <Mic className="w-4 h-4" />
+                <Mic className="w-3.5 h-3.5" />
               </button>
 
-              {/* Slash */}
-              <button
-                type="button"
-                onClick={() => { setInput(input === '' ? '/' : ''); taRef.current?.focus(); }}
-                disabled={sending}
-                className="flex-shrink-0 w-10 h-10 flex items-center justify-center border transition-all disabled:opacity-30"
-                style={{
-                  borderColor: slashOpen ? `${currentMode.color}60` : 'rgba(255,255,255,0.08)',
-                  background: slashOpen ? `${currentMode.color}15` : 'transparent',
-                  color: slashOpen ? currentMode.color : 'rgba(255,255,255,0.3)',
-                }}
+              <button type="button" onClick={() => { setInput(input === '' ? '/' : ''); taRef.current?.focus(); }} disabled={sending}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center border transition-all disabled:opacity-30"
+                style={{ borderColor: slashOpen ? `${currentMode.color}60` : 'rgba(255,255,255,0.08)', background: slashOpen ? `${currentMode.color}12` : 'transparent', color: slashOpen ? currentMode.color : 'rgba(255,255,255,0.3)' }}
               >
-                <Slash className="w-4 h-4" />
+                <Slash className="w-3.5 h-3.5" />
               </button>
 
-              {/* Textarea */}
               <div className="flex-1 relative">
                 <textarea
                   ref={taRef}
@@ -1133,40 +1096,189 @@ export default function JournalismeApp({ onBack }: Props) {
                   onKeyDown={handleKeyDown}
                   placeholder={`${currentMode.label} — ${currentMode.desc}`}
                   rows={1}
-                  className="w-full border px-4 py-3 text-[12px] text-white placeholder:text-white/18 focus:outline-none resize-none leading-relaxed transition-colors"
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    maxHeight: '140px',
-                    overflow: 'auto',
-                  }}
+                  className="w-full border px-4 py-2.5 text-[12px] text-white placeholder:text-white/18 focus:outline-none resize-none leading-relaxed transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)', maxHeight: '140px', overflow: 'auto' }}
                   onFocus={e => (e.currentTarget.style.borderColor = `${currentMode.color}45`)}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
                 />
               </div>
 
-              {/* Send */}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={(!input.trim() && attachments.length === 0) || sending}
-                className="flex-shrink-0 w-10 h-10 flex items-center justify-center transition-all disabled:opacity-25"
+              <button type="button" onClick={handleSubmit} disabled={(!input.trim() && attachments.length === 0) || sending}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center transition-all disabled:opacity-25"
                 style={{ background: currentMode.color }}
               >
-                {sending ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 text-white" />
-                )}
+                {sending ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
               </button>
             </div>
 
-            <p className="text-center text-[7px] text-white/10 pb-2 select-none">
-              Challenger Reporter peut se tromper — vérifiez les informations importantes
+            <p className="text-center text-[7px] text-white/8 pb-2 select-none">
+              Challenger Reporter · Suite journalisme propulsée par Challenger IA
             </p>
           </div>
         </div>
       </div>
+
+      {/* ═══════════ IMPORT FROM CHAT MODAL ══════════════════════════════════ */}
+      <AnimatePresence>
+        {importModalOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={e => { if (e.target === e.currentTarget) setImportModalOpen(false); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} className="w-full max-w-xl border" style={{ background: '#141414', borderColor: 'rgba(232,93,4,0.3)', boxShadow: '8px 8px 0px 0px rgba(232,93,4,0.15)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+              <div className="h-1 w-full" style={{ background: '#E85D04' }} />
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 flex-shrink-0">
+                <div>
+                  <h3 className="text-[14px] font-black text-white">Importer depuis Challenger IA</h3>
+                  <p className="text-[10px] text-white/35 mt-0.5">Connectez une discussion existante à Challenger Reporter</p>
+                </div>
+                <button onClick={() => setImportModalOpen(false)} className="text-white/20 hover:text-white/60"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="px-6 py-4 border-b border-white/8 flex-shrink-0">
+                <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-2">Mode d'analyse pour l'import</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MODES.map(m => (
+                    <button key={m.id} onClick={() => setImportModeId(m.id as ModeId)}
+                      className="px-2.5 py-1 text-[8px] font-black uppercase tracking-widest border transition-all"
+                      style={{
+                        borderColor: importModeId === m.id ? m.color : 'rgba(255,255,255,0.1)',
+                        background: importModeId === m.id ? `${m.color}18` : 'transparent',
+                        color: importModeId === m.id ? m.color : 'rgba(255,255,255,0.35)',
+                      }}
+                    >{m.short}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {baseChatConvs.length === 0 ? (
+                  <div className="text-center py-10">
+                    <MessageSquare className="w-8 h-8 text-white/10 mx-auto mb-3" />
+                    <p className="text-[11px] text-white/25 font-medium">Aucune discussion disponible</p>
+                    <p className="text-[9px] text-white/15 mt-1">Les discussions Challenger IA apparaîtront ici</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {baseChatConvs.map(conv => (
+                      <button key={conv.id} onClick={() => handleImport(conv)}
+                        className="w-full text-left px-4 py-3 border transition-all group"
+                        style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(232,93,4,0.3)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(232,93,4,0.05)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.02)'; }}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="w-3 h-3 text-[#5D7BFF]/50 flex-shrink-0" />
+                          <p className="text-[11px] font-bold text-white/70 truncate">{conv.title}</p>
+                        </div>
+                        <p className="text-[9px] text-white/25 pl-5">{conv.messages.length} messages · {new Date(conv.updatedAt).toLocaleDateString('fr-FR')}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Session item sub-component ───────────────────────────────────────────────
+function SessionItem({
+  session, isActive, projects, menuOpen,
+  onSelect, onMenuToggle, onDelete, onAssign, onRename,
+  renaming, renameValue, setRenameValue, confirmRename,
+  indent = false,
+}: {
+  session: OutilSession;
+  isActive: boolean;
+  projects: OutilProject[];
+  menuOpen: boolean;
+  onSelect: () => void;
+  onMenuToggle: () => void;
+  onDelete: () => void;
+  onAssign: (projectId: string | undefined) => void;
+  onRename: () => void;
+  renaming: boolean;
+  renameValue: string;
+  setRenameValue: (v: string) => void;
+  confirmRename: () => void;
+  indent?: boolean;
+}) {
+  const modeCfg = MODES_MAP[session.modeId as ModeId];
+  return (
+    <div className={cx('relative group', indent && 'pl-3')} style={{ borderLeft: indent ? '1px solid rgba(255,255,255,0.06)' : undefined }}>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onSelect}
+          className={cx('flex-1 min-w-0 text-left px-1.5 py-1.5 transition-all')}
+          style={{ background: isActive ? 'rgba(255,255,255,0.05)' : 'transparent', borderLeft: `2px solid ${isActive && modeCfg ? modeCfg.color : 'transparent'}` }}
+        >
+          {renaming ? (
+            <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') confirmRename(); if (e.key === 'Escape') confirmRename(); }}
+              onBlur={confirmRename}
+              className="w-full bg-transparent border-b border-[#E85D04]/40 text-[9px] text-white focus:outline-none"
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <>
+              {modeCfg && <p className="text-[7px] font-black uppercase tracking-widest mb-0.5" style={{ color: modeCfg.color }}>{modeCfg.short}</p>}
+              <p className="text-[9px] text-white/35 truncate leading-tight">{session.title.replace(`${modeCfg?.label ?? ''} — `, '')}</p>
+              {session.importedFromChatId && (
+                <p className="text-[7px] text-white/15 flex items-center gap-0.5 mt-0.5">
+                  <MessageSquare className="w-2 h-2" />import
+                </p>
+              )}
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={e => { e.stopPropagation(); onMenuToggle(); }}
+          className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-white/20 hover:text-white/60 transition-all"
+        >
+          <MoreVertical className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Context menu */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute left-0 top-full z-50 border overflow-hidden"
+            style={{ background: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)', minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button onClick={onRename} className="w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] text-white/60 hover:bg-white/5 hover:text-white">
+              <Edit3 className="w-3 h-3" />Renommer
+            </button>
+            {projects.length > 0 && (
+              <>
+                <div className="border-t border-white/6" />
+                <p className="px-3 py-1 text-[7px] font-black uppercase tracking-widest text-white/20">Déplacer vers</p>
+                {projects.map(p => (
+                  <button key={p.id} onClick={() => onAssign(p.id)} className="w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] text-white/60 hover:bg-white/5">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                    {p.name}
+                  </button>
+                ))}
+                {session.projectId && (
+                  <button onClick={() => onAssign(undefined)} className="w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] text-white/40 hover:bg-white/5">
+                    <ChevronRight className="w-3 h-3" />Retirer du projet
+                  </button>
+                )}
+              </>
+            )}
+            <div className="border-t border-white/6" />
+            <button onClick={onDelete} className="w-full flex items-center gap-2 px-3 py-2 text-left text-[10px] text-red-400/70 hover:bg-red-500/5 hover:text-red-400">
+              <Trash2 className="w-3 h-3" />Supprimer
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

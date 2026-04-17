@@ -11,16 +11,17 @@ export interface OutilConfig {
   description: string;
   accentColor: string;
   bgColor: string;
-  icon: string; // emoji fallback for now
+  icon: string;
   status: OutilStatus;
   features: string[];
   category: string;
+  price: string; // display price
 }
 
 export const OUTILS_LIST: OutilConfig[] = [
   {
     id: 'journalisme',
-    name: 'Challenger Journalisme',
+    name: 'Challenger Reporter',
     tagline: 'L\'IA qui traque les biais et vérifie les faits',
     description: 'Suite complète pour les journalistes et communicants : vérification des faits, détection de biais, analyse de sources, préparation d\'interviews, décryptage de communiqués de presse, détecteur de spin et critique de rédaction.',
     accentColor: '#E85D04',
@@ -28,6 +29,7 @@ export const OUTILS_LIST: OutilConfig[] = [
     icon: '📰',
     status: 'available',
     category: 'Médias & Communication',
+    price: '9€/mois',
     features: [
       'Fact-checking en temps réel',
       'Détection de biais médiatiques',
@@ -49,6 +51,7 @@ export const OUTILS_LIST: OutilConfig[] = [
     icon: '🎓',
     status: 'coming_soon',
     category: 'Éducation & Formation',
+    price: '7€/mois',
     features: [
       'Détection des lacunes de raisonnement',
       'Exercices Socratiques adaptatifs',
@@ -67,6 +70,7 @@ export const OUTILS_LIST: OutilConfig[] = [
     icon: '⚕️',
     status: 'coming_soon',
     category: 'Santé & Sciences',
+    price: '9€/mois',
     features: [
       'Analyse critique d\'études médicales',
       'Détection de désinformation santé',
