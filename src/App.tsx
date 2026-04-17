@@ -8,7 +8,7 @@ import {
   GripVertical, Check, Pencil, ChevronDown, AlertTriangle,
   Paperclip, FileText, ImageIcon, FileCode, File, FileSpreadsheet,
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
-  Mic, MicOff, Volume2, Library, Settings,
+  Mic, MicOff, Volume2, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Moon, Sun, Copy, Share2, Link, Trophy, Rocket, Wrench,
 } from 'lucide-react';
@@ -2935,24 +2935,12 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
                         {/* Bibliothèque */}
                         <button
-                          onClick={() => { setCurrentPage('library'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Library className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
-                          </div>
-                          <ChevronRight className="w-3 h-3 opacity-50" />
-                        </button>
-
-                        {/* Nos Outils Partenaires */}
-                        <button
                           onClick={() => { setCurrentPage('outils'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
                           className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
                         >
                           <div className="flex items-center gap-2.5">
-                            <Wrench className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Nos Outils</span>
+                            <BookOpen className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
                           </div>
                           <ChevronRight className="w-3 h-3 opacity-50" />
                         </button>
@@ -4773,8 +4761,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         {([
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
           { icon: Swords, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
-          { icon: Library, label: 'Entraîner', action: () => { setCurrentPage('library'); setSidebarOpen(false); }, active: currentPage === 'library' },
-          { icon: Wrench, label: 'Outils', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
+          { icon: BookOpen, label: 'Bibliothèque', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
           { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
         ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
