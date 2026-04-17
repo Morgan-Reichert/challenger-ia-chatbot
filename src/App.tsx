@@ -3006,7 +3006,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                         className="w-full flex items-center gap-3 px-3 py-2.5 transition-all hover:bg-white/5"
                         style={{ borderLeft: `2px solid ${outil.accentColor}` }}
                       >
-                        <span className="text-base leading-none">{outil.icon}</span>
+                        <img src={outil.logoSrc} alt={outil.name} className="w-6 h-6 object-contain flex-shrink-0" />
                         <div className="flex-1 min-w-0 text-left">
                           <p className="text-[10px] font-black uppercase tracking-wide text-white/70 truncate">{outil.name}</p>
                           <p className="text-[8px] text-white/30 truncate">{outil.tagline}</p>

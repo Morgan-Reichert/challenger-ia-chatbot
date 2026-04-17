@@ -99,10 +99,10 @@ function OutilCard({
         {/* Header */}
         <div className="flex items-start gap-4 mb-4">
           <div
-            className="w-12 h-12 flex items-center justify-center text-2xl flex-shrink-0"
+            className="w-12 h-12 flex items-center justify-center flex-shrink-0 overflow-hidden"
             style={{ background: outil.bgColor, border: `1.5px solid ${outil.accentColor}25` }}
           >
-            {outil.icon}
+            <img src={outil.logoSrc} alt={outil.name} className="w-10 h-10 object-contain" />
           </div>
           <div className="flex-1 min-w-0 pr-8">
             <div

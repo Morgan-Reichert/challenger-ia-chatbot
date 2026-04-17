@@ -25,20 +25,7 @@ function uid() { return Math.random().toString(36).slice(2, 11); }
 
 // ─── Inline CR logo ───────────────────────────────────────────────────────────
 function CRLogo({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100" height="100" fill="#E85D04" />
-      <path d="M18 100 L18 52 Q18 14 50 14 Q82 14 82 52 L82 100" fill="white" />
-      <ellipse cx="50" cy="38" rx="11" ry="15" fill="#E85D04" />
-      <line x1="40" y1="33" x2="60" y2="33" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="39" y1="38" x2="61" y2="38" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="40" y1="43" x2="60" y2="43" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M35 50 Q35 62 50 62 Q65 62 65 50" stroke="#E85D04" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-      <line x1="50" y1="62" x2="50" y2="70" stroke="#E85D04" strokeWidth="3.5" strokeLinecap="round" />
-      <rect x="43" y="70" width="14" height="5" rx="2" fill="#E85D04" />
-      <text x="50" y="94" textAnchor="middle" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="16" fill="#E85D04">CR</text>
-    </svg>
-  );
+  return <img src="/logos/reporter.png" alt="Challenger Reporter" style={{ width: size, height: size, objectFit: 'contain' }} />;
 }
 
 // ─── Mode types ───────────────────────────────────────────────────────────────
