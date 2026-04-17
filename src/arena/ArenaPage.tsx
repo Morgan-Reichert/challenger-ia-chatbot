@@ -53,7 +53,7 @@ function Av({ name, size = 36, ring = false }: { name: string; size?: number; ri
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: `${c}22`, border: `${ring ? 2.5 : 1.5}px solid ${c}55`,
+      background: `${c}18`, border: `${ring ? 2.5 : 1.5}px solid ${c}`,
       color: c, fontSize: size * 0.3, fontWeight: 900, display: 'flex',
       alignItems: 'center', justifyContent: 'center', letterSpacing: 1,
     }}>
@@ -88,49 +88,51 @@ function PseudoModal({ userId, onCreated }: { userId: string; onCreated: (u: Are
   };
 
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xl px-4 pb-6 sm:pb-0"
+    <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-6 sm:pb-0"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <motion.div className="w-full max-w-sm overflow-hidden"
-        style={{ borderRadius: 28, background: '#13161E', border: '1px solid rgba(255,255,255,0.08)' }}
+      <motion.div className="w-full max-w-sm overflow-hidden border-2 border-white/10"
+        style={{ background: '#0D1018' }}
         initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', damping: 22 }}>
 
-        {/* Top gradient band */}
-        <div style={{ background: 'linear-gradient(135deg, #5D7BFF22, #A78BFA18)', padding: '32px 24px 24px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #5D7BFF, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <Trophy size={26} color="#fff" />
+        {/* Header band */}
+        <div className="border-b-2 border-white/10 px-6 pt-8 pb-6 text-center" style={{ background: 'rgba(93,123,255,0.06)' }}>
+          <div className="w-14 h-14 border-2 border-[#5D7BFF] bg-[#5D7BFF]/10 flex items-center justify-center mx-auto mb-4">
+            <Trophy size={24} color="#5D7BFF" />
           </div>
-          <p style={{ fontWeight: 900, fontSize: 16, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', marginBottom: 4 }}>L'Arène</p>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Choisissez votre identité de débatteur</p>
+          <p className="font-black text-sm uppercase tracking-widest text-white mb-1">L'Arène</p>
+          <p className="text-[11px] text-white/40">Choisissez votre identité de débatteur</p>
         </div>
 
-        <div style={{ padding: 24 }}>
+        <div className="p-6">
           {/* Input */}
-          <div style={{ position: 'relative', marginBottom: 12 }}>
+          <div className="relative mb-3">
             <input value={name} onChange={e => onChange(e.target.value)} placeholder="Votre pseudonyme…" maxLength={24}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, color: '#fff', fontSize: 14, padding: '14px 44px 14px 16px', outline: 'none', boxSizing: 'border-box' }} />
-            <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)' }}>
+              className="w-full bg-white/5 border-2 border-white/10 text-white text-sm py-3.5 pl-4 pr-11 outline-none focus:border-[#5D7BFF]/60 transition-colors"
+              style={{ boxSizing: 'border-box' }} />
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
               {checking && <Loader2 size={16} color="rgba(255,255,255,0.3)" className="animate-spin" />}
               {!checking && valid && avail === true  && <Check size={16} color="#34D399" />}
               {!checking && valid && avail === false && <X    size={16} color="#F87171" />}
             </div>
           </div>
 
-          {valid && avail === false && <p style={{ fontSize: 11, color: '#F87171', marginBottom: 12 }}>Pseudonyme déjà pris.</p>}
+          {valid && avail === false && <p className="text-[11px] text-[#F87171] mb-3">Pseudonyme déjà pris.</p>}
 
           {/* Preview card */}
           {valid && avail === true && (
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '12px 16px', marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
+              className="flex items-center gap-3 bg-white/4 border-2 border-white/8 p-3 mb-4">
               <Av name={name} size={42} ring />
               <div>
-                <p style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{name}</p>
-                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>⭐ 0 pts · Nouveau débatteur</p>
+                <p className="font-black text-sm text-white">{name}</p>
+                <p className="text-[10px] text-white/35 mt-0.5">⭐ 0 pts · Nouveau débatteur</p>
               </div>
             </motion.div>
           )}
 
           <button onClick={submit} disabled={!valid || avail !== true || busy}
-            style={{ width: '100%', background: 'linear-gradient(135deg, #5D7BFF, #7B9BFF)', border: 'none', borderRadius: 16, color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', padding: '16px', cursor: 'pointer', opacity: (!valid || avail !== true || busy) ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            className="w-full bg-[#5D7BFF] border-2 border-[#5D7BFF] text-white font-black text-[11px] uppercase tracking-widest py-4 flex items-center justify-center gap-2 cursor-pointer transition-opacity"
+            style={{ opacity: (!valid || avail !== true || busy) ? 0.3 : 1, boxShadow: '3px 3px 0px 0px rgba(93,123,255,0.35)' }}>
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Trophy size={16} />}
             {busy ? 'Création…' : "Entrer dans l'Arène"}
           </button>
@@ -147,10 +149,10 @@ function StoryDot({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
   const c = avatarColor(name);
   return (
     <button onClick={onClick} className="flex flex-col items-center gap-1.5 flex-shrink-0">
-      <div style={{ padding: 2, borderRadius: '50%', background: `linear-gradient(135deg, ${c}, ${c}88)` }}>
-        <Av name={name} size={48} />
+      <div style={{ padding: 2, border: `2px solid ${c}`, display: 'inline-flex' }}>
+        <Av name={name} size={44} />
       </div>
-      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', maxWidth: 52, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+      <span className="text-[9px] text-white/40 max-w-[52px] text-center overflow-hidden text-ellipsis whitespace-nowrap font-bold">
         {post.isAnonymous ? 'Anonyme' : post.authorArenaName.split(' ')[0]}
       </span>
     </button>
@@ -183,7 +185,7 @@ function PollBlock({ options, postId, userId, onVoted }: {
   };
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div className="mb-3">
       {options.map(opt => {
         const pct = total > 0 ? Math.round(((opt.voteCount ?? 0) / total) * 100) : 0;
         const isMyVote = opt.voterIds?.includes(userId);
@@ -191,24 +193,23 @@ function PollBlock({ options, postId, userId, onVoted }: {
           <button
             key={opt.id}
             onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
+            className="relative w-full mb-2 px-3 py-2 text-left cursor-pointer overflow-hidden transition-colors"
             style={{
-              position: 'relative', width: '100%', marginBottom: 8,
-              background: 'rgba(255,255,255,0.04)', border: `1.5px solid ${isMyVote ? '#5D7BFF' : 'rgba(255,255,255,0.1)'}`,
-              borderRadius: 10, padding: '8px 12px', textAlign: 'left', cursor: 'pointer',
-              overflow: 'hidden',
+              background: 'rgba(255,255,255,0.04)',
+              border: `2px solid ${isMyVote ? '#5D7BFF' : 'rgba(255,255,255,0.1)'}`,
             }}
           >
             {myVote && (
-              <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: isMyVote ? 'rgba(93,123,255,0.18)' : 'rgba(255,255,255,0.06)', transition: 'width 0.4s' }} />
+              <div className="absolute left-0 top-0 h-full transition-all" style={{ width: `${pct}%`, background: isMyVote ? 'rgba(93,123,255,0.15)' : 'rgba(255,255,255,0.05)', transitionDuration: '0.4s' }} />
             )}
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: isMyVote ? '#7B9BFF' : '#fff', fontWeight: isMyVote ? 700 : 400 }}>{opt.text}</span>
-              {myVote && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>{pct}%</span>}
+            <div className="relative flex justify-between items-center">
+              <span className="text-xs" style={{ color: isMyVote ? '#7B9BFF' : '#fff', fontWeight: isMyVote ? 700 : 400 }}>{opt.text}</span>
+              {myVote && <span className="text-[11px] text-white/40 font-semibold">{pct}%</span>}
             </div>
           </button>
         );
       })}
-      <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{total} vote{total !== 1 ? 's' : ''}</p>
+      <p className="text-[10px] text-white/25 mt-1">{total} vote{total !== 1 ? 's' : ''}</p>
     </div>
   );
 }
@@ -229,38 +230,52 @@ function PostCard({ post, onClick, onAvatarClick, userId, onPollVoted }: {
   const isHot = post.commentCount >= 5;
 
   return (
-    <motion.button onClick={onClick} whileHover={{ y: -3 }} whileTap={{ scale: 0.985 }}
-      className="w-full text-left group"
-      style={{ borderRadius: 24, background: '#13161E', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', display: 'block' }}>
+    <motion.button onClick={onClick} whileHover={{ y: -2 }} whileTap={{ scale: 0.99 }}
+      className="w-full text-left group border-2 border-white/8 overflow-hidden block"
+      style={{ background: '#13161E', boxShadow: '3px 3px 0px 0px rgba(255,255,255,0.04)' }}>
 
       {/* Colored top strip */}
-      <div style={{ height: 3, background: isFeatured ? 'linear-gradient(90deg,#A78BFA,#5D7BFF)' : isHot ? 'linear-gradient(90deg,#F97316,#FBBF24)' : `linear-gradient(90deg,${c}60,transparent)` }} />
+      <div style={{ height: 3, background: isFeatured ? '#A78BFA' : isHot ? '#F97316' : c }} />
 
-      <div style={{ padding: '16px 18px' }}>
+      <div className="p-4">
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <button onClick={(e) => { e.stopPropagation(); onAvatarClick?.(); }} style={{ background: 'none', border: 'none', padding: 0, cursor: onAvatarClick ? 'pointer' : 'default', lineHeight: 0 }}>
+        <div className="flex items-center gap-2.5 mb-3">
+          <button onClick={(e) => { e.stopPropagation(); onAvatarClick?.(); }}
+            className="bg-transparent border-0 p-0 leading-none"
+            style={{ cursor: onAvatarClick ? 'pointer' : 'default' }}>
             <Av name={name} size={36} ring />
           </button>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{post.isAnonymous ? 'Anonyme' : post.authorArenaName}</p>
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{timeAgo(post.createdAt)}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white">{post.isAnonymous ? 'Anonyme' : post.authorArenaName}</p>
+            <p className="text-[10px] text-white/30 mt-0.5">{timeAgo(post.createdAt)}</p>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {isFeatured && <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(167,139,250,0.15)', color: '#A78BFA', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 20, padding: '3px 8px' }}>⭐ Défi</span>}
-            {isHot && !isFeatured && <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(249,115,22,0.15)', color: '#F97316', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 20, padding: '3px 8px' }}>🔥 Hot</span>}
+          <div className="flex gap-1.5">
+            {isFeatured && (
+              <span className="text-[8px] font-black uppercase tracking-wide px-2 py-0.5 border border-[#A78BFA]/40 text-[#A78BFA]"
+                style={{ background: 'rgba(167,139,250,0.1)' }}>⭐ Défi</span>
+            )}
+            {isHot && !isFeatured && (
+              <span className="text-[8px] font-black uppercase tracking-wide px-2 py-0.5 border border-[#F97316]/40 text-[#F97316]"
+                style={{ background: 'rgba(249,115,22,0.1)' }}>🔥 Hot</span>
+            )}
           </div>
         </div>
 
         {/* Title */}
-        <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.4, marginBottom: 6 }}>{post.title}</p>
-        {post.preamble && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', lineHeight: 1.5, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{post.preamble}</p>}
+        <p className="text-[15px] font-black text-white leading-snug mb-1.5">{post.title}</p>
+        {post.preamble && (
+          <p className="text-[11px] text-white/38 leading-relaxed mb-3 overflow-hidden"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+            {post.preamble}
+          </p>
+        )}
 
         {/* Tags */}
         {post.tags && post.tags.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          <div className="flex flex-wrap gap-1.5 mb-2.5">
             {post.tags.map(t => (
-              <span key={t} style={{ fontSize: 10, fontWeight: 700, color: 'rgba(93,123,255,0.8)', background: 'rgba(93,123,255,0.1)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '2px 8px' }}>
+              <span key={t} className="text-[10px] font-bold px-2 py-0.5 border border-[#5D7BFF]/25 text-[#5D7BFF]/80"
+                style={{ background: 'rgba(93,123,255,0.08)' }}>
                 #{t}
               </span>
             ))}
@@ -280,37 +295,38 @@ function PostCard({ post, onClick, onAvatarClick, userId, onPollVoted }: {
         )}
 
         {/* Persona chip */}
-        <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase', background: 'rgba(93,123,255,0.12)', color: 'rgba(93,123,255,0.8)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '3px 10px', display: 'inline-block', marginBottom: 14 }}>
+        <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 inline-block mb-3.5 border border-[#5D7BFF]/25 text-[#5D7BFF]/80"
+          style={{ background: 'rgba(93,123,255,0.08)' }}>
           {post.personaName}
         </span>
 
         {/* Stance bar */}
         {total > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', height: 6, borderRadius: 99, overflow: 'hidden', gap: 2, marginBottom: 8 }}>
-              {agreeP    > 0 && <div style={{ width: `${agreeP}%`,    background: '#34D399', borderRadius: 99 }} />}
-              {nuanceP   > 0 && <div style={{ width: `${nuanceP}%`,   background: '#FBBF24', borderRadius: 99 }} />}
-              {disagreeP > 0 && <div style={{ width: `${disagreeP}%`, background: '#F87171', borderRadius: 99 }} />}
+          <div className="mb-3.5">
+            <div className="flex h-1.5 overflow-hidden gap-px mb-2">
+              {agreeP    > 0 && <div style={{ width: `${agreeP}%`,    background: '#34D399' }} />}
+              {nuanceP   > 0 && <div style={{ width: `${nuanceP}%`,   background: '#FBBF24' }} />}
+              {disagreeP > 0 && <div style={{ width: `${disagreeP}%`, background: '#F87171' }} />}
             </div>
-            <div style={{ display: 'flex', gap: 16 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#34D399' }}>✓ {post.agreeCount}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#FBBF24' }}>~ {post.nuanceCount}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#F87171' }}>✗ {post.disagreeCount}</span>
+            <div className="flex gap-4">
+              <span className="text-[10px] font-bold text-[#34D399]">✓ {post.agreeCount}</span>
+              <span className="text-[10px] font-bold text-[#FBBF24]">~ {post.nuanceCount}</span>
+              <span className="text-[10px] font-bold text-[#F87171]">✗ {post.disagreeCount}</span>
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+        <div className="flex items-center gap-4 pt-3 border-t border-white/5">
+          <div className="flex items-center gap-1.5 text-white/35 text-[11px]">
             <MessageSquare size={13} />
             <span>{post.commentCount}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+          <div className="flex items-center gap-1.5 text-white/35 text-[11px]">
             <Users size={13} />
             <span>{post.commentCount} débatteur{post.commentCount !== 1 ? 's' : ''}</span>
           </div>
-          <div style={{ marginLeft: 'auto', background: 'rgba(93,123,255,0.12)', border: '1px solid rgba(93,123,255,0.25)', borderRadius: 20, padding: '5px 14px', color: '#5D7BFF', fontSize: 10, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase' }}>
+          <div className="ml-auto border-2 border-[#5D7BFF]/40 px-3.5 py-1.5 text-[#5D7BFF] text-[10px] font-black uppercase tracking-widest">
             Débattre →
           </div>
         </div>
@@ -326,13 +342,20 @@ function SophismBadge({ alert }: { alert: SophismAlert }) {
   if (!alert.detected) return null;
   const col = alert.severity === 'high' ? '#F87171' : alert.severity === 'medium' ? '#FBBF24' : '#94A3B8';
   return (
-    <div style={{ marginTop: 10 }}>
-      <button onClick={() => setOpen(v => !v)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: `${col}18`, color: col, border: `1px solid ${col}40`, borderRadius: 20, padding: '4px 10px', cursor: 'pointer' }}>
+    <div className="mt-2.5">
+      <button onClick={() => setOpen(v => !v)}
+        className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide px-2.5 py-1 cursor-pointer border"
+        style={{ background: `${col}12`, color: col, borderColor: `${col}40` }}>
         <AlertTriangle size={11} />
         Sophisme · {alert.type}
         {open ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
       </button>
-      {open && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8, paddingLeft: 12, borderLeft: `2px solid ${col}50`, lineHeight: 1.6 }}>{alert.explanation}</p>}
+      {open && (
+        <p className="text-[11px] text-white/50 mt-2 pl-3 leading-relaxed"
+          style={{ borderLeft: `2px solid ${col}60` }}>
+          {alert.explanation}
+        </p>
+      )}
     </div>
   );
 }
@@ -356,33 +379,41 @@ function CommentItem({ comment, userId, postId, depth, onReply, onUpdated, onChe
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      style={{ display: 'flex', gap: 10, paddingLeft: depth > 0 ? 44 : 0 }}>
+      className="flex gap-2.5" style={{ paddingLeft: depth > 0 ? 44 : 0 }}>
       <Av name={comment.authorArenaName} size={32} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="flex-1 min-w-0">
         {/* Bubble */}
-        <div style={{ background: '#1C2030', borderRadius: 18, borderTopLeftRadius: 4, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{comment.authorArenaName}</span>
-            <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: `rgba(${s.rgb},0.15)`, color: s.color, border: `1px solid rgba(${s.rgb},0.35)`, borderRadius: 20, padding: '2px 8px' }}>{s.short} {s.label}</span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginLeft: 'auto' }}>{timeAgo(comment.createdAt)}</span>
+        <div className="border-2 border-white/8 p-3" style={{ background: '#1C2030' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-black text-white">{comment.authorArenaName}</span>
+            <span className="text-[8px] font-black uppercase tracking-wide px-2 py-0.5 border"
+              style={{ background: `rgba(${s.rgb},0.12)`, color: s.color, borderColor: `rgba(${s.rgb},0.35)` }}>
+              {s.short} {s.label}
+            </span>
+            <span className="text-[9px] text-white/25 ml-auto">{timeAgo(comment.createdAt)}</span>
           </div>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>{comment.content}</p>
+          <p className="text-xs text-white/75 leading-relaxed">{comment.content}</p>
           {comment.sophismAlert && <SophismBadge alert={comment.sophismAlert} />}
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '6px 4px' }}>
-          <button onClick={handleUp} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: up ? '#5D7BFF' : 'rgba(255,255,255,0.3)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+        <div className="flex items-center gap-5 px-1 py-1.5">
+          <button onClick={handleUp}
+            className="flex items-center gap-1.5 text-[11px] font-bold border-0 bg-transparent cursor-pointer p-0"
+            style={{ color: up ? '#5D7BFF' : 'rgba(255,255,255,0.3)' }}>
             <ThumbsUp size={13} />
             {comment.upvotes > 0 ? comment.upvotes : "J'aime"}
           </button>
           {depth === 0 && (
-            <button onClick={() => onReply(comment.id, comment.authorArenaName)} style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={() => onReply(comment.id, comment.authorArenaName)}
+              className="text-[11px] font-bold text-white/30 border-0 bg-transparent cursor-pointer p-0">
               Répondre
             </button>
           )}
           {comment.authorId !== userId && !comment.sophismAlert && (
-            <button onClick={() => onCheck(comment)} disabled={checkingId === comment.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.2)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, marginLeft: 'auto', opacity: checkingId === comment.id ? 0.4 : 1 }}>
+            <button onClick={() => onCheck(comment)} disabled={checkingId === comment.id}
+              className="flex items-center gap-1 text-[11px] font-bold text-white/20 border-0 bg-transparent cursor-pointer p-0 ml-auto"
+              style={{ opacity: checkingId === comment.id ? 0.4 : 1 }}>
               {checkingId === comment.id ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
               Vérifier · 0.25cr
             </button>
@@ -393,34 +424,34 @@ function CommentItem({ comment, userId, postId, depth, onReply, onUpdated, onChe
   );
 }
 
-// ─── mdArena (même rendu que chatbot) ────────────────────────────────────────
+// ─── mdArena (rendu markdown brutalist) ───────────────────────────────────────
 
 const mdArena: Record<string, any> = {
   p: ({ children }: any) => <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)', lineHeight: 1.7, marginBottom: 10 }}>{children}</p>,
   h2: ({ children }: any) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0 8px', }}>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0 8px' }}>
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
       <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.15)', padding: '3px 8px' }}>{children}</span>
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }} />
+      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
     </div>
   ),
   h3: ({ children }: any) => <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', margin: '12px 0 6px' }}>{children}</p>,
-  strong: ({ children }: any) => <strong style={{ fontWeight: 900, color: '#fff', background: 'rgba(255,255,255,0.12)', padding: '1px 5px', borderRadius: 3 }}>{children}</strong>,
+  strong: ({ children }: any) => <strong style={{ fontWeight: 900, color: '#fff', background: 'rgba(255,255,255,0.1)', padding: '1px 5px' }}>{children}</strong>,
   em: ({ children }: any) => <em style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.7)' }}>{children}</em>,
   ul: ({ children }: any) => <ul style={{ margin: '6px 0 10px', paddingLeft: 0, listStyle: 'none' }}>{children}</ul>,
   li: ({ children }: any) => (
     <li style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
-      <span style={{ width: 5, height: 5, background: 'rgba(255,255,255,0.4)', borderRadius: 1, flexShrink: 0, marginTop: 7 }} />
+      <span style={{ width: 5, height: 5, background: '#5D7BFF', flexShrink: 0, marginTop: 7 }} />
       <span>{children}</span>
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <div style={{ borderLeft: '2px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.07)', padding: '10px 14px', margin: '10px 0' }}>
+    <div style={{ borderLeft: '3px solid #5D7BFF', background: 'rgba(93,123,255,0.08)', padding: '10px 14px', margin: '10px 0' }}>
       <div style={{ fontSize: 7, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>Référence</div>
       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', lineHeight: 1.6 }}>{children}</div>
     </div>
   ),
-  code: ({ children }: any) => <code style={{ fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4, color: '#fff' }}>{children}</code>,
+  code: ({ children }: any) => <code style={{ fontFamily: 'monospace', fontSize: 11, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', padding: '2px 6px', color: '#fff' }}>{children}</code>,
   hr: () => <div style={{ borderTop: '1px solid rgba(255,255,255,0.12)', margin: '14px 0' }} />,
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#7B9BFF', textDecoration: 'underline', textUnderlineOffset: 3 }}>{children}</a>,
 };
@@ -533,33 +564,35 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
 
   // Guards
   if (!user) return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#0A0C12' }}>
-      <Trophy size={36} color="rgba(93,123,255,0.4)" />
-      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>Connectez-vous pour accéder à l'Arène.</p>
-      <button onClick={onBack} style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#5D7BFF', background: 'none', border: 'none', cursor: 'pointer' }}>← Retour</button>
+    <div className="h-full flex flex-col items-center justify-center gap-4" style={{ background: '#0A0C12' }}>
+      <div className="w-16 h-16 border-2 border-[#5D7BFF]/40 flex items-center justify-center">
+        <Trophy size={28} color="rgba(93,123,255,0.5)" />
+      </div>
+      <p className="text-sm text-white/35 text-center">Connectez-vous pour accéder à l'Arène.</p>
+      <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] bg-transparent border-0 cursor-pointer">← Retour</button>
     </div>
   );
 
   if (loadingUser) return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0A0C12' }}>
+    <div className="h-full flex items-center justify-center" style={{ background: '#0A0C12' }}>
       <Loader2 size={24} color="rgba(93,123,255,0.4)" className="animate-spin" />
     </div>
   );
 
   if (firestoreError) return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: '#0A0C12', padding: 32 }}>
+    <div className="h-full flex flex-col items-center justify-center gap-4 p-8" style={{ background: '#0A0C12' }}>
       <AlertTriangle size={32} color="rgba(251,191,36,0.6)" />
-      <div style={{ textAlign: 'center' }}>
-        <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Règles Firestore non déployées</p>
-        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>Firebase Console → Firestore → Règles → Publier les nouvelles règles arena_users, arena_posts.</p>
+      <div className="text-center">
+        <p className="text-sm font-black text-white mb-1.5">Règles Firestore non déployées</p>
+        <p className="text-[10px] text-white/35 leading-relaxed">Firebase Console → Firestore → Règles → Publier les nouvelles règles arena_users, arena_posts.</p>
       </div>
-      <button onClick={onBack} style={{ fontSize: 10, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer' }}>← Retour</button>
+      <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-white/30 bg-transparent border-0 cursor-pointer">← Retour</button>
     </div>
   );
 
   // ──────────────────────────────────────────────────────────────────────────
 
-  // ── Profile / Settings views ────────────────────────────────────────────────
+  // ── Profile / Settings views ──────────────────────────────────────────────
   if (view === 'profile' && profileUserId && arenaUser) {
     return (
       <ArenaProfilePage
@@ -585,7 +618,7 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0A0C12', overflow: 'hidden' }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: '#0A0C12' }}>
       {showModal && <PseudoModal userId={user.uid} onCreated={u => { setArenaUser(u); setShowModal(false); }} />}
 
       {/* ArenaUserModal */}
@@ -601,83 +634,99 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
         )}
       </AnimatePresence>
 
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0D1018' }}>
+      {/* ── Top bar ───────────────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3.5 border-b-2 border-white/6"
+        style={{ background: '#0D1018' }}>
         <button onClick={view === 'post' ? () => { setView('feed'); setSelectedPost(null); setSynthesis(null); } : onBack}
-          style={{ color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}>
+          className="text-white/35 bg-transparent border-0 cursor-pointer p-0 leading-none">
           <ArrowLeft size={18} />
         </button>
 
         {view === 'feed' ? (
           <>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Trophy size={15} color="#5D7BFF" />
-                <span style={{ fontSize: 14, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#fff' }}>L'Arène</span>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Trophy size={14} color="#5D7BFF" />
+                <span className="text-sm font-black uppercase tracking-widest text-white">L'Arène</span>
               </div>
-              {arenaUser && <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
-                Bienvenue, <span style={{ color: '#5D7BFF', fontWeight: 700 }}>{arenaUser.arenaName}</span>
-              </p>}
+              {arenaUser && (
+                <p className="text-[9px] text-white/30 mt-0.5">
+                  Bienvenue, <span className="text-[#5D7BFF] font-bold">{arenaUser.arenaName}</span>
+                </p>
+              )}
             </div>
-            <button onClick={() => setShowSearch(v => !v)} style={{ color: showSearch ? '#fff' : 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}>
+            <button onClick={() => setShowSearch(v => !v)}
+              className="bg-transparent border-0 cursor-pointer leading-none"
+              style={{ color: showSearch ? '#fff' : 'rgba(255,255,255,0.3)' }}>
               <Search size={18} />
             </button>
             {arenaUser && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 20, padding: '5px 10px' }}>
-                <Star size={12} color="#FBBF24" />
-                <span style={{ fontSize: 11, fontWeight: 900, color: '#FBBF24' }}>{arenaUser.credibilityScore}</span>
+              <div className="flex items-center gap-1.5 border border-[#FBBF24]/30 px-2.5 py-1.5"
+                style={{ background: 'rgba(251,191,36,0.08)' }}>
+                <Star size={11} color="#FBBF24" />
+                <span className="text-[11px] font-black text-[#FBBF24]">{arenaUser.credibilityScore}</span>
               </div>
             )}
             {onGoToXpose && (
               <button onClick={onGoToXpose}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'linear-gradient(135deg,#7C3AED,#5D7BFF)', border: 'none', borderRadius: 20, padding: '5px 12px', cursor: 'pointer', color: '#fff', fontSize: 9, fontWeight: 900, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                className="flex items-center gap-1.5 border-2 border-[#7C3AED] px-3 py-1.5 cursor-pointer text-white text-[9px] font-black uppercase tracking-widest bg-transparent">
                 <Zap size={11} />
                 XPOSE
               </button>
             )}
             {arenaUser && (
-              <button onClick={() => setView('settings')} style={{ color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}>
+              <button onClick={() => setView('settings')}
+                className="text-white/30 bg-transparent border-0 cursor-pointer leading-none">
                 <Settings size={18} />
               </button>
             )}
           </>
         ) : (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPost?.title}</p>
-            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{selectedPost?.commentCount} contributions</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-white overflow-hidden text-ellipsis whitespace-nowrap">{selectedPost?.title}</p>
+            <p className="text-[9px] text-white/30 mt-0.5">{selectedPost?.commentCount} contributions</p>
           </div>
         )}
       </div>
 
-      {/* ── FEED ─────────────────────────────────────────────────────────── */}
+      {/* ── FEED ──────────────────────────────────────────────────────────── */}
       {view === 'feed' && (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="flex-1 overflow-y-auto">
           {/* Search bar */}
           <AnimatePresence>
             {showSearch && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0D1018' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden border-b-2 border-white/6" style={{ background: '#0D1018' }}>
+                <div className="flex items-center gap-2.5 px-4 py-3">
                   <Search size={14} color="rgba(255,255,255,0.3)" />
                   <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un débat…"
-                    style={{ flex: 1, background: 'none', border: 'none', color: '#fff', fontSize: 13, outline: 'none' }} />
-                  {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, color: 'rgba(255,255,255,0.3)' }}><X size={14} /></button>}
+                    className="flex-1 bg-transparent border-0 text-white text-sm outline-none" />
+                  {search && (
+                    <button onClick={() => setSearch('')}
+                      className="bg-transparent border-0 cursor-pointer leading-none text-white/30">
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Filter pills */}
-          <div style={{ display: 'flex', gap: 8, padding: '14px 16px 10px', overflowX: 'auto' }}>
+          {/* Filter tabs */}
+          <div className="flex gap-2 px-4 py-3.5 overflow-x-auto">
             {([
               { key: 'recent',   label: 'Récents',      icon: Clock },
               { key: 'trending', label: 'Tendance',     icon: TrendingUp },
               { key: 'featured', label: 'Défi du jour', icon: Star },
             ] as { key: typeof filter; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
-              <button key={key} onClick={() => setFilter(key)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', flexShrink: 0, fontWeight: 900, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase',
-                background: filter === key ? 'linear-gradient(135deg,#5D7BFF,#7B9BFF)' : 'rgba(255,255,255,0.06)',
-                color: filter === key ? '#fff' : 'rgba(255,255,255,0.4)',
-              }}>
+              <button key={key} onClick={() => setFilter(key)}
+                className="flex items-center gap-1.5 px-4 py-2 border-2 flex-shrink-0 font-black text-[10px] uppercase tracking-wide cursor-pointer transition-colors"
+                style={{
+                  borderColor: filter === key ? '#5D7BFF' : 'rgba(255,255,255,0.1)',
+                  background: filter === key ? 'rgba(93,123,255,0.12)' : 'transparent',
+                  color: filter === key ? '#5D7BFF' : 'rgba(255,255,255,0.4)',
+                  boxShadow: filter === key ? '2px 2px 0px 0px rgba(93,123,255,0.3)' : 'none',
+                }}>
                 <Icon size={11} />{label}
               </button>
             ))}
@@ -685,26 +734,26 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
 
           {/* Stories strip */}
           {filtered.length > 0 && (
-            <div style={{ padding: '0 16px 16px', overflowX: 'auto' }}>
-              <div style={{ display: 'flex', gap: 16, paddingBottom: 4 }}>
+            <div className="px-4 pb-4 overflow-x-auto">
+              <div className="flex gap-4 pb-1">
                 {filtered.slice(0, 8).map(p => <StoryDot key={p.id} post={p} onClick={() => openPost(p)} />)}
               </div>
             </div>
           )}
 
           {/* Posts */}
-          <div style={{ padding: '0 16px 120px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="px-4 pb-32 flex flex-col gap-3">
             {loadingPosts ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+              <div className="flex justify-center py-16">
                 <Loader2 size={22} color="rgba(93,123,255,0.4)" className="animate-spin" />
               </div>
             ) : filtered.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0' }}>
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(93,123,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <div className="text-center py-16">
+                <div className="w-16 h-16 border-2 border-[#5D7BFF]/20 flex items-center justify-center mx-auto mb-4">
                   <Trophy size={28} color="rgba(93,123,255,0.3)" />
                 </div>
-                <p style={{ fontSize: 14, fontWeight: 800, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>L'Arène est vide</p>
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>Propulsez un échange depuis le chat !</p>
+                <p className="text-sm font-black text-white/30 mb-1.5">L'Arène est vide</p>
+                <p className="text-[11px] text-white/20">Propulsez un échange depuis le chat !</p>
               </div>
             ) : filtered.map(p => (
               <PostCard
@@ -722,52 +771,59 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
 
       {/* ── POST DETAIL ───────────────────────────────────────────────────── */}
       {view === 'post' && selectedPost && (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="flex-1 overflow-y-auto">
           {/* Post meta */}
-          <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          <div className="px-4 pt-4 pb-3 border-b-2 border-white/5">
+            <div className="flex gap-2.5 mb-3">
               <Av name={selectedPost.isAnonymous ? '??' : selectedPost.authorArenaName} size={40} ring />
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{selectedPost.isAnonymous ? 'Anonyme' : selectedPost.authorArenaName}</p>
-                <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(93,123,255,0.12)', color: 'rgba(93,123,255,0.8)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '2px 8px' }}>{selectedPost.personaName}</span>
-                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{timeAgo(selectedPost.createdAt)}</span>
+              <div className="flex-1">
+                <p className="text-sm font-black text-white">{selectedPost.isAnonymous ? 'Anonyme' : selectedPost.authorArenaName}</p>
+                <div className="flex gap-2 mt-1 flex-wrap">
+                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border border-[#5D7BFF]/25 text-[#5D7BFF]/80"
+                    style={{ background: 'rgba(93,123,255,0.08)' }}>
+                    {selectedPost.personaName}
+                  </span>
+                  <span className="text-[9px] text-white/25">{timeAgo(selectedPost.createdAt)}</span>
                 </div>
               </div>
             </div>
-            <p style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.4, marginBottom: 8 }}>{selectedPost.title}</p>
-            {selectedPost.preamble && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>{selectedPost.preamble}</p>}
+            <p className="text-lg font-black text-white leading-snug mb-2">{selectedPost.title}</p>
+            {selectedPost.preamble && <p className="text-xs text-white/40 leading-relaxed">{selectedPost.preamble}</p>}
           </div>
 
           {/* Q/A exchange */}
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div className="px-4 py-4 flex flex-col gap-2.5 border-b-2 border-white/5">
             {/* Q bubble */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)' }}>Q</div>
-              <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 18, borderTopLeftRadius: 4, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>{selectedPost.question}</p>
+            <div className="flex gap-2.5">
+              <div className="w-7 h-7 border-2 border-white/12 flex items-center justify-center flex-shrink-0 mt-0.5 text-[9px] font-black text-white/40">Q</div>
+              <div className="flex-1 border-2 border-white/7 px-3.5 py-3" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <p className="text-xs text-white/65 leading-relaxed">{selectedPost.question}</p>
               </div>
             </div>
 
             {/* AI bubble */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#5D7BFF,#A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                <Zap size={13} color="#fff" />
+            <div className="flex gap-2.5">
+              <div className="w-7 h-7 border-2 border-[#5D7BFF]/60 bg-[#5D7BFF]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Zap size={13} color="#5D7BFF" />
               </div>
-              <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(93,123,255,0.1), rgba(167,139,250,0.06))', border: '1px solid rgba(93,123,255,0.18)', borderRadius: 18, borderTopLeftRadius: 4, padding: '14px 16px' }}>
-                <p style={{ fontSize: 8, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(93,123,255,0.6)', marginBottom: 10 }}>Réponse IA</p>
+              <div className="flex-1 border-2 border-[#5D7BFF]/20 px-4 py-3.5" style={{ background: 'rgba(93,123,255,0.06)' }}>
+                <p className="text-[8px] font-black uppercase tracking-widest text-[#5D7BFF]/60 mb-2.5">Réponse IA</p>
                 {(() => {
                   const LIMIT = 600;
                   const long = selectedPost.aiResponse.length > LIMIT;
                   const shown = long && !expanded ? selectedPost.aiResponse.slice(0, LIMIT) : selectedPost.aiResponse;
                   return (
                     <>
-                      <div style={{ position: 'relative', overflow: long && !expanded ? 'hidden' : 'visible' }}>
+                      <div className={cx('relative', long && !expanded ? 'overflow-hidden' : '')}>
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{shown}</ReactMarkdown>
-                        {long && !expanded && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 48, background: 'linear-gradient(to top, #0e1422, transparent)' }} />}
+                        {long && !expanded && (
+                          <div className="absolute bottom-0 left-0 right-0 h-12"
+                            style={{ background: 'linear-gradient(to top, #0e1422, transparent)' }} />
+                        )}
                       </div>
                       {long && (
-                        <button onClick={() => setExpanded(v => !v)} style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(93,123,255,0.7)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        <button onClick={() => setExpanded(v => !v)}
+                          className="mt-2 flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-[#5D7BFF]/70 bg-transparent border-0 cursor-pointer p-0">
                           {expanded ? <><ChevronUp size={11} />Condenser</> : <><ChevronDown size={11} />Voir tout</>}
                         </button>
                       )}
@@ -780,33 +836,35 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
 
           {/* Opinion summary */}
           {selectedPost.commentCount > 0 && (
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div className="px-4 py-3 border-b-2 border-white/5">
+              <div className="flex items-center gap-2 mb-2.5">
                 <BarChart3 size={13} color="rgba(255,255,255,0.3)" />
-                <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Opinion · {selectedPost.commentCount} voix</span>
+                <span className="text-[9px] font-black uppercase tracking-wide text-white/30">Opinion · {selectedPost.commentCount} voix</span>
               </div>
-              <div style={{ display: 'flex', height: 8, borderRadius: 99, overflow: 'hidden', gap: 2, marginBottom: 10 }}>
-                {selectedPost.agreeCount    > 0 && <div style={{ width: `${(selectedPost.agreeCount    / selectedPost.commentCount) * 100}%`, background: '#34D399', borderRadius: 99 }} />}
-                {selectedPost.nuanceCount   > 0 && <div style={{ width: `${(selectedPost.nuanceCount   / selectedPost.commentCount) * 100}%`, background: '#FBBF24', borderRadius: 99 }} />}
-                {selectedPost.disagreeCount > 0 && <div style={{ width: `${(selectedPost.disagreeCount / selectedPost.commentCount) * 100}%`, background: '#F87171', borderRadius: 99 }} />}
+              <div className="flex h-2 overflow-hidden gap-px mb-2.5">
+                {selectedPost.agreeCount    > 0 && <div style={{ width: `${(selectedPost.agreeCount    / selectedPost.commentCount) * 100}%`, background: '#34D399' }} />}
+                {selectedPost.nuanceCount   > 0 && <div style={{ width: `${(selectedPost.nuanceCount   / selectedPost.commentCount) * 100}%`, background: '#FBBF24' }} />}
+                {selectedPost.disagreeCount > 0 && <div style={{ width: `${(selectedPost.disagreeCount / selectedPost.commentCount) * 100}%`, background: '#F87171' }} />}
               </div>
-              <div style={{ display: 'flex', gap: 20 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#34D399' }}>✓ {selectedPost.agreeCount} pour</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#FBBF24' }}>~ {selectedPost.nuanceCount} nuances</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#F87171' }}>✗ {selectedPost.disagreeCount} contre</span>
+              <div className="flex gap-5">
+                <span className="text-[11px] font-black text-[#34D399]">✓ {selectedPost.agreeCount} pour</span>
+                <span className="text-[11px] font-black text-[#FBBF24]">~ {selectedPost.nuanceCount} nuances</span>
+                <span className="text-[11px] font-black text-[#F87171]">✗ {selectedPost.disagreeCount} contre</span>
               </div>
             </div>
           )}
 
           {/* AI tools */}
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="px-4 py-3 border-b-2 border-white/5 flex gap-2 flex-wrap">
             <button onClick={doSynthesis} disabled={synthLoading || comments.length === 0}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(93,123,255,0.1)', border: '1px solid rgba(93,123,255,0.25)', borderRadius: 99, padding: '7px 14px', color: '#7B9BFF', cursor: 'pointer', opacity: (synthLoading || comments.length === 0) ? 0.3 : 1 }}>
+              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide border-2 border-[#5D7BFF]/30 px-3.5 py-1.5 text-[#7B9BFF] cursor-pointer bg-transparent transition-opacity"
+              style={{ background: 'rgba(93,123,255,0.08)', opacity: (synthLoading || comments.length === 0) ? 0.3 : 1 }}>
               {synthLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               Synthèse · 0.25cr
             </button>
             <button onClick={() => { setShowFc(v => !v); setFcResult(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 99, padding: '7px 14px', color: '#FBBF24', cursor: 'pointer' }}>
+              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide border-2 border-[#FBBF24]/30 px-3.5 py-1.5 text-[#FBBF24] cursor-pointer bg-transparent"
+              style={{ background: 'rgba(251,191,36,0.08)' }}>
               <FileSearch size={12} />
               Fact-check · 0.25cr
             </button>
@@ -814,12 +872,14 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
 
           <AnimatePresence>
             {showFc && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', gap: 8, padding: '12px 16px' }}>
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden border-b-2 border-white/5">
+                <div className="flex gap-2 px-4 py-3">
                   <input autoFocus value={fcClaim} onChange={e => setFcClaim(e.target.value)} placeholder="Entrez l'affirmation à vérifier…"
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 14, color: '#fff', fontSize: 12, padding: '10px 14px', outline: 'none' }} />
+                    className="flex-1 bg-white/5 border-2 border-white/10 text-white text-xs px-3.5 py-2.5 outline-none focus:border-[#FBBF24]/40" />
                   <button onClick={doFactCheck} disabled={!fcClaim.trim() || fcLoading}
-                    style={{ background: '#FBBF24', border: 'none', borderRadius: 12, padding: '0 14px', cursor: 'pointer', opacity: (!fcClaim.trim() || fcLoading) ? 0.4 : 1, lineHeight: 0 }}>
+                    className="bg-[#FBBF24] border-2 border-[#FBBF24] px-3.5 cursor-pointer leading-none transition-opacity"
+                    style={{ opacity: (!fcClaim.trim() || fcLoading) ? 0.4 : 1 }}>
                     {fcLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   </button>
                 </div>
@@ -830,11 +890,12 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
           <AnimatePresence>
             {synthesis && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                style={{ margin: '12px 16px', background: 'rgba(93,123,255,0.08)', border: '1px solid rgba(93,123,255,0.2)', borderRadius: 20, padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                className="mx-4 my-3 border-2 border-[#5D7BFF]/25 p-4"
+                style={{ background: 'rgba(93,123,255,0.06)' }}>
+                <div className="flex items-center gap-2 mb-3">
                   <Sparkles size={14} color="#5D7BFF" />
-                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#5D7BFF', flex: 1 }}>Synthèse de l'Arène</span>
-                  <button onClick={() => setSynthesis(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', lineHeight: 0 }}><X size={14} /></button>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] flex-1">Synthèse de l'Arène</span>
+                  <button onClick={() => setSynthesis(null)} className="bg-transparent border-0 cursor-pointer text-white/30 leading-none"><X size={14} /></button>
                 </div>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{synthesis}</ReactMarkdown>
               </motion.div>
@@ -844,11 +905,12 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
           <AnimatePresence>
             {fcResult && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                style={{ margin: '12px 16px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 20, padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                className="mx-4 my-3 border-2 border-[#FBBF24]/25 p-4"
+                style={{ background: 'rgba(251,191,36,0.06)' }}>
+                <div className="flex items-center gap-2 mb-3">
                   <FileSearch size={14} color="#FBBF24" />
-                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: '#FBBF24', flex: 1 }}>Fact-check</span>
-                  <button onClick={() => setFcResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', lineHeight: 0 }}><X size={14} /></button>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#FBBF24] flex-1">Fact-check</span>
+                  <button onClick={() => setFcResult(null)} className="bg-transparent border-0 cursor-pointer text-white/30 leading-none"><X size={14} /></button>
                 </div>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{fcResult}</ReactMarkdown>
               </motion.div>
@@ -856,18 +918,18 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
           </AnimatePresence>
 
           {/* Comments */}
-          <div style={{ padding: '16px 16px 160px' }}>
-            <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 16 }}>
+          <div className="px-4 pt-4 pb-40">
+            <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-4">
               {selectedPost.commentCount} contribution{selectedPost.commentCount !== 1 ? 's' : ''}
             </p>
             {loadingComments ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+              <div className="flex justify-center py-8">
                 <Loader2 size={20} color="rgba(93,123,255,0.4)" className="animate-spin" />
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="flex flex-col gap-4">
                 {roots.map(c => (
-                  <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div key={c.id} className="flex flex-col gap-3">
                     <CommentItem comment={c} userId={user.uid} postId={selectedPost.id} depth={0}
                       onReply={(id, name) => { setReplyTo({ id, name }); boxRef.current?.focus(); }}
                       onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
@@ -885,25 +947,26 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
           </div>
 
           {/* Comment form — sticky */}
-          <div style={{ position: 'sticky', bottom: 0, background: '#0D1018', borderTop: '1px solid rgba(255,255,255,0.06)', padding: 16 }}>
+          <div className="sticky bottom-0 border-t-2 border-white/6 p-4" style={{ background: '#0D1018' }}>
             {replyTo && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
-                <span>↩ Réponse à <strong style={{ color: 'rgba(255,255,255,0.6)' }}>{replyTo.name}</strong></span>
-                <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', lineHeight: 0 }}><X size={12} /></button>
+              <div className="flex items-center gap-2 mb-2.5 text-[10px] text-white/35">
+                <span>↩ Réponse à <strong className="text-white/60">{replyTo.name}</strong></span>
+                <button onClick={() => setReplyTo(null)} className="bg-transparent border-0 cursor-pointer ml-auto text-white/30 leading-none"><X size={12} /></button>
               </div>
             )}
 
-            {/* Stance pills */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {/* Stance buttons */}
+            <div className="flex gap-1.5 mb-3">
               {(['agree', 'disagree', 'nuance'] as Stance[]).map(s => {
                 const cfg = STANCE[s]; const active = stance === s;
                 return (
-                  <button key={s} onClick={() => setStance(s)} style={{
-                    flex: 1, padding: '8px 4px', borderRadius: 12, border: `2px solid ${active ? cfg.color : 'rgba(255,255,255,0.08)'}`,
-                    background: active ? `rgba(${cfg.rgb},0.15)` : 'transparent',
-                    color: active ? cfg.color : 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: 900, letterSpacing: 1,
-                    textTransform: 'uppercase', cursor: 'pointer',
-                  }}>
+                  <button key={s} onClick={() => setStance(s)}
+                    className="flex-1 py-2 text-[9px] font-black uppercase tracking-wide cursor-pointer transition-colors border-2"
+                    style={{
+                      borderColor: active ? cfg.color : 'rgba(255,255,255,0.08)',
+                      background: active ? `rgba(${cfg.rgb},0.12)` : 'transparent',
+                      color: active ? cfg.color : 'rgba(255,255,255,0.3)',
+                    }}>
                     {cfg.short} {cfg.label}
                   </button>
                 );
@@ -911,16 +974,17 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
             </div>
 
             {/* Input + send */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <div className="flex gap-2.5 items-end">
               {arenaUser && <Av name={arenaUser.arenaName} size={32} />}
-              <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.08)', borderRadius: 20, overflow: 'hidden', transition: 'border-color 0.2s' }}>
+              <div className="flex-1 border-2 border-white/8 overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
                 <textarea ref={boxRef} value={text} onChange={e => setText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitComment(); }}
                   placeholder="Votre argument… (Ctrl+↵)"
-                  rows={2} style={{ width: '100%', background: 'none', border: 'none', color: '#fff', fontSize: 12, padding: '12px 14px', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 10px 8px' }}>
+                  rows={2} className="w-full bg-transparent border-0 text-white text-xs px-3.5 py-3 resize-none outline-none box-border" />
+                <div className="flex justify-end px-2.5 pb-2">
                   <button onClick={submitComment} disabled={!text.trim() || posting}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg,#5D7BFF,#7B9BFF)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 10, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', padding: '7px 14px', cursor: 'pointer', opacity: (!text.trim() || posting) ? 0.3 : 1 }}>
+                    className="flex items-center gap-1.5 bg-[#5D7BFF] border-2 border-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest px-3.5 py-1.5 cursor-pointer transition-opacity"
+                    style={{ opacity: (!text.trim() || posting) ? 0.3 : 1 }}>
                     {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                     Publier
                   </button>
