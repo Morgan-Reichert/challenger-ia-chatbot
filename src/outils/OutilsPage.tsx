@@ -62,7 +62,7 @@ function OutilCard({
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cx('relative overflow-hidden border-2', !isAvailable && 'opacity-55')}
+      className={cx('relative overflow-hidden border-2 flex flex-col h-full', !isAvailable && 'opacity-55')}
       style={{
         borderColor: isAvailable ? `${outil.accentColor}30` : 'rgba(255,255,255,0.06)',
         background: 'var(--bg-chat)',
@@ -95,7 +95,7 @@ function OutilCard({
         </button>
       )}
 
-      <div className="p-6">
+      <div className="p-6 flex flex-col flex-1">
         {/* Header */}
         <div className="flex items-start gap-4 mb-4">
           <div
@@ -132,7 +132,7 @@ function OutilCard({
         </div>
 
         {/* CTA zone */}
-        <div className="border-t pt-4" style={{ borderColor: `${outil.accentColor}15` }}>
+        <div className="border-t pt-4 mt-auto" style={{ borderColor: `${outil.accentColor}15` }}>
           {!isAvailable ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-primary)]/30 font-bold">
@@ -257,7 +257,7 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {OUTILS_LIST.map((outil, i) => (
-            <motion.div key={outil.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+            <motion.div key={outil.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="h-full">
               <OutilCard outil={outil} onOpen={(id) => setActiveOutil(OUTILS_LIST.find(o => o.id === id) ?? null)} />
             </motion.div>
           ))}
