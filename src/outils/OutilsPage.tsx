@@ -240,6 +240,23 @@ const COUNTRIES = [
   'Japon', 'Chine', 'Brésil', 'Mexique', 'Autre',
 ];
 
+const ENTERPRISE_COOLDOWN_KEY = 'cr_enterprise_request_ts';
+const ENTERPRISE_COOLDOWN_MS = 48 * 60 * 60 * 1000; // 48h
+
+function getEnterpriseCooldownLeft(): number {
+  const ts = localStorage.getItem(ENTERPRISE_COOLDOWN_KEY);
+  if (!ts) return 0;
+  const elapsed = Date.now() - parseInt(ts, 10);
+  return Math.max(0, ENTERPRISE_COOLDOWN_MS - elapsed);
+}
+
+function formatCooldown(ms: number): string {
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function EnterpriseContactForm() {
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [teamSize, setTeamSize] = useState('');
@@ -253,6 +270,18 @@ function EnterpriseContactForm() {
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
+  const [cooldownLeft, setCooldownLeft] = useState<number>(() => getEnterpriseCooldownLeft());
+
+  // Décrémenter le cooldown chaque minute
+  useEffect(() => {
+    if (cooldownLeft <= 0) return;
+    const id = setInterval(() => {
+      const left = getEnterpriseCooldownLeft();
+      setCooldownLeft(left);
+      if (left <= 0) clearInterval(id);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [cooldownLeft > 0]);
 
   const toggleTool = (id: string) =>
     setSelectedTools(p => p.includes(id) ? p.filter(t => t !== id) : [...p, id]);
@@ -276,11 +305,35 @@ function EnterpriseContactForm() {
     e.preventDefault();
     if (!canSubmit) return;
     setSending(true);
-    setTimeout(() => { setSending(false); setSent(true); }, 1200);
+    setTimeout(() => {
+      localStorage.setItem(ENTERPRISE_COOLDOWN_KEY, Date.now().toString());
+      setSending(false);
+      setSent(true);
+      setCooldownLeft(ENTERPRISE_COOLDOWN_MS);
+    }, 1200);
   }
 
   const inputCls = "w-full px-3 py-2.5 text-[11px] bg-[var(--bg-chat)] border text-[var(--text-primary)] placeholder-[var(--text-primary)]/25 outline-none focus:border-[#5D7BFF]/60 transition-colors";
   const bordStyle = { borderColor: 'rgba(93,123,255,0.2)' };
+
+  // Cooldown actif (avant ou après envoi affiché)
+  if (cooldownLeft > 0 && !sent) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+        <div className="w-14 h-14 flex items-center justify-center" style={{ background: 'rgba(93,123,255,0.08)', border: '2px solid rgba(93,123,255,0.2)' }}>
+          <Clock className="w-7 h-7 text-[#5D7BFF]/50" />
+        </div>
+        <div>
+          <p className="text-[13px] font-black text-[var(--text-primary)]/70">Demande déjà envoyée</p>
+          <p className="text-[10px] text-[var(--text-primary)]/35 mt-1 max-w-xs mx-auto">
+            Notre équipe traite votre demande. Vous pourrez en soumettre une nouvelle dans
+          </p>
+          <p className="text-[18px] font-black text-[#5D7BFF] mt-2">{formatCooldown(cooldownLeft)}</p>
+        </div>
+        <p className="text-[9px] text-[var(--text-primary)]/20">Si vous n'avez pas reçu de réponse, contactez-nous directement.</p>
+      </div>
+    );
+  }
 
   if (sent) {
     return (
