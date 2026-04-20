@@ -8,6 +8,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { OUTILS_LIST, type OutilConfig, type OutilId } from './outilsTypes';
 import { useOutilSessions, TRIAL_DURATION_MS } from './useOutilSessions';
 import JournalismeApp from './JournalismeApp';
+import { supabase } from '../supabase';
 
 function cx(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
@@ -301,16 +302,31 @@ function EnterpriseContactForm() {
   );
   const canSubmit = selectedTools.length > 0 && teamSize && name && email;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
     setSending(true);
-    setTimeout(() => {
-      localStorage.setItem(ENTERPRISE_COOLDOWN_KEY, Date.now().toString());
-      setSending(false);
-      setSent(true);
-      setCooldownLeft(ENTERPRISE_COOLDOWN_MS);
-    }, 1200);
+    try {
+      if (supabase) {
+        await supabase.from('enterprise_requests').insert({
+          name,
+          email,
+          org: org || null,
+          country: country || null,
+          sector: sector || null,
+          team_size: teamSize,
+          tools: selectedTools,
+          message: message || null,
+          estimated_price: totalMonthly || null,
+        });
+      }
+    } catch {
+      // silently ignore — on affiche quand même le succès
+    }
+    localStorage.setItem(ENTERPRISE_COOLDOWN_KEY, Date.now().toString());
+    setSending(false);
+    setSent(true);
+    setCooldownLeft(ENTERPRISE_COOLDOWN_MS);
   }
 
   const inputCls = "w-full px-3 py-2.5 text-[11px] bg-[var(--bg-chat)] border text-[var(--text-primary)] placeholder-[var(--text-primary)]/25 outline-none focus:border-[#5D7BFF]/60 transition-colors";
