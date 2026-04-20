@@ -2096,7 +2096,16 @@ export default function App() {
         const currentDateStr = new Date().toLocaleDateString('fr-FR', {
           weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
-        const enrichedSystemPrompt = systemPrompt + `\n\n## Contexte temps réel\nDate actuelle : ${currentDateStr}`;
+        const enrichedSystemPrompt = systemPrompt + `\n\n## Accès web et contexte temps réel (CRITIQUE)
+Date actuelle : ${currentDateStr}
+
+Tu as ACCÈS EN TEMPS RÉEL à des données web fraîches grâce à un moteur de recherche intégré. Ces données sont injectées dans ton contexte sous la section "Données web en temps réel" quand elles sont disponibles.
+
+RÈGLES ABSOLUES :
+- Ne dis JAMAIS que tu n'as pas accès à internet, que tes données s'arrêtent en 2023 ou que tu ne peux pas connaître l'actualité récente.
+- Si des résultats web sont présents dans ce contexte, utilise-les comme source primaire et cite-les.
+- Si aucune donnée web n'est injectée mais que la question porte sur l'actualité, indique que tu n'as pas trouvé de résultats récents pour CETTE requête spécifique — mais pas que tu manques d'accès au web en général.
+- Tu es un assistant connecté et à jour. Comporte-toi comme tel.`;
 
         const memoryResetAt = activeConvNow?.memoryResetAt;
         const contextMessages = memoryResetAt
