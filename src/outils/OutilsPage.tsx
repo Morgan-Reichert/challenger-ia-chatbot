@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Wrench, ChevronRight, Lock, Sparkles, Clock, Pin, PinOff,
-  CheckCircle, AlertCircle,
+  CheckCircle, AlertCircle, Building2, Mail, Users, Shield,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { OUTILS_LIST, type OutilConfig, type OutilId } from './outilsTypes';
@@ -204,6 +204,87 @@ function OutilCard({
   );
 }
 
+// ─── Enterprise contact form ─────────────────────────────────────────────────
+
+function EnterpriseContactForm() {
+  const [form, setForm] = useState({ name: '', email: '', org: '', message: '' });
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name || !form.email) return;
+    setSending(true);
+    // Simule l'envoi — à brancher sur un vrai endpoint
+    setTimeout(() => { setSending(false); setSent(true); }, 1200);
+  }
+
+  if (sent) {
+    return (
+      <div
+        className="border-2 p-8 flex flex-col items-center justify-center gap-4 text-center"
+        style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.03)' }}
+      >
+        <div className="w-12 h-12 flex items-center justify-center" style={{ background: 'rgba(93,123,255,0.12)' }}>
+          <CheckCircle className="w-6 h-6 text-[#5D7BFF]" />
+        </div>
+        <div>
+          <p className="text-[13px] font-black text-[var(--text-primary)]">Message envoyé !</p>
+          <p className="text-[10px] text-[var(--text-primary)]/40 mt-1">Notre équipe vous recontacte sous 24h.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const inputCls = "w-full px-3 py-2.5 text-[11px] bg-transparent border text-[var(--text-primary)] placeholder-[var(--text-primary)]/25 outline-none focus:border-[#5D7BFF]/50 transition-colors";
+  const inputStyle = { borderColor: 'rgba(93,123,255,0.15)' };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="border-2 p-6 space-y-3"
+      style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.03)' }}
+    >
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] mb-4">Nous contacter</p>
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          className={inputCls} style={inputStyle}
+          placeholder="Nom *" value={form.name}
+          onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+          required
+        />
+        <input
+          className={inputCls} style={inputStyle}
+          placeholder="Email *" type="email" value={form.email}
+          onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+          required
+        />
+      </div>
+      <input
+        className={inputCls} style={inputStyle}
+        placeholder="Organisation / Entreprise" value={form.org}
+        onChange={e => setForm(p => ({ ...p, org: e.target.value }))}
+      />
+      <textarea
+        className={`${inputCls} resize-none`} style={inputStyle}
+        placeholder="Décrivez votre besoin (outil(s) visé(s), nombre d'utilisateurs…)"
+        rows={4} value={form.message}
+        onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
+      />
+      <button
+        type="submit"
+        disabled={sending}
+        className="w-full flex items-center justify-center gap-2 py-3 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90 disabled:opacity-50"
+        style={{ background: '#5D7BFF', boxShadow: '3px 3px 0px 0px rgba(93,123,255,0.3)' }}
+      >
+        <Mail className="w-3.5 h-3.5" />
+        {sending ? 'Envoi…' : 'Envoyer la demande'}
+      </button>
+      <p className="text-[8px] text-[var(--text-primary)]/25 text-center">Réponse garantie sous 24h · Aucun engagement</p>
+    </form>
+  );
+}
+
 // ─── Main portal ──────────────────────────────────────────────────────────────
 
 export default function OutilsPage({ onBack, user, openToolId }: Props) {
@@ -270,6 +351,49 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
             <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed font-medium">
               Vos sessions sont sauvegardées séparément par outil. Vous pouvez créer des projets dans chaque outil pour organiser vos analyses, et importer des conversations Challenger IA dans un outil spécialisé.
             </p>
+          </div>
+        </div>
+
+        {/* ── Section Entreprise ─────────────────────────────────────────────── */}
+        <div className="mt-16 max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-2">
+            <Building2 className="w-5 h-5 text-[#5D7BFF]" />
+            <h2 className="text-[13px] font-black uppercase tracking-widest text-[var(--text-primary)]">Licences Entreprise</h2>
+          </div>
+          <p className="text-[11px] text-[var(--text-primary)]/40 mb-8 max-w-xl">
+            Vous équipez une équipe ? Accédez à nos outils sous licence entreprise avec tarifs dégressifs, onboarding dédié et support prioritaire.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Avantages */}
+            <div
+              className="border-2 p-6 space-y-4"
+              style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.03)' }}
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF]">Ce qui est inclus</p>
+              <div className="space-y-3">
+                {[
+                  { icon: Users, label: 'Accès multi-utilisateurs', sub: 'Gérez toute votre équipe depuis un seul compte' },
+                  { icon: Shield, label: 'Support prioritaire', sub: 'Réponse garantie sous 24h, interlocuteur dédié' },
+                  { icon: Sparkles, label: 'Tous les outils inclus', sub: 'Accès complet à l\'ensemble de la suite Challenger' },
+                  { icon: Building2, label: 'Tarifs dégressifs', sub: 'Jusqu\'à -50% selon le nombre de sièges' },
+                ].map(({ icon: Icon, label, sub }) => (
+                  <div key={label} className="flex items-start gap-3">
+                    <div className="w-7 h-7 flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(93,123,255,0.1)' }}>
+                      <Icon className="w-3.5 h-3.5 text-[#5D7BFF]" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-[var(--text-primary)]/80">{label}</p>
+                      <p className="text-[9px] text-[var(--text-primary)]/40 mt-0.5">{sub}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Formulaire de contact */}
+            <EnterpriseContactForm />
           </div>
         </div>
       </div>
