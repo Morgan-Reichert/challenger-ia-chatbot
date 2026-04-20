@@ -248,13 +248,13 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="max-w-2xl mb-8">
+        <div className="max-w-2xl mx-auto mb-8">
           <p className="text-[12px] text-[var(--text-primary)]/50 leading-relaxed">
             Des applications spécialisées propulsées par le moteur Challenger IA. Chaque outil dispose d'un <strong className="text-[var(--text-primary)]/70">essai gratuit de 24h</strong>. Épinglez vos outils favoris directement dans la sidebar principale.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {OUTILS_LIST.map((outil, i) => (
             <motion.div key={outil.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
               <OutilCard outil={outil} onOpen={(id) => setActiveOutil(OUTILS_LIST.find(o => o.id === id) ?? null)} />
@@ -263,7 +263,7 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
         </div>
 
         {/* Footer note */}
-        <div className="mt-10 max-w-xl">
+        <div className="mt-10 max-w-6xl mx-auto">
           <div className="flex items-start gap-3 px-4 py-3 border" style={{ background: 'rgba(93,123,255,0.04)', borderColor: 'rgba(93,123,255,0.12)' }}>
             <ChevronRight className="w-3.5 h-3.5 text-[#5D7BFF]/50 flex-shrink-0 mt-0.5" />
             <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed font-medium">
