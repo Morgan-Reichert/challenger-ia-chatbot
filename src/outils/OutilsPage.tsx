@@ -206,81 +206,308 @@ function OutilCard({
 
 // ─── Enterprise contact form ─────────────────────────────────────────────────
 
+const TOOL_OPTIONS = [
+  { id: 'base', name: 'Challenger IA', sub: 'Chat de base', color: '#5D7BFF', logo: null, price: 12 },
+  { id: 'journalisme', name: 'Reporter', sub: 'Fact-checking & biais', color: '#E85D04', logo: '/logos/reporter.png', price: 9 },
+  { id: 'education', name: 'Éducation', sub: 'Pédagogie critique', color: '#0AADBB', logo: '/logos/education.png', price: 7 },
+  { id: 'politique', name: 'Politique', sub: 'Décryptage du pouvoir', color: '#8FB339', logo: '/logos/politique.png', price: 9 },
+  { id: 'sante', name: 'Santé', sub: 'Vrai/faux médical', color: '#E53E3E', logo: '/logos/sante.png', price: 9 },
+  { id: 'entreprise', name: 'Entreprise', sub: 'Décisions business', color: '#6B7FD4', logo: '/logos/entreprise.png', price: 12 },
+  { id: 'contenu', name: 'Contenu', sub: 'Création & stratégie', color: '#7C3AED', logo: '/logos/contenu.png', price: 9 },
+];
+
+const TEAM_SIZES = [
+  { label: '1 – 5', seats: 3, disc: 0 },
+  { label: '6 – 20', seats: 12, disc: 10 },
+  { label: '21 – 50', seats: 35, disc: 20 },
+  { label: '51 – 200', seats: 100, disc: 35 },
+  { label: '200+', seats: 200, disc: 50 },
+];
+
+const SECTORS = [
+  'Médias & Journalisme', 'Éducation & Formation', 'Santé & Sciences',
+  'Politique & Institutions', 'Conseil & Stratégie', 'Startup & Innovation',
+  'Grande entreprise', 'Agence de communication', 'ONG & Associations', 'Autre',
+];
+
+const COUNTRIES = [
+  'France', 'Belgique', 'Suisse', 'Canada', 'Luxembourg', 'Monaco',
+  'Maroc', 'Tunisie', 'Algérie', 'Sénégal', 'Côte d\'Ivoire', 'Cameroun',
+  'Madagascar', 'Île Maurice', 'Haïti', 'Congo (RDC)', 'Gabon', 'Mali',
+  'Burkina Faso', 'Rwanda', 'Guinée', 'Togo', 'Bénin',
+  'États-Unis', 'Royaume-Uni', 'Allemagne', 'Espagne', 'Italie',
+  'Portugal', 'Pays-Bas', 'Suède', 'Danemark', 'Australie',
+  'Japon', 'Chine', 'Brésil', 'Mexique', 'Autre',
+];
+
 function EnterpriseContactForm() {
-  const [form, setForm] = useState({ name: '', email: '', org: '', message: '' });
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [teamSize, setTeamSize] = useState('');
+  const [sector, setSector] = useState('');
+  const [country, setCountry] = useState('');
+  const [countrySearch, setCountrySearch] = useState('');
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [org, setOrg] = useState('');
+  const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const toggleTool = (id: string) =>
+    setSelectedTools(p => p.includes(id) ? p.filter(t => t !== id) : [...p, id]);
+
+  const sizeInfo = TEAM_SIZES.find(s => s.label === teamSize);
+  const baseMonthly = selectedTools.reduce((sum, id) => {
+    const t = TOOL_OPTIONS.find(o => o.id === id);
+    return sum + (t?.price ?? 0);
+  }, 0);
+  const discount = sizeInfo?.disc ?? 0;
+  const seats = sizeInfo?.seats ?? 1;
+  const pricePerSeat = Math.round(baseMonthly * (1 - discount / 100) * 100) / 100;
+  const totalMonthly = Math.round(pricePerSeat * seats);
+
+  const filteredCountries = COUNTRIES.filter(c =>
+    c.toLowerCase().includes(countrySearch.toLowerCase())
+  );
+  const canSubmit = selectedTools.length > 0 && teamSize && name && email;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.email) return;
+    if (!canSubmit) return;
     setSending(true);
-    // Simule l'envoi — à brancher sur un vrai endpoint
     setTimeout(() => { setSending(false); setSent(true); }, 1200);
   }
 
+  const inputCls = "w-full px-3 py-2.5 text-[11px] bg-[var(--bg-chat)] border text-[var(--text-primary)] placeholder-[var(--text-primary)]/25 outline-none focus:border-[#5D7BFF]/60 transition-colors";
+  const bordStyle = { borderColor: 'rgba(93,123,255,0.2)' };
+
   if (sent) {
     return (
-      <div
-        className="border-2 p-8 flex flex-col items-center justify-center gap-4 text-center"
-        style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.03)' }}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
+        className="border-2 p-12 flex flex-col items-center justify-center gap-5 text-center"
+        style={{ borderColor: 'rgba(93,123,255,0.25)', background: 'rgba(93,123,255,0.03)' }}
       >
-        <div className="w-12 h-12 flex items-center justify-center" style={{ background: 'rgba(93,123,255,0.12)' }}>
-          <CheckCircle className="w-6 h-6 text-[#5D7BFF]" />
+        <div className="w-16 h-16 flex items-center justify-center" style={{ background: 'rgba(93,123,255,0.12)' }}>
+          <CheckCircle className="w-8 h-8 text-[#5D7BFF]" />
         </div>
         <div>
-          <p className="text-[13px] font-black text-[var(--text-primary)]">Message envoyé !</p>
-          <p className="text-[10px] text-[var(--text-primary)]/40 mt-1">Notre équipe vous recontacte sous 24h.</p>
+          <p className="text-[15px] font-black text-[var(--text-primary)]">Demande envoyée !</p>
+          <p className="text-[11px] text-[var(--text-primary)]/40 mt-1 max-w-xs">
+            Notre équipe commerciale vous contacte sous 24h pour finaliser votre abonnement.
+          </p>
         </div>
-      </div>
+        <div className="flex flex-wrap gap-2 justify-center mt-2">
+          {selectedTools.map(id => {
+            const t = TOOL_OPTIONS.find(o => o.id === id);
+            if (!t) return null;
+            return (
+              <span key={id} className="px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white" style={{ background: t.color }}>
+                {t.name}
+              </span>
+            );
+          })}
+        </div>
+      </motion.div>
     );
   }
 
-  const inputCls = "w-full px-3 py-2.5 text-[11px] bg-transparent border text-[var(--text-primary)] placeholder-[var(--text-primary)]/25 outline-none focus:border-[#5D7BFF]/50 transition-colors";
-  const inputStyle = { borderColor: 'rgba(93,123,255,0.15)' };
-
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="border-2 p-6 space-y-3"
-      style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.03)' }}
-    >
-      <p className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] mb-4">Nous contacter</p>
-      <div className="grid grid-cols-2 gap-3">
-        <input
-          className={inputCls} style={inputStyle}
-          placeholder="Nom *" value={form.name}
-          onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-          required
-        />
-        <input
-          className={inputCls} style={inputStyle}
-          placeholder="Email *" type="email" value={form.email}
-          onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-          required
-        />
+    <form onSubmit={handleSubmit} className="space-y-8">
+
+      {/* ① Sélection des outils */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-3">
+          ① Composez votre abonnement
+          {selectedTools.length > 0 && <span className="ml-2 text-[#5D7BFF]">{selectedTools.length} outil{selectedTools.length > 1 ? 's' : ''} sélectionné{selectedTools.length > 1 ? 's' : ''}</span>}
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+          {TOOL_OPTIONS.map(t => {
+            const active = selectedTools.includes(t.id);
+            return (
+              <button
+                key={t.id} type="button"
+                onClick={() => toggleTool(t.id)}
+                className="relative flex items-center gap-2.5 px-3 py-2.5 border-2 text-left transition-all"
+                style={{
+                  borderColor: active ? t.color : 'rgba(93,123,255,0.12)',
+                  background: active ? `${t.color}12` : 'var(--bg-chat)',
+                }}
+              >
+                {t.logo
+                  ? <img src={t.logo} alt={t.name} className="w-6 h-6 object-contain flex-shrink-0" />
+                  : <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-white text-[8px] font-black" style={{ background: t.color }}>IA</div>
+                }
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black text-[var(--text-primary)] truncate">{t.name}</p>
+                  <p className="text-[8px] text-[var(--text-primary)]/35 truncate">{t.price}€/siège</p>
+                </div>
+                {active && (
+                  <div className="absolute top-1 right-1 w-3.5 h-3.5 flex items-center justify-center" style={{ background: t.color }}>
+                    <CheckCircle className="w-2.5 h-2.5 text-white" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <input
-        className={inputCls} style={inputStyle}
-        placeholder="Organisation / Entreprise" value={form.org}
-        onChange={e => setForm(p => ({ ...p, org: e.target.value }))}
-      />
-      <textarea
-        className={`${inputCls} resize-none`} style={inputStyle}
-        placeholder="Décrivez votre besoin (outil(s) visé(s), nombre d'utilisateurs…)"
-        rows={4} value={form.message}
-        onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
-      />
-      <button
-        type="submit"
-        disabled={sending}
-        className="w-full flex items-center justify-center gap-2 py-3 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90 disabled:opacity-50"
-        style={{ background: '#5D7BFF', boxShadow: '3px 3px 0px 0px rgba(93,123,255,0.3)' }}
-      >
-        <Mail className="w-3.5 h-3.5" />
-        {sending ? 'Envoi…' : 'Envoyer la demande'}
-      </button>
-      <p className="text-[8px] text-[var(--text-primary)]/25 text-center">Réponse garantie sous 24h · Aucun engagement</p>
+
+      {/* ② Taille d'équipe */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-3">② Taille de l'équipe</p>
+        <div className="flex flex-wrap gap-2">
+          {TEAM_SIZES.map(s => (
+            <button
+              key={s.label} type="button"
+              onClick={() => setTeamSize(s.label)}
+              className="px-4 py-2 border-2 text-[10px] font-black uppercase tracking-wide transition-all"
+              style={{
+                borderColor: teamSize === s.label ? '#5D7BFF' : 'rgba(93,123,255,0.15)',
+                background: teamSize === s.label ? 'rgba(93,123,255,0.1)' : 'var(--bg-chat)',
+                color: teamSize === s.label ? '#5D7BFF' : 'var(--text-primary)',
+              }}
+            >
+              {s.label}
+              {s.disc > 0 && <span className="ml-1.5 text-[7px] opacity-60">-{s.disc}%</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Estimation tarifaire live */}
+      <AnimatePresence>
+        {selectedTools.length > 0 && teamSize && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="border-2 px-5 py-4 flex items-center justify-between gap-4"
+            style={{ borderColor: 'rgba(93,123,255,0.25)', background: 'rgba(93,123,255,0.06)' }}
+          >
+            <div>
+              <p className="text-[9px] uppercase tracking-widest text-[#5D7BFF]/70 font-black">Estimation tarifaire</p>
+              <p className="text-[10px] text-[var(--text-primary)]/50 mt-0.5">
+                {selectedTools.length} outil{selectedTools.length > 1 ? 's' : ''} · {seats} utilisateurs
+                {discount > 0 && <span className="text-green-500 ml-1.5 font-bold">-{discount}% remise équipe</span>}
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-[20px] font-black text-[#5D7BFF]">~{totalMonthly}€</p>
+              <p className="text-[8px] text-[var(--text-primary)]/30">/mois · devis personnalisé</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ③ Secteur */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-3">③ Secteur d'activité</p>
+        <div className="flex flex-wrap gap-2">
+          {SECTORS.map(s => (
+            <button
+              key={s} type="button"
+              onClick={() => setSector(s)}
+              className="px-3 py-1.5 border text-[9px] font-bold uppercase tracking-wide transition-all"
+              style={{
+                borderColor: sector === s ? '#5D7BFF' : 'rgba(93,123,255,0.15)',
+                background: sector === s ? 'rgba(93,123,255,0.1)' : 'transparent',
+                color: sector === s ? '#5D7BFF' : 'var(--text-primary)',
+                opacity: sector === s ? 1 : 0.5,
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ④ Pays */}
+      <div className="relative">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-3">④ Pays</p>
+        <button
+          type="button"
+          onClick={() => setCountryOpen(v => !v)}
+          className="w-full flex items-center justify-between px-3 py-2.5 border-2 text-[11px] text-left transition-colors"
+          style={{
+            borderColor: countryOpen ? '#5D7BFF' : 'rgba(93,123,255,0.2)',
+            background: 'var(--bg-chat)',
+            color: country ? 'var(--text-primary)' : 'rgba(128,128,128,0.5)',
+          }}
+        >
+          <span>{country || 'Sélectionnez votre pays…'}</span>
+          <ChevronRight className={cx('w-3.5 h-3.5 transition-transform', countryOpen && 'rotate-90')} style={{ color: '#5D7BFF' }} />
+        </button>
+        <AnimatePresence>
+          {countryOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              className="absolute z-20 left-0 right-0 border-2 shadow-xl"
+              style={{ borderColor: 'rgba(93,123,255,0.25)', background: 'var(--bg-chat)', top: '100%' }}
+            >
+              <div className="p-2 border-b" style={{ borderColor: 'rgba(93,123,255,0.1)' }}>
+                <input
+                  className="w-full px-2 py-1.5 text-[11px] bg-transparent outline-none text-[var(--text-primary)] placeholder-[var(--text-primary)]/30"
+                  placeholder="Rechercher…"
+                  value={countrySearch}
+                  onChange={e => setCountrySearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-44 overflow-y-auto">
+                {filteredCountries.map(c => (
+                  <button
+                    key={c} type="button"
+                    onClick={() => { setCountry(c); setCountryOpen(false); setCountrySearch(''); }}
+                    className="w-full text-left px-3 py-2 text-[11px] hover:bg-[#5D7BFF]/10 transition-colors"
+                    style={{ color: c === country ? '#5D7BFF' : 'var(--text-primary)', fontWeight: c === country ? 700 : 400 }}
+                  >
+                    {c}
+                  </button>
+                ))}
+                {filteredCountries.length === 0 && (
+                  <p className="px-3 py-3 text-[10px] text-[var(--text-primary)]/30 text-center">Aucun résultat</p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ⑤ Coordonnées */}
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-3">⑤ Vos coordonnées</p>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input className={inputCls} style={bordStyle} placeholder="Nom complet *" value={name} onChange={e => setName(e.target.value)} required />
+            <input className={inputCls} style={bordStyle} placeholder="Email professionnel *" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+          </div>
+          <input className={inputCls} style={bordStyle} placeholder="Organisation / Entreprise" value={org} onChange={e => setOrg(e.target.value)} />
+          <textarea
+            className={`${inputCls} resize-none`} style={bordStyle}
+            placeholder="Précisez votre besoin, contexte d'usage, contraintes… (optionnel)"
+            rows={3} value={message} onChange={e => setMessage(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Submit */}
+      <div className="space-y-2">
+        <button
+          type="submit"
+          disabled={!canSubmit || sending}
+          className="w-full flex items-center justify-center gap-2 py-3.5 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{ background: '#5D7BFF', boxShadow: canSubmit ? '4px 4px 0px 0px rgba(93,123,255,0.3)' : 'none' }}
+        >
+          <Mail className="w-3.5 h-3.5" />
+          {sending ? 'Envoi en cours…' : 'Envoyer la demande'}
+        </button>
+        {!canSubmit && (
+          <p className="text-[9px] text-[var(--text-primary)]/25 text-center">
+            Sélectionnez au moins un outil, une taille d'équipe et renseignez vos coordonnées
+          </p>
+        )}
+        <p className="text-[8px] text-[var(--text-primary)]/20 text-center">Réponse garantie sous 24h · Aucun engagement · Devis personnalisé gratuit</p>
+      </div>
     </form>
   );
 }
@@ -355,44 +582,38 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
         </div>
 
         {/* ── Section Entreprise ─────────────────────────────────────────────── */}
-        <div className="mt-16 max-w-6xl mx-auto">
+        <div className="mt-20 max-w-6xl mx-auto">
           {/* Header */}
           <div className="flex items-center gap-3 mb-2">
             <Building2 className="w-5 h-5 text-[#5D7BFF]" />
             <h2 className="text-[13px] font-black uppercase tracking-widest text-[var(--text-primary)]">Licences Entreprise</h2>
           </div>
-          <p className="text-[11px] text-[var(--text-primary)]/40 mb-8 max-w-xl">
-            Vous équipez une équipe ? Accédez à nos outils sous licence entreprise avec tarifs dégressifs, onboarding dédié et support prioritaire.
+          <p className="text-[11px] text-[var(--text-primary)]/40 mb-6 max-w-xl">
+            Composez votre suite sur-mesure et obtenez un devis personnalisé. Tarifs dégressifs selon la taille de votre équipe.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Avantages */}
-            <div
-              className="border-2 p-6 space-y-4"
-              style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.03)' }}
-            >
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF]">Ce qui est inclus</p>
-              <div className="space-y-3">
-                {[
-                  { icon: Users, label: 'Accès multi-utilisateurs', sub: 'Gérez toute votre équipe depuis un seul compte' },
-                  { icon: Shield, label: 'Support prioritaire', sub: 'Réponse garantie sous 24h, interlocuteur dédié' },
-                  { icon: Sparkles, label: 'Tous les outils inclus', sub: 'Accès complet à l\'ensemble de la suite Challenger' },
-                  { icon: Building2, label: 'Tarifs dégressifs', sub: 'Jusqu\'à -50% selon le nombre de sièges' },
-                ].map(({ icon: Icon, label, sub }) => (
-                  <div key={label} className="flex items-start gap-3">
-                    <div className="w-7 h-7 flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(93,123,255,0.1)' }}>
-                      <Icon className="w-3.5 h-3.5 text-[#5D7BFF]" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-[var(--text-primary)]/80">{label}</p>
-                      <p className="text-[9px] text-[var(--text-primary)]/40 mt-0.5">{sub}</p>
-                    </div>
-                  </div>
-                ))}
+          {/* Benefits strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+            {[
+              { icon: Users, label: 'Multi-utilisateurs', sub: 'Gestion centralisée' },
+              { icon: Shield, label: 'Support prioritaire', sub: 'Réponse < 24h' },
+              { icon: Sparkles, label: "Outils à la carte", sub: 'Payez ce que vous utilisez' },
+              { icon: Building2, label: "Jusqu'à -50%", sub: 'Remise volume équipe' },
+            ].map(({ icon: Icon, label, sub }) => (
+              <div key={label} className="flex items-center gap-2.5 px-3 py-2.5 border" style={{ borderColor: 'rgba(93,123,255,0.15)', background: 'rgba(93,123,255,0.03)' }}>
+                <div className="w-6 h-6 flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(93,123,255,0.12)' }}>
+                  <Icon className="w-3 h-3 text-[#5D7BFF]" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-[var(--text-primary)]/70">{label}</p>
+                  <p className="text-[8px] text-[var(--text-primary)]/30">{sub}</p>
+                </div>
               </div>
-            </div>
+            ))}
+          </div>
 
-            {/* Formulaire de contact */}
+          {/* Form — full width */}
+          <div className="border-2 p-8" style={{ borderColor: 'rgba(93,123,255,0.2)', background: 'rgba(93,123,255,0.02)' }}>
             <EnterpriseContactForm />
           </div>
         </div>
