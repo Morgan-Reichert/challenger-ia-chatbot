@@ -87,8 +87,8 @@ function OutilCard({
       {isAvailable && !canAccess && (
         <button
           onClick={e => { e.stopPropagation(); togglePin(); }}
-          className="absolute top-4 right-4 p-1.5 transition-colors"
-          style={{ color: isPinned ? outil.accentColor : 'rgba(255,255,255,0.2)' }}
+          className="absolute top-4 right-4 p-1.5 transition-all hover:opacity-100"
+          style={{ color: isPinned ? outil.accentColor : 'var(--text-primary)', opacity: isPinned ? 1 : 0.35 }}
           title={isPinned ? 'Désépingler de la sidebar' : 'Épingler à la sidebar'}
         >
           {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
@@ -155,9 +155,10 @@ function OutilCard({
                 onClick={() => togglePin()}
                 className="w-10 h-10 flex items-center justify-center border transition-all"
                 style={{
-                  borderColor: isPinned ? `${outil.accentColor}50` : 'rgba(255,255,255,0.1)',
+                  borderColor: isPinned ? `${outil.accentColor}50` : 'rgba(128,128,128,0.3)',
                   background: isPinned ? `${outil.accentColor}10` : 'transparent',
-                  color: isPinned ? outil.accentColor : 'rgba(255,255,255,0.25)',
+                  color: isPinned ? outil.accentColor : 'var(--text-primary)',
+                  opacity: isPinned ? 1 : 0.45,
                 }}
                 title={isPinned ? 'Désépingler' : 'Épingler à la sidebar'}
               >
