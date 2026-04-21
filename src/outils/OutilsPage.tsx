@@ -590,10 +590,10 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
   );
   const [paywallActive, setPaywallActive] = useState(false);
 
-  // Update if prop changes
+  // Update if prop changes — always go through handleOpenTool to check paywall
   useEffect(() => {
     if (openToolId) {
-      setActiveOutil(OUTILS_LIST.find(o => o.id === openToolId) ?? null);
+      handleOpenTool(openToolId);
     }
   }, [openToolId]);
 

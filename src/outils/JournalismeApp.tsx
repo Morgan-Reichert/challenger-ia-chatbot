@@ -8,7 +8,7 @@ import {
   Star, Eraser, UserMinus, FileDown, Copy, Slash, ChevronDown, ChevronRight,
   ImageIcon, FileCode, File, FileSpreadsheet, Plus, FolderPlus, Folder,
   FolderOpen, Pin, PinOff, MessageSquare, MoreVertical, Trash2, Edit3,
-  Check, Import,
+  Check, Import, Lock,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import ReactMarkdown from 'react-markdown';
