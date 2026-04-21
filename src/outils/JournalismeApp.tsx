@@ -270,23 +270,18 @@ function PaywallModal({ outil, onDismiss }: { outil: { name: string; accentColor
 
           {/* CTA */}
           <div className="space-y-2">
-            <button
-              className="w-full flex items-center justify-center gap-2 py-3 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90"
-              style={{ background: outil.accentColor, boxShadow: `4px 4px 0px 0px ${outil.accentColor}35` }}
-              onClick={() => {
-                // Scroll vers section entreprise ou ouvrir contact
-                onDismiss();
-                window.dispatchEvent(new CustomEvent('cr-open-subscribe', { detail: { toolId: 'journalisme' } }));
-              }}
+            <div
+              className="w-full flex items-center justify-center gap-2 py-3 text-[10px] font-black uppercase tracking-widest opacity-40 cursor-not-allowed"
+              style={{ background: outil.accentColor, color: 'white' }}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              S'abonner maintenant
-            </button>
+              <Lock className="w-3.5 h-3.5" />
+              Abonnement — Bientôt disponible
+            </div>
             <button
-              onClick={onDismiss}
-              className="w-full py-2 text-[9px] text-[var(--text-primary)]/30 hover:text-[var(--text-primary)]/50 transition-colors font-medium"
+              onClick={onBack}
+              className="w-full py-2 text-[9px] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/60 transition-colors font-medium"
             >
-              Continuer en lecture seule
+              ← Retourner à la bibliothèque
             </button>
           </div>
         </div>
@@ -306,9 +301,8 @@ export default function JournalismeApp({ onBack, paywallActive = false, outil }:
     importFromChat,
   } = useOutilSessions('journalisme');
 
-  // Paywall
-  const [paywallDismissed, setPaywallDismissed] = useState(false);
-  const showPaywall = paywallActive && !paywallDismissed;
+  // Paywall — permanent si actif, pas de dismiss
+  const showPaywall = paywallActive;
 
   // Active session / mode
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -613,7 +607,7 @@ export default function JournalismeApp({ onBack, paywallActive = false, outil }:
 
       {/* Paywall modal — par-dessus tout */}
       {showPaywall && outil && (
-        <PaywallModal outil={outil} onDismiss={() => setPaywallDismissed(true)} />
+        <PaywallModal outil={outil} onDismiss={onBack} />
       )}
 
       {/* Contenu de l'outil — flouté si paywall actif */}
