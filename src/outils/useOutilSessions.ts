@@ -100,6 +100,18 @@ export function useOutilSessions(toolId: OutilId) {
     load<OutilId[]>(KEYS.pinned, [])
   );
 
+  // Auto-pin quand l'essai expire (si pas déjà épinglé)
+  useEffect(() => {
+    if (trialStatus.expired && !pinnedTools.includes(toolId)) {
+      setPinnedTools(prev => {
+        const next = [...prev, toolId];
+        save(KEYS.pinned, next);
+        window.dispatchEvent(new CustomEvent('cr-pinned-changed', { detail: next }));
+        return next;
+      });
+    }
+  }, [trialStatus.expired, toolId]);
+
   // Persist sessions whenever they change
   useEffect(() => {
     save(KEYS.sessions(toolId), sessions);

@@ -168,16 +168,17 @@ function OutilCard({
             </div>
           ) : trialExpired ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[9px] text-red-400/70 font-bold">
+              <div className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color: outil.accentColor }}>
                 <AlertCircle className="w-3 h-3" />
-                Essai expiré — {outil.price} pour continuer
+                Essai expiré — {outil.price}/mois pour continuer
               </div>
               <button
-                disabled
-                className="w-full flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest opacity-40 cursor-not-allowed"
-                style={{ background: outil.accentColor, color: 'white' }}
+                onClick={() => onOpen(outil.id)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90"
+                style={{ background: outil.accentColor, color: 'white', boxShadow: `3px 3px 0px 0px ${outil.accentColor}35` }}
               >
-                S'abonner (bientôt)
+                <Lock className="w-3.5 h-3.5" />
+                Voir l'outil · S'abonner
               </button>
             </div>
           ) : (
@@ -587,6 +588,7 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
   const [activeOutil, setActiveOutil] = useState<OutilConfig | null>(() =>
     openToolId ? (OUTILS_LIST.find(o => o.id === openToolId) ?? null) : null
   );
+  const [paywallActive, setPaywallActive] = useState(false);
 
   // Update if prop changes
   useEffect(() => {
@@ -595,9 +597,20 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
     }
   }, [openToolId]);
 
+  // Open tool — detect if trial is expired (paywall mode)
+  function handleOpenTool(id: OutilId) {
+    const trials = (() => {
+      try { return JSON.parse(localStorage.getItem('cr_tool_trials') ?? '{}'); } catch { return {}; }
+    })();
+    const startedAt = trials[id];
+    const expired = startedAt && (Date.now() - startedAt) >= 24 * 60 * 60 * 1000;
+    setPaywallActive(!!expired);
+    setActiveOutil(OUTILS_LIST.find(o => o.id === id) ?? null);
+  }
+
   // Render active tool
   if (activeOutil?.id === 'journalisme') {
-    return <JournalismeApp onBack={() => setActiveOutil(null)} user={user} />;
+    return <JournalismeApp onBack={() => { setActiveOutil(null); setPaywallActive(false); }} user={user} paywallActive={paywallActive} outil={activeOutil} />;
   }
 
   return (
@@ -635,7 +648,7 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {OUTILS_LIST.map((outil, i) => (
             <motion.div key={outil.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="h-full">
-              <OutilCard outil={outil} onOpen={(id) => setActiveOutil(OUTILS_LIST.find(o => o.id === id) ?? null)} />
+              <OutilCard outil={outil} onOpen={handleOpenTool} />
             </motion.div>
           ))}
         </div>

@@ -225,16 +225,90 @@ export function mirrorBaseChatConvs(convs: Array<{ id: string; title: string; me
   } catch { /* quota */ }
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
-type Props = { onBack: () => void; user: FirebaseUser | null };
+// ─── Paywall modal ─────────────────────────────────────────────────────────────
+function PaywallModal({ outil, onDismiss }: { outil: { name: string; accentColor: string; logoSrc: string; price: string; tagline: string; features: string[] }; onDismiss: () => void }) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-6" style={{ backdropFilter: 'blur(2px)', background: 'rgba(0,0,0,0.55)' }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="w-full max-w-md border-2 overflow-hidden"
+        style={{ background: 'var(--bg-chat)', borderColor: `${outil.accentColor}40` }}
+      >
+        {/* Top accent */}
+        <div className="h-1.5 w-full" style={{ background: outil.accentColor }} />
 
-export default function JournalismeApp({ onBack }: Props) {
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-5">
+            <img src={outil.logoSrc} alt={outil.name} className="w-14 h-14 object-contain flex-shrink-0" />
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: outil.accentColor }}>Essai gratuit terminé</p>
+              <h2 className="text-[16px] font-black text-[var(--text-primary)] leading-tight">{outil.name}</h2>
+              <p className="text-[10px] mt-0.5" style={{ color: outil.accentColor }}>{outil.tagline}</p>
+            </div>
+          </div>
+
+          {/* Features */}
+          <div className="space-y-1.5 mb-5">
+            {outil.features.slice(0, 4).map(f => (
+              <div key={f} className="flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full" style={{ background: outil.accentColor }} />
+                <p className="text-[10px] text-[var(--text-primary)]/60">{f}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Price */}
+          <div className="flex items-baseline gap-1.5 mb-5 px-4 py-3 border" style={{ borderColor: `${outil.accentColor}20`, background: `${outil.accentColor}06` }}>
+            <span className="text-[28px] font-black" style={{ color: outil.accentColor }}>{outil.price}</span>
+            <div>
+              <p className="text-[9px] text-[var(--text-primary)]/40 font-bold">Accès complet · Sans engagement</p>
+              <p className="text-[8px] text-[var(--text-primary)]/25">Résiliable à tout moment</p>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="space-y-2">
+            <button
+              className="w-full flex items-center justify-center gap-2 py-3 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90"
+              style={{ background: outil.accentColor, boxShadow: `4px 4px 0px 0px ${outil.accentColor}35` }}
+              onClick={() => {
+                // Scroll vers section entreprise ou ouvrir contact
+                onDismiss();
+                window.dispatchEvent(new CustomEvent('cr-open-subscribe', { detail: { toolId: 'journalisme' } }));
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              S'abonner maintenant
+            </button>
+            <button
+              onClick={onDismiss}
+              className="w-full py-2 text-[9px] text-[var(--text-primary)]/30 hover:text-[var(--text-primary)]/50 transition-colors font-medium"
+            >
+              Continuer en lecture seule
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
+type Props = { onBack: () => void; user: FirebaseUser | null; paywallActive?: boolean; outil?: { name: string; accentColor: string; logoSrc: string; price: string; tagline: string; features: string[] } | null };
+
+export default function JournalismeApp({ onBack, paywallActive = false, outil }: Props) {
   const {
     sessions, projects, isPinned, togglePin,
     addSession, updateSession, deleteSession, assignProject,
     createProject, renameProject, deleteProject,
     importFromChat,
   } = useOutilSessions('journalisme');
+
+  // Paywall
+  const [paywallDismissed, setPaywallDismissed] = useState(false);
+  const showPaywall = paywallActive && !paywallDismissed;
 
   // Active session / mode
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -535,7 +609,18 @@ export default function JournalismeApp({ onBack }: Props) {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden" style={{ background: '#0d0d0d' }}>
+    <div className="relative flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+
+      {/* Paywall modal — par-dessus tout */}
+      {showPaywall && outil && (
+        <PaywallModal outil={outil} onDismiss={() => setPaywallDismissed(true)} />
+      )}
+
+      {/* Contenu de l'outil — flouté si paywall actif */}
+      <div
+        className={cx('flex-1 flex flex-col min-w-0 h-full overflow-hidden', showPaywall && 'pointer-events-none select-none')}
+        style={{ background: '#0d0d0d', ...(showPaywall ? { filter: 'blur(4px)' } : {}) }}
+      >
 
       {/* ═══════════ TOP BAR ═════════════════════════════════════════════════ */}
       <div
@@ -1165,6 +1250,7 @@ export default function JournalismeApp({ onBack }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }
