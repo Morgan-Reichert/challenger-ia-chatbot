@@ -84,8 +84,8 @@ function OutilCard({
         </div>
       )}
 
-      {/* Pin button (top right when no trial counter) */}
-      {isAvailable && !canAccess && (
+      {/* Pin button (top right — uniquement pendant l'essai actif) */}
+      {isAvailable && canAccess && (
         <button
           onClick={e => { e.stopPropagation(); togglePin(); }}
           className="absolute top-4 right-4 p-1.5 transition-all hover:opacity-100"
@@ -143,43 +143,27 @@ function OutilCard({
               <span className="text-[9px] text-[var(--text-primary)]/20 font-bold">{outil.price}</span>
             </div>
           ) : canAccess ? (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => onOpen(outil.id)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90"
-                style={{ background: outil.accentColor, boxShadow: `3px 3px 0px 0px ${outil.accentColor}35` }}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Ouvrir l'outil
-              </button>
-              <button
-                onClick={() => togglePin()}
-                className="w-10 h-10 flex items-center justify-center border transition-all"
-                style={{
-                  borderColor: isPinned ? `${outil.accentColor}50` : 'rgba(128,128,128,0.3)',
-                  background: isPinned ? `${outil.accentColor}10` : 'transparent',
-                  color: isPinned ? outil.accentColor : 'var(--text-primary)',
-                  opacity: isPinned ? 1 : 0.45,
-                }}
-                title={isPinned ? 'Désépingler' : 'Épingler à la sidebar'}
-              >
-                {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-              </button>
-            </div>
+            <button
+              onClick={() => onOpen(outil.id)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90"
+              style={{ background: outil.accentColor, boxShadow: `3px 3px 0px 0px ${outil.accentColor}35` }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Ouvrir l'outil
+            </button>
           ) : trialExpired ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color: outil.accentColor }}>
+              <div className="flex items-center gap-1.5 text-[9px] font-bold text-[var(--text-primary)]/40">
                 <AlertCircle className="w-3 h-3" />
-                Essai expiré — {outil.price}/mois pour continuer
+                Essai expiré
               </div>
-              <button
-                onClick={() => onOpen(outil.id)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all hover:opacity-90"
-                style={{ background: outil.accentColor, color: 'white', boxShadow: `3px 3px 0px 0px ${outil.accentColor}35` }}
+              <div
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest cursor-not-allowed opacity-35"
+                style={{ background: 'var(--text-primary)', color: 'var(--bg-chat)', filter: 'grayscale(1)' }}
               >
                 <Lock className="w-3.5 h-3.5" />
-                Voir l'outil · S'abonner
-              </button>
+                Abonnement — Bientôt disponible
+              </div>
             </div>
           ) : (
             /* Not started — offer trial */
@@ -584,11 +568,21 @@ function EnterpriseContactForm() {
 
 // ─── Main portal ──────────────────────────────────────────────────────────────
 
+function isTrialExpired(id: OutilId): boolean {
+  try {
+    const trials = JSON.parse(localStorage.getItem('cr_tool_trials') ?? '{}');
+    const startedAt = trials[id];
+    return !!(startedAt && (Date.now() - startedAt) >= 24 * 60 * 60 * 1000);
+  } catch { return false; }
+}
+
 export default function OutilsPage({ onBack, user, openToolId }: Props) {
   const [activeOutil, setActiveOutil] = useState<OutilConfig | null>(() =>
     openToolId ? (OUTILS_LIST.find(o => o.id === openToolId) ?? null) : null
   );
-  const [paywallActive, setPaywallActive] = useState(false);
+  const [paywallActive, setPaywallActive] = useState<boolean>(() =>
+    openToolId ? isTrialExpired(openToolId) : false
+  );
 
   // Update if prop changes — always go through handleOpenTool to check paywall
   useEffect(() => {
@@ -597,15 +591,14 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
     }
   }, [openToolId]);
 
-  // Open tool — detect if trial is expired (paywall mode)
+  // Open tool — vérifie toujours le paywall
   function handleOpenTool(id: OutilId) {
-    const trials = (() => {
-      try { return JSON.parse(localStorage.getItem('cr_tool_trials') ?? '{}'); } catch { return {}; }
-    })();
-    const startedAt = trials[id];
-    const expired = startedAt && (Date.now() - startedAt) >= 24 * 60 * 60 * 1000;
-    setPaywallActive(!!expired);
-    setActiveOutil(OUTILS_LIST.find(o => o.id === id) ?? null);
+    const expired = isTrialExpired(id);
+    setPaywallActive(expired);
+    // Si expiré : ne pas ouvrir l'outil du tout, rester sur la bibliothèque
+    if (!expired) {
+      setActiveOutil(OUTILS_LIST.find(o => o.id === id) ?? null);
+    }
   }
 
   // Render active tool
