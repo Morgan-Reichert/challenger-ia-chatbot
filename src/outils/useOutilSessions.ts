@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { OutilId } from './outilsTypes';
+import { playPin } from '../sounds';
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ export function useOutilSessions(toolId: OutilId) {
   // ── Pin / Unpin ─────────────────────────────────────────────────────────
 
   const togglePin = useCallback((id: OutilId = toolId) => {
+    playPin();
     setPinnedTools(prev => {
       const next = prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id];
       save(KEYS.pinned, next);

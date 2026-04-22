@@ -36,6 +36,7 @@ import {
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
 import { subscribeToNewsletter, getSubscription, getUserCredits, deductOneCredit, addCredits, CREDIT_PACKS, type Plan } from './supabase';
+import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
 const FREE_DAILY_LIMIT  = 20;
@@ -1460,6 +1461,7 @@ export default function App() {
     recognition.onend = () => setVoiceListening(false);
     recognitionRef.current = recognition;
     recognition.start();
+    playMicOn();
     setVoiceListening(true);
   }, []);
 
@@ -1467,6 +1469,7 @@ export default function App() {
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
 
   const stopListening = useCallback(() => {
+    if (recognitionRef.current) playMicOff();
     recognitionRef.current?.stop();
     recognitionRef.current = null;
     setVoiceListening(false);
@@ -1797,6 +1800,7 @@ export default function App() {
 
   // ── New conversation
   const startNewConv = useCallback(() => {
+    playNewConv();
     const id = uid();
     const now = new Date();
     const conv: Conversation = {
@@ -1836,6 +1840,7 @@ export default function App() {
   // ── Delete conversation
   const deleteConv = useCallback(
     async (convId: string) => {
+      playDelete();
       setConversations((p) => p.filter((c) => c.id !== convId));
       if (activeId === convId) setActiveId(null);
       if (user) await fsDeleteConversation(user.uid, convId);
@@ -2055,6 +2060,7 @@ export default function App() {
       }
 
       const allMessages = [...prevMessages, userMsg];
+      playSend();
       setSending(true);
       sendingRef.current = true;
       setChatError(null);
@@ -2132,7 +2138,9 @@ RÈGLES ABSOLUES :
         );
 
         // Stream chunk par chunk
+        playReceive();
         let accumulated = '';
+        let firstChunk = true;
         await streamChat(
           {
             model: debateModel,
@@ -2158,7 +2166,10 @@ RÈGLES ABSOLUES :
           }
         );
 
-        // Streaming terminé — détecter une question interactive dans la réponse
+        // Streaming terminé
+        playDone();
+
+        // Détecter une question interactive dans la réponse
         const question = parseCiaQuestion(accumulated);
         if (question) {
           setActiveQuestion(question);
@@ -2182,6 +2193,7 @@ RÈGLES ABSOLUES :
           return p;
         });
       } catch (e) {
+        playError();
         setChatError(e instanceof Error ? e.message : 'Erreur inconnue');
       } finally {
         setSending(false);
@@ -2226,6 +2238,7 @@ RÈGLES ABSOLUES :
 
   const handleSlashCommand = useCallback(
     async (id: SlashCommandId) => {
+      playSlash();
       setInput('');
       setSlashIdx(0);
 
@@ -4211,6 +4224,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                                 <button
                                   onClick={async () => {
                                     await navigator.clipboard.writeText(msg.content);
+                                    playCopy();
                                     setCopiedMsgId(msg.id);
                                     setTimeout(() => setCopiedMsgId(null), 2000);
                                   }}
