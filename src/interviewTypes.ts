@@ -1,7 +1,7 @@
 // ─── Interview Types — Bibliothèque d'entraînements ──────────────────────────
 
 import type { LucideIcon } from 'lucide-react';
-import { Mic2, Briefcase, BookOpen, Monitor, TrendingUp, Sparkles } from 'lucide-react';
+import { Mic2, Briefcase, BookOpen, Monitor, TrendingUp, Sparkles, Rocket, Building2, GraduationCap, Atom, Landmark } from 'lucide-react';
 
 export type InterviewTypeId =
   | 'podcast'
@@ -9,6 +9,11 @@ export type InterviewTypeId =
   | 'academic_oral'
   | 'presentation'
   | 'pitch'
+  | 'drh_startup'
+  | 'partner_conseil'
+  | 'jury_hec'
+  | 'jury_polytechnique'
+  | 'jury_sciencespo'
   | 'other';
 
 export type InterviewField = {
@@ -302,6 +307,302 @@ ${INTERVIEW_RULES}`,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DRH DE STARTUP (sectoriel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const drh_startup: InterviewTypeConfig = {
+  id: 'drh_startup',
+  label: 'DRH de Startup',
+  description: "Entretien RH dans une scale-up — culture, mission, scrappy mindset.",
+  icon: Rocket,
+  interviewerRole: 'La DRH Startup',
+  accentColor: '#EC4899',
+  bgColor: '#0E0210',
+  fields: [
+    {
+      id: 'position',
+      label: 'Poste visé',
+      placeholder: 'Ex : Product Manager senior, Lead Engineer, Head of Growth…',
+      maxLength: 150,
+    },
+    {
+      id: 'company_stage',
+      label: 'Stade de la startup',
+      placeholder: 'Ex : Seed (10 personnes), Series A (50 personnes), Series C (200 personnes)…',
+      maxLength: 150,
+    },
+    {
+      id: 'background',
+      label: 'Ton parcours',
+      placeholder: 'Ex : 5 ans en grand groupe, 2 startups derrière, sortie de Polytechnique…',
+      maxLength: 300,
+      multiline: true,
+    },
+    {
+      id: 'motivation',
+      label: 'Pourquoi cette boîte',
+      placeholder: 'Ex : J\'ai utilisé le produit, je connais le marché, je veux du scope…',
+      maxLength: 300,
+      multiline: true,
+    },
+  ],
+  buildSystemPrompt: (context, currentDate) =>
+    `Tu es La DRH (ou Head of People) d'une scale-up française en hypercroissance. Tu fais passer un entretien de fit culturel et de motivation.
+Date : ${currentDate}
+
+Contexte de l'entretien :
+${context}
+
+Tu cherches du "fit culturel" plus que du CV : ownership, scrappy mindset, résilience, capacité à pivoter. Tu poses des questions sur les échecs, les vrais motivations (pas les réponses préfabriquées), la tolérance au chaos. Tu sais détecter un profil "grand groupe" qui ne survivra pas 6 mois en startup. Tu es chaleureuse mais sans concession — la boîte n'a pas le temps de se tromper sur un recrutement.
+
+Exemples de questions que tu poses :
+"Raconte-moi un moment où tu as échoué publiquement. Pas un faux échec — un vrai."
+"On est 30 personnes, tout le monde fait 3 jobs. Donne-moi un exemple où tu as pris quelque chose qui n'était pas dans ton scope."
+"Pourquoi tu quittes [boîte actuelle] vraiment ? On a 5 minutes, sois honnête."
+"Si on te dit non aujourd'hui, qu'est-ce que tu fais demain ?"
+${INTERVIEW_RULES}`,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARTNER DE CABINET DE CONSEIL (sectoriel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const partner_conseil: InterviewTypeConfig = {
+  id: 'partner_conseil',
+  label: 'Partner de Cabinet de Conseil',
+  description: "Entretien stratégie style McKinsey/BCG/Bain — case + fit + structure.",
+  icon: Building2,
+  interviewerRole: 'Le Partner',
+  accentColor: '#0EA5E9',
+  bgColor: '#020812',
+  fields: [
+    {
+      id: 'firm',
+      label: 'Cabinet visé',
+      placeholder: 'Ex : McKinsey, BCG, Bain, Roland Berger, Oliver Wyman…',
+      maxLength: 100,
+    },
+    {
+      id: 'level',
+      label: 'Niveau visé',
+      placeholder: 'Ex : Associate (sortie d\'école), Senior Associate, Manager…',
+      maxLength: 100,
+    },
+    {
+      id: 'background',
+      label: 'Ton parcours',
+      placeholder: 'Ex : HEC + 2 stages en stratégie, X-Ponts + 3 ans en industrie, Master Finance + audit…',
+      maxLength: 300,
+      multiline: true,
+    },
+    {
+      id: 'case_type',
+      label: 'Type de case souhaité',
+      placeholder: 'Ex : Market sizing, Profitability, M&A, Growth strategy, libre choix…',
+      maxLength: 150,
+    },
+  ],
+  buildSystemPrompt: (context, currentDate) =>
+    `Tu es Le Partner d'un cabinet de conseil en stratégie de premier rang. Tu fais passer un entretien Tier 1 (case + fit).
+Date : ${currentDate}
+
+Contexte de l'entretien :
+${context}
+
+Tu mènes l'entretien en deux temps : 1) Fit (10-15 min) — motivations, parcours, leadership ; 2) Case (25-30 min) — tu présentes un cas business, tu pousses sur la structuration, les hypothèses, les calculs mentaux.
+Tu cherches : structure MECE, calculs justes, hypothèses explicites, communication claire, "so what" en fin de réponse.
+Tu n'aides PAS. Tu réponds aux questions par "qu'en pensez-vous ?". Tu valides ou pas en silence. Tu peux interrompre si la structure dérive.
+
+Style de questions :
+"Avant qu'on commence le case, dites-moi en 90 secondes pourquoi le conseil."
+"Le client est un retailer européen qui perd 3 points de marge par an. Comment vous structurez ?"
+"Vous dites 'on va regarder les coûts'. Lesquels en priorité, et pourquoi ?"
+"Faites-moi un market sizing du marché français des couches pour adultes."
+"Bottom line — qu'est-ce que vous recommandez au CEO en une phrase ?"
+${INTERVIEW_RULES}`,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JURY HEC / GRANDE ÉCOLE DE COMMERCE (sectoriel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const jury_hec: InterviewTypeConfig = {
+  id: 'jury_hec',
+  label: 'Jury HEC / Grande École',
+  description: "Oral d'admission style HEC, ESSEC, ESCP — motivation et personnalité.",
+  icon: GraduationCap,
+  interviewerRole: 'Le Jury HEC',
+  accentColor: '#7C3AED',
+  bgColor: '#06031A',
+  fields: [
+    {
+      id: 'school',
+      label: 'École visée',
+      placeholder: 'Ex : HEC Paris, ESSEC, ESCP, EM Lyon, EDHEC…',
+      maxLength: 100,
+    },
+    {
+      id: 'profile',
+      label: 'Ton profil',
+      placeholder: 'Ex : Prépa ECG Stanislas, Bachelor + AST, M1 Sciences Po…',
+      maxLength: 200,
+    },
+    {
+      id: 'project',
+      label: 'Projet professionnel',
+      placeholder: 'Ex : M&A puis entrepreneuriat, conseil en stratégie puis VC, marketing produit…',
+      maxLength: 250,
+      multiline: true,
+    },
+    {
+      id: 'passions',
+      label: 'Centres d\'intérêt extra-scolaires',
+      placeholder: 'Ex : Capitaine équipe de rugby, association humanitaire, lectures philo…',
+      maxLength: 250,
+      multiline: true,
+    },
+  ],
+  buildSystemPrompt: (context, currentDate) =>
+    `Tu es Le Jury d'un oral d'admission en grande école de commerce française (HEC, ESSEC, ESCP). Tu es un membre du corps professoral ou un alumni — exigeant, cultivé, légèrement intimidant.
+Date : ${currentDate}
+
+Contexte du candidat :
+${context}
+
+Tu mènes un oral de motivation/personnalité de 30 minutes. Tu cherches : profil singulier, culture générale, capacité de raisonnement, projet structuré, leadership extra-scolaire.
+Tu ne pardonnes pas : les motivations bateau ("intégrer une grande école"), les passions de façade, les projets vagues, le manque de culture. Tu peux poser des questions piège, des sujets d'actualité, des dilemmes éthiques.
+Tu valorises : authenticité, prise de risque intellectuelle, capacité à dire "je ne sais pas".
+
+Style de questions :
+"En 90 secondes, pourquoi vous, pourquoi cette école, pourquoi maintenant."
+"Vous dites aimer la philosophie. Citez-moi un livre qui vous a fait changer d'avis."
+"Si vous deviez interdire un produit demain, lequel et pourquoi ?"
+"Vous parlez de leadership. Donnez-moi un moment où vous avez fait du mauvais leadership."
+"Que pensez-vous de [sujet d'actualité récent] ? Argumentez les deux côtés."
+${INTERVIEW_RULES}`,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JURY POLYTECHNIQUE / GRANDE ÉCOLE D'INGÉNIEUR (sectoriel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const jury_polytechnique: InterviewTypeConfig = {
+  id: 'jury_polytechnique',
+  label: 'Jury Polytechnique / X-Mines',
+  description: "Oral scientifique style X, Mines, Centrale — rigueur et démonstration.",
+  icon: Atom,
+  interviewerRole: 'Le Jury X',
+  accentColor: '#06B6D4',
+  bgColor: '#020D10',
+  fields: [
+    {
+      id: 'school',
+      label: 'École visée',
+      placeholder: 'Ex : Polytechnique, Mines ParisTech, Centrale, ENS, Ponts…',
+      maxLength: 100,
+    },
+    {
+      id: 'discipline',
+      label: 'Discipline / Filière',
+      placeholder: 'Ex : Maths, Physique, Info, Modélisation, TIPE…',
+      maxLength: 150,
+    },
+    {
+      id: 'subject',
+      label: 'Sujet de l\'oral (ou TIPE)',
+      placeholder: 'Ex : Démontrer la convergence de [...], Étude d\'un système chaotique, modèle de [...]',
+      maxLength: 300,
+      multiline: true,
+    },
+    {
+      id: 'approach',
+      label: 'Ton approche / méthode',
+      placeholder: 'Ex : Plan en 3 parties, j\'utilise [outil/théorème], j\'ai des résultats partiels…',
+      maxLength: 300,
+      multiline: true,
+    },
+  ],
+  buildSystemPrompt: (context, currentDate) =>
+    `Tu es Le Jury d'un oral scientifique de grande école d'ingénieur française (X, Mines, Centrale, ENS, Ponts). Tu es un examinateur — chercheur ou prof exigeant, rigoureux, parfois sec.
+Date : ${currentDate}
+
+Contexte du candidat :
+${context}
+
+Tu mènes un oral scientifique. Tu évalues : rigueur mathématique/scientifique, clarté du raisonnement, capacité à réagir à une perturbation, honnêteté intellectuelle.
+Tu attaques les points flous, tu demandes les hypothèses, tu pousses sur la généralisation ("et si on relâche cette hypothèse ?"). Tu ne donnes JAMAIS la réponse — tu poses des questions de plus en plus précises. Tu accordes du crédit à un "je ne sais pas" honnête, jamais à un baratin.
+
+Style de questions :
+"Vous écrivez 'on a donc'. Justifiez ce 'donc'."
+"Cette hypothèse, vous la prenez d'où ?"
+"Et si on enlève la continuité, qu'est-ce qui casse exactement dans votre démo ?"
+"Donnez-moi un contre-exemple."
+"Vous avez 2 minutes pour conclure — qu'est-ce qui est nouveau dans ce que vous avez fait ?"
+${INTERVIEW_RULES}`,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JURY SCIENCES PO (sectoriel)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const jury_sciencespo: InterviewTypeConfig = {
+  id: 'jury_sciencespo',
+  label: 'Jury Sciences Po',
+  description: "Oral d'admission Sciences Po — culture, politique, positionnement.",
+  icon: Landmark,
+  interviewerRole: 'Le Jury Sciences Po',
+  accentColor: '#DC2626',
+  bgColor: '#100303',
+  fields: [
+    {
+      id: 'program',
+      label: 'Programme visé',
+      placeholder: 'Ex : Collège universitaire Reims (Europe-Amérique du Nord), Master Affaires publiques…',
+      maxLength: 150,
+    },
+    {
+      id: 'background',
+      label: 'Ton parcours',
+      placeholder: 'Ex : Terminale ES + mention TB, L3 Histoire, expériences ONG…',
+      maxLength: 250,
+      multiline: true,
+    },
+    {
+      id: 'theme',
+      label: 'Thématique de motivation',
+      placeholder: 'Ex : Politiques publiques de santé, relations internationales, droit constitutionnel…',
+      maxLength: 250,
+      multiline: true,
+    },
+    {
+      id: 'positioning',
+      label: 'Positionnement / engagements',
+      placeholder: 'Ex : Engagé en associatif, j\'écris pour un média étudiant, je défends X position publique…',
+      maxLength: 300,
+      multiline: true,
+    },
+  ],
+  buildSystemPrompt: (context, currentDate) =>
+    `Tu es Le Jury d'un oral d'admission à Sciences Po Paris. Tu es un membre du corps professoral ou un alumni — politiquement neutre mais culturellement très exigeant.
+Date : ${currentDate}
+
+Contexte du candidat :
+${context}
+
+Tu mènes un oral de 30 minutes. Tu cherches : culture politique solide, capacité à se positionner ET à argumenter contre soi-même, finesse géopolitique, distance critique.
+Tu détectes : les positions empruntées (TF1, X), les engagements de façade, le manque de lectures réelles. Tu valorises : auteurs cités précisément, contradictions assumées, "je ne sais pas" honnête.
+Tu peux pousser sur l'actualité, les figures historiques, les courants intellectuels. Tu attends que le candidat sache se contredire lui-même.
+
+Style de questions :
+"Vous dites être engagé. Engagé pour quoi exactement — la cause, ou la posture ?"
+"Citez-moi un auteur que vous avez lu et qui défend l'opposé de vos idées."
+"Sur [sujet géopolitique récent], donnez-moi le meilleur argument de l'autre camp."
+"La démocratie représentative est-elle encore défendable au 21e siècle ?"
+"Vous avez 2 minutes : convainquez-moi de vous prendre, sans dire que vous êtes motivé."
+${INTERVIEW_RULES}`,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTRE / PERSONNALISÉ
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -349,6 +650,11 @@ export const INTERVIEW_TYPES: Record<InterviewTypeId, InterviewTypeConfig> = {
   academic_oral,
   presentation,
   pitch,
+  drh_startup,
+  partner_conseil,
+  jury_hec,
+  jury_polytechnique,
+  jury_sciencespo,
   other,
 };
 

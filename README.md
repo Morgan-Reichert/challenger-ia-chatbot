@@ -70,7 +70,8 @@ Débatez face à des personnages réels enrichis par des données **Wikipedia en
 | **Philosophes & penseurs** | Voltaire, Rousseau, Marx, Nietzsche, Beauvoir, Sartre, Freud |
 | **Entrepreneurs & tech** | Zuckerberg, Bezos, Gates, Jobs |
 | **Militants & figures sociales** | Thunberg, MLK, Simone Veil |
-| **Personnage custom** | Crée ton propre opposant avec son nom, son idéologie et ses positions |
+| **Tech française** | Xavier Niel, Cédric O, Roxanne Varza, Tariq Krim, Rachel Delacour, Jean-Baptiste Rudelle |
+| **Personnage custom** | Crée ton propre opposant avec son nom, son idéologie et ses positions — exportable / importable en JSON |
 
 Chaque personnage propose 3 sujets de débat suggérés.
 
@@ -87,6 +88,11 @@ Simulations immersives avec un interlocuteur IA qui pose des questions **une par
 | **Examen oral** | Le Jury | Partiel, soutenance, concours, agrégation |
 | **Présentation** | L'Évaluateur | Face à un comité, direction générale, investisseurs |
 | **Pitch** | L'Investisseur | Face à des business angels ou VC |
+| **DRH de Startup** | La DRH Startup | Fit culturel, ownership, scrappy mindset |
+| **Partner Conseil** | Le Partner | Cabinet stratégie Tier 1 — case + fit |
+| **Jury HEC / Grande École** | Le Jury HEC | Oral d'admission HEC, ESSEC, ESCP |
+| **Jury Polytechnique / X-Mines** | Le Jury X | Oral scientifique X, Mines, Centrale, ENS |
+| **Jury Sciences Po** | Le Jury Sciences Po | Oral d'admission Sciences Po — culture politique |
 | **Autre / Personnalisé** | L'Interlocuteur | N'importe quelle situation sur mesure |
 
 Chaque type dispose de champs de configuration dédiés pour construire un prompt système précis.
@@ -117,6 +123,12 @@ Format détecté dans la réponse IA : `[CIA_Q:{"type":"choice","q":"...","optio
 | `/exportjson` | Télécharge la conversation en JSON brut |
 | `/exportmd` | Télécharge la conversation en Markdown enrichi |
 | `/copiernotion` | Copie la conversation formatée pour Notion dans le presse-papier |
+| `/exportobsidian` | Markdown enrichi avec frontmatter YAML, wikilinks et tags — prêt pour Obsidian |
+| `/biais` | L'IA détecte les biais cognitifs et sophismes dans tes interventions |
+| `/vote` | Le persona vote sur ta performance : convaincu / partiellement / pas convaincu, avec justification |
+| `/avocatdiable` | Active/désactive le mode contre-pied systématique (toggle) |
+| `/transposer` | Mode contradiction historique — le persona transpose sa pensée sur un sujet contemporain |
+| `/preparation` | Préparation express — donne un sujet, l'IA bâtit le plan de session (personas + friction + 5 questions probables) |
 
 ---
 
