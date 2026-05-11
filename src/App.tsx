@@ -11,6 +11,7 @@ import {
   Mic, MicOff, Volume2, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Moon, Sun, Copy, Share2, Link, Trophy, Rocket, Wrench,
+  Hexagon, ShieldAlert, Vote, Clock, Sparkles, Hourglass,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ArenaPage from './arena/ArenaPage';
@@ -18,7 +19,7 @@ import PropulseModal from './arena/PropulseModal';
 import remarkGfm from 'remark-gfm';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
-import { generateMarkdown, generateNotionMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
+import { generateMarkdown, generateNotionMarkdown, generateObsidianMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
 import { getDailyChallenge, getChallengeProgress, incrementChallengeProgress } from './dailyChallenges';
 import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
@@ -91,6 +92,8 @@ interface Conversation {
   interviewTitle?: string;         // titre de la session interview
   noProfile?: boolean;             // désactive l'injection du profil pour cette conv
   memoryResetAt?: string;          // ISO — messages avant cette date exclus du contexte API
+  devilsAdvocate?: boolean;        // mode avocat du diable — l'IA prend toujours le contre-pied
+  anachronisticTopic?: string;     // contradiction historique — transpose le persona sur un sujet moderne
 }
 
 interface Project {
@@ -461,6 +464,8 @@ function serializeConv(conv: Conversation) {
     debatePersonaCustomData: conv.debatePersonaCustomData ?? null,
     interviewType: conv.interviewType ?? null,
     interviewTitle: conv.interviewTitle ?? null,
+    devilsAdvocate: conv.devilsAdvocate ?? null,
+    anachronisticTopic: conv.anachronisticTopic ?? null,
     createdAt: conv.createdAt.toISOString(),
     updatedAt: conv.updatedAt.toISOString(),
     messages: conv.messages.map((m) => ({
@@ -492,6 +497,8 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
     debatePersonaCustomData: (data.debatePersonaCustomData as DebateDisplayData | null) ?? undefined,
     interviewType: (data.interviewType as InterviewTypeId | null) ?? undefined,
     interviewTitle: (data.interviewTitle as string | null) ?? undefined,
+    devilsAdvocate: (data.devilsAdvocate as boolean | null) ?? undefined,
+    anachronisticTopic: (data.anachronisticTopic as string | null) ?? undefined,
     createdAt: new Date(data.createdAt as string),
     updatedAt: new Date(data.updatedAt as string),
     messages: msgs.map((m) => ({
@@ -880,6 +887,48 @@ const SLASH_COMMANDS = [
     icon: Copy,
     shortcut: '/copiernotion',
   },
+  {
+    id: 'exportobsidian',
+    label: 'Exporter pour Obsidian',
+    desc: 'Markdown avec frontmatter YAML, wikilinks et tags — prêt pour Obsidian',
+    icon: Hexagon,
+    shortcut: '/exportobsidian',
+  },
+  {
+    id: 'biais',
+    label: 'Détecter mes biais',
+    desc: "L'IA identifie les biais cognitifs dans tes arguments avec exemples cités",
+    icon: ShieldAlert,
+    shortcut: '/biais',
+  },
+  {
+    id: 'vote',
+    label: 'Vote de persuasion',
+    desc: "Le persona vote : convaincu, partiellement, ou pas du tout — avec justification",
+    icon: Vote,
+    shortcut: '/vote',
+  },
+  {
+    id: 'avocatdiable',
+    label: "Avocat du diable (toggle)",
+    desc: "Active/désactive le mode contre-pied systématique pour cette session",
+    icon: Swords,
+    shortcut: '/avocatdiable',
+  },
+  {
+    id: 'transposer',
+    label: 'Contradiction historique (toggle)',
+    desc: "Le persona transpose sa pensée sur un sujet anachronique que tu donneras",
+    icon: Clock,
+    shortcut: '/transposer',
+  },
+  {
+    id: 'preparation',
+    label: 'Préparation express',
+    desc: "Donne un sujet — l'IA bâtit un plan de session (personas, friction, questions probables)",
+    icon: Hourglass,
+    shortcut: '/preparation',
+  },
 ] as const;
 
 type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
@@ -1187,6 +1236,21 @@ export default function App() {
   const [upgradeModal, setUpgradeModal] = useState<'limit' | 'files' | 'projects' | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [creditsSuccess, setCreditsSuccess] = useState(false);
+  // ── Mode Préparation Express
+  const [preparationOpen, setPreparationOpen] = useState(false);
+  const [preparationSubject, setPreparationSubject] = useState('');
+  const [preparationDuration, setPreparationDuration] = useState('');
+  const [preparationLoading, setPreparationLoading] = useState(false);
+  type PreparationPlan = {
+    summary: string;
+    personas: { name: string; rationale: string; debateId?: string }[];
+    friction: 'doux' | 'moyen' | 'extreme';
+    frictionRationale: string;
+    likelyQuestions: string[];
+    suggestedAngles: string[];
+  };
+  const [preparationPlan, setPreparationPlan] = useState<PreparationPlan | null>(null);
+  const [preparationError, setPreparationError] = useState<string | null>(null);
 
   // ── Préférences crédits
   const [autoUseCredits, setAutoUseCredits] = useState<boolean>(() => {
@@ -2102,7 +2166,34 @@ export default function App() {
         const currentDateStr = new Date().toLocaleDateString('fr-FR', {
           weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
-        const enrichedSystemPrompt = systemPrompt + `\n\n## Accès web et contexte temps réel (CRITIQUE)
+        // ── Overrides de session : avocat du diable, contradiction historique ──
+        // Si le sujet anachronique est en attente, on capture le texte du message courant comme sujet
+        let effectiveAnachronistic = activeConvNow?.anachronisticTopic;
+        if (effectiveAnachronistic === '__pending__' && text.trim()) {
+          effectiveAnachronistic = text.trim().slice(0, 300);
+          setConversations((p) =>
+            p.map((c) => (c.id !== convId ? c : { ...c, anachronisticTopic: effectiveAnachronistic, updatedAt: new Date() }))
+          );
+        }
+        let modeOverrides = '';
+        if (activeConvNow?.devilsAdvocate) {
+          modeOverrides += `\n\n## MODE AVOCAT DU DIABLE (OVERRIDE)
+Tu es désormais en mode "avocat du diable systématique". Peu importe ce que dit l'utilisateur — même s'il a raison, même si tu serais d'accord — tu prends TOUJOURS le contre-pied avec la meilleure défense intellectuelle possible de la position opposée.
+- Si l'utilisateur défend X, attaque X et défends ¬X avec rigueur.
+- Si l'utilisateur défend ¬X, attaque ¬X et défends X avec rigueur.
+- Ne capitule jamais. Ne concède jamais. Réoriente.
+- Tu peux le faire avec finesse : argument inattendu, exception, perspective qu'il n'a pas vue, conséquence non envisagée.
+- Tu n'es PAS désagréable. Tu es exigeant. C'est un entraînement à la résilience argumentative.
+- À la fin de chaque réponse, pose UNE question piège qui force l'utilisateur à défendre une nuance qu'il n'a pas anticipée.`;
+        }
+        if (effectiveAnachronistic && effectiveAnachronistic !== '__pending__') {
+          modeOverrides += `\n\n## MODE CONTRADICTION HISTORIQUE (OVERRIDE)
+Sujet anachronique : « ${effectiveAnachronistic.slice(0, 300)} »
+Transpose ta pensée sur ce sujet contemporain — tout en restant fidèle à ton époque, ton style, ton lexique, tes références. Tu ne dois PAS faire semblant de connaître le contexte d'aujourd'hui : tu raisonnes à partir de tes principes, ta méthode, tes obsessions intellectuelles. Si tu n'as pas les mots (« réseaux sociaux », « algorithmes », « GAFA »…), reformule avec ton vocabulaire d'époque (« assemblée invisible », « machines à influencer », « grandes compagnies marchandes »…).
+Reste profondément dans le personnage. C'est précisément le décalage temporel qui rend la conversation intéressante.`;
+        }
+
+        const enrichedSystemPrompt = systemPrompt + modeOverrides + `\n\n## Accès web et contexte temps réel (CRITIQUE)
 Date actuelle : ${currentDateStr}
 
 Tu as ACCÈS EN TEMPS RÉEL à des données web fraîches grâce à un moteur de recherche intégré. Ces données sont injectées dans ton contexte sous la section "Données web en temps réel" quand elles sont disponibles.
@@ -2442,9 +2533,214 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         }
         return;
       }
+
+      if (id === 'exportobsidian') {
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv || conv.messages.length === 0) {
+          showSlashNotif('Aucune conversation à exporter.', false);
+          return;
+        }
+        const persona = getDP(conv)?.name
+          ?? (conv.interviewType ? INTERVIEW_TYPES[conv.interviewType]?.interviewerRole : null)
+          ?? PERSONAS[conv.persona]?.name;
+        const md = generateObsidianMarkdown(conv.title, conv.messages, persona ?? 'Challenger IA');
+        const safeName = conv.title.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 60);
+        downloadTextFile(md, `${safeName || 'challenger-session'}.md`);
+        showSlashNotif('Note Obsidian téléchargée !');
+        addCommandMsg('📥 Note Obsidian téléchargée — frontmatter YAML + wikilinks inclus.');
+        return;
+      }
+
+      if (id === 'biais') {
+        if (!activeId) {
+          showSlashNotif('Lance d\'abord une conversation pour détecter les biais.', false);
+          return;
+        }
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv || conv.messages.filter((m) => m.role === 'user').length === 0) {
+          showSlashNotif('Aucune intervention utilisateur à analyser.', false);
+          return;
+        }
+        const biasPrompt =
+          'COMMANDE /biais — Analyse UNIQUEMENT mes interventions (utilisateur) dans cet échange et identifie les biais cognitifs et sophismes que j\'ai utilisés (homme de paille, ad hominem, faux dilemme, appel à l\'autorité, biais de confirmation, généralisation hâtive, pente glissante, raisonnement circulaire, biais d\'ancrage, effet de halo, biais de disponibilité, etc.).\n\n' +
+          'Format de réponse OBLIGATOIRE :\n' +
+          '## Biais détectés\n\n' +
+          'Pour chaque biais identifié, structure ainsi :\n' +
+          '### [Nom du biais]\n' +
+          '> **Citation :** « extrait littéral de ma phrase »\n' +
+          '\n' +
+          '**Pourquoi c\'est un biais :** explication courte (1-2 phrases).\n' +
+          '\n' +
+          '**Comment le corriger :** suggestion concrète.\n\n' +
+          'Si aucun biais n\'est détecté, dis-le franchement et explique pourquoi mes arguments sont rigoureux.\n' +
+          'Ne flatte pas. Sois sévère mais juste.';
+        send(biasPrompt, []);
+        showSlashNotif('Analyse des biais en cours…');
+        addCommandMsg('Détection de biais demandée — analyse en cours…');
+        return;
+      }
+
+      if (id === 'vote') {
+        if (!activeId) {
+          showSlashNotif('Lance d\'abord un débat pour obtenir un vote.', false);
+          return;
+        }
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv || conv.messages.filter((m) => m.role === 'user').length === 0) {
+          showSlashNotif('Aucun argument à juger pour le moment.', false);
+          return;
+        }
+        const personaLabel = getDP(conv)?.name
+          ?? (conv.interviewType ? INTERVIEW_TYPES[conv.interviewType]?.interviewerRole : null)
+          ?? PERSONAS[conv.persona]?.name
+          ?? 'le challenger';
+        const votePrompt =
+          `COMMANDE /vote — Tu sors un instant de ton rôle pour rendre un verdict honnête sur ma performance argumentative dans cet échange. Place-toi en tant que ${personaLabel}.\n\n` +
+          'Réponds STRICTEMENT avec ce format Markdown :\n\n' +
+          '## Verdict\n\n' +
+          '**Vote :** Convaincu / Partiellement convaincu / Pas convaincu (choisis UN seul de ces trois)\n\n' +
+          '**Score de persuasion :** X / 10\n\n' +
+          '## Justification\n\n' +
+          '2 à 4 phrases maximum. Cite un argument précis qui a fonctionné (ou pas) — entre guillemets si possible.\n\n' +
+          '## Ce qu\'il aurait fallu\n\n' +
+          'En une phrase, l\'argument ou la posture qui m\'aurait fait basculer (ou enfoncer le clou).\n\n' +
+          'Sois honnête et sec. Ne flatte pas. Tu peux être dur si l\'échange était faible.';
+        send(votePrompt, []);
+        showSlashNotif('Vote en cours…');
+        addCommandMsg(`${personaLabel} rend son verdict — calcul en cours…`);
+        return;
+      }
+
+      if (id === 'avocatdiable') {
+        if (!activeId) {
+          showSlashNotif('Active une conversation avant de basculer en mode avocat du diable.', false);
+          return;
+        }
+        let nextVal = false;
+        setConversations((p) =>
+          p.map((c) => {
+            if (c.id !== activeId) return c;
+            nextVal = !c.devilsAdvocate;
+            return { ...c, devilsAdvocate: nextVal, updatedAt: new Date() };
+          })
+        );
+        const msg = nextVal
+          ? '⚔️ Mode avocat du diable ACTIVÉ — l\'IA prendra systématiquement le contre-pied.'
+          : '⚔️ Mode avocat du diable DÉSACTIVÉ — retour au comportement normal.';
+        showSlashNotif(msg);
+        addCommandMsg(msg);
+        return;
+      }
+
+      if (id === 'transposer') {
+        if (!activeId) {
+          showSlashNotif('Active une conversation avant d\'utiliser la contradiction historique.', false);
+          return;
+        }
+        let willActivate = false;
+        setConversations((p) =>
+          p.map((c) => {
+            if (c.id !== activeId) return c;
+            willActivate = !c.anachronisticTopic;
+            return {
+              ...c,
+              anachronisticTopic: willActivate ? '__pending__' : undefined,
+              updatedAt: new Date(),
+            };
+          })
+        );
+        if (willActivate) {
+          showSlashNotif('Contradiction historique ACTIVÉE — donne le sujet anachronique dans ton prochain message.');
+          addCommandMsg('🕰️ Mode contradiction historique ACTIVÉ. Écris ton sujet anachronique dans le prochain message (ex : « Rousseau face aux réseaux sociaux », « Marx face aux GAFA »). Le persona transposera sa pensée à ce contexte.');
+        } else {
+          showSlashNotif('Contradiction historique DÉSACTIVÉE.');
+          addCommandMsg('🕰️ Mode contradiction historique DÉSACTIVÉ.');
+        }
+        return;
+      }
+
+      if (id === 'preparation') {
+        setPreparationOpen(true);
+        showSlashNotif('Mode Préparation express ouvert.');
+        return;
+      }
     },
     [activeId, send, showSlashNotif, addCommandMsg, setConversations, conversations, userProfile]
   );
+
+  // ── Préparation express : appelle Mistral pour bâtir un plan de session ────
+  const runPreparation = useCallback(async () => {
+    if (!preparationSubject.trim()) {
+      setPreparationError('Décris d\'abord le sujet ou la situation.');
+      return;
+    }
+    setPreparationLoading(true);
+    setPreparationError(null);
+    setPreparationPlan(null);
+    try {
+      const personaCatalog = Object.values(DEBATE_PERSONAS)
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .map((p) => `- ${p.id} → ${p.name} (${p.category})`)
+        .join('\n');
+
+      const systemPrompt = `Tu es un coach de préparation. À partir du sujet donné par l'utilisateur, tu construis un plan de session d'entraînement pour Challenger IA — une plateforme où l'utilisateur s'entraîne contre des personas IA contradictoires.
+
+Tu connais le catalogue de personas suivant (id → nom — catégorie) :
+${personaCatalog}
+
+Tu réponds UNIQUEMENT par un objet JSON valide, sans markdown ni texte autour, strictement conforme à ce schéma :
+{
+  "summary": "1-2 phrases qui résument l'enjeu de cette session.",
+  "personas": [
+    { "name": "Nom court de persona du catalogue OU nom inventé si rien ne convient", "rationale": "Pourquoi ce persona pour ce sujet (1 phrase).", "debateId": "id du persona dans le catalogue si applicable, sinon null" },
+    { "name": "...", "rationale": "...", "debateId": "..." },
+    { "name": "...", "rationale": "...", "debateId": "..." }
+  ],
+  "friction": "doux" | "moyen" | "extreme",
+  "frictionRationale": "1 phrase pour justifier ce niveau de friction.",
+  "likelyQuestions": [
+    "Question piège ou difficile probable 1",
+    "Question 2",
+    "Question 3",
+    "Question 4",
+    "Question 5"
+  ],
+  "suggestedAngles": [
+    "Angle d'attaque ou de défense à préparer 1",
+    "Angle 2",
+    "Angle 3"
+  ]
+}
+
+Choisis les personas pertinents par rapport au sujet (ex : pour un entretien chez Google, "Partner conseil" pour le case, "DRH startup" pour le fit, "Architecte logique" pour la logique). Sois précis et utile.`;
+
+      const userPrompt = `Sujet : ${preparationSubject.trim().slice(0, 800)}\n${preparationDuration.trim() ? `Délai : ${preparationDuration.trim().slice(0, 100)}` : ''}`;
+
+      const res = await callChat({
+        model: 'mistral-large-latest',
+        temperature: 0.5,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const raw = data.choices?.[0]?.message?.content ?? '';
+      const m = raw.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('Réponse non parsable');
+      const parsed = JSON.parse(m[0]) as PreparationPlan;
+      if (!parsed.summary || !Array.isArray(parsed.personas) || !Array.isArray(parsed.likelyQuestions)) {
+        throw new Error('Plan incomplet');
+      }
+      setPreparationPlan(parsed);
+    } catch (err) {
+      console.error('Préparation error:', err);
+      setPreparationError('Erreur — impossible de générer le plan. Réessaie.');
+    } finally {
+      setPreparationLoading(false);
+    }
+  }, [preparationSubject, preparationDuration]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen) {
@@ -5318,6 +5614,179 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
                 >
                   Continuer en version gratuite
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal Préparation Express ────────────────────────────────────── */}
+      <AnimatePresence>
+        {preparationOpen && (
+          <motion.div
+            key="prep-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(10,10,10,0.82)' }}
+            onClick={() => { if (!preparationLoading) { setPreparationOpen(false); setPreparationPlan(null); setPreparationError(null); } }}
+          >
+            <motion.div
+              key="prep-card"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="bg-[#0e1018] border-4 border-[#5D7BFF] w-full max-w-2xl max-h-[88vh] overflow-y-auto"
+              style={{ boxShadow: '8px 8px 0px 0px rgba(93,123,255,0.25)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-5 border-b-2 border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Hourglass size={20} className="text-[#5D7BFF]" />
+                  <div>
+                    <h2 className="text-[14px] font-black uppercase tracking-widest text-white">Préparation express</h2>
+                    <p className="text-[10px] text-white/40 mt-0.5">Décris une situation — l'IA construit ton plan d'entraînement.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { if (!preparationLoading) { setPreparationOpen(false); setPreparationPlan(null); setPreparationError(null); } }}
+                  className="text-white/30 hover:text-white/60 transition-colors"
+                  aria-label="Fermer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                {!preparationPlan && (
+                  <>
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Sujet ou situation</label>
+                      <textarea
+                        value={preparationSubject}
+                        onChange={(e) => setPreparationSubject(e.target.value)}
+                        placeholder="Ex : Entretien Product Manager chez Google dans 2h — focus sur les case studies et le leadership."
+                        rows={3}
+                        maxLength={800}
+                        disabled={preparationLoading}
+                        className="w-full px-3 py-2 bg-black/40 border-2 border-white/10 focus:border-[#5D7BFF] outline-none text-white text-[13px] resize-none"
+                      />
+                      <p className="text-[9px] text-white/30 mt-1 text-right">{preparationSubject.length}/800</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Délai (optionnel)</label>
+                      <input
+                        value={preparationDuration}
+                        onChange={(e) => setPreparationDuration(e.target.value)}
+                        placeholder="Ex : 2h, demain matin, vendredi prochain…"
+                        maxLength={100}
+                        disabled={preparationLoading}
+                        className="w-full px-3 py-2 bg-black/40 border-2 border-white/10 focus:border-[#5D7BFF] outline-none text-white text-[13px]"
+                      />
+                    </div>
+
+                    {preparationError && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-red-900/20 border-2 border-red-500/40 text-red-300 text-[11px]">
+                        <AlertCircle size={14} />
+                        <span>{preparationError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={runPreparation}
+                      disabled={preparationLoading || !preparationSubject.trim()}
+                      className="w-full py-3 bg-[#5D7BFF] hover:bg-[#7290FF] disabled:bg-white/10 disabled:text-white/30 text-white text-[11px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                    >
+                      {preparationLoading ? (
+                        <><Loader2 size={14} className="animate-spin" /> Construction du plan…</>
+                      ) : (
+                        <><Sparkles size={14} /> Générer mon plan</>
+                      )}
+                    </button>
+                  </>
+                )}
+
+                {preparationPlan && (
+                  <>
+                    <div className="px-3 py-2 bg-[#5D7BFF]/10 border-l-4 border-[#5D7BFF]">
+                      <p className="text-[10px] uppercase tracking-widest text-[#5D7BFF] mb-1">Enjeu</p>
+                      <p className="text-[12px] text-white/85 leading-snug">{preparationPlan.summary}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">3 personas recommandés</p>
+                      <div className="space-y-2">
+                        {preparationPlan.personas.slice(0, 3).map((p, idx) => (
+                          <div key={idx} className="px-3 py-2 bg-white/5 border-l-4 border-white/30">
+                            <p className="text-[12px] text-white font-bold">{p.name}{p.debateId ? <span className="text-white/40 font-normal"> · {p.debateId}</span> : null}</p>
+                            <p className="text-[11px] text-white/60 mt-0.5 leading-snug">{p.rationale}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Niveau de friction suggéré</p>
+                      <div className="flex items-center gap-3">
+                        <span className="px-3 py-1 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest">
+                          {preparationPlan.friction}
+                        </span>
+                        <span className="text-[11px] text-white/60">{preparationPlan.frictionRationale}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">5 questions probables</p>
+                      <ul className="space-y-1.5">
+                        {preparationPlan.likelyQuestions.slice(0, 5).map((q, idx) => (
+                          <li key={idx} className="flex gap-2 text-[12px] text-white/80">
+                            <span className="text-[#5D7BFF] font-bold">{idx + 1}.</span>
+                            <span>{q}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {preparationPlan.suggestedAngles?.length > 0 && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Angles à préparer</p>
+                        <ul className="space-y-1.5">
+                          {preparationPlan.suggestedAngles.map((a, idx) => (
+                            <li key={idx} className="text-[11px] text-white/70">→ {a}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex gap-2">
+                      <button
+                        onClick={() => {
+                          setPreparationPlan(null);
+                          setPreparationSubject('');
+                          setPreparationDuration('');
+                        }}
+                        className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white/70 text-[10px] font-black uppercase tracking-widest transition-colors"
+                      >
+                        Nouveau plan
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPreparationOpen(false);
+                          setPreparationPlan(null);
+                          setPreparationSubject('');
+                          setPreparationDuration('');
+                        }}
+                        className="flex-1 py-2 bg-[#5D7BFF] hover:bg-[#7290FF] text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+                      >
+                        Fermer
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           </motion.div>

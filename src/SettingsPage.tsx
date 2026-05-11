@@ -11,6 +11,10 @@ import {
   NEURO_TAGS, MBTI_TYPES, saveProfile, exportProfile, importProfileFromJson, EMPTY_PROFILE,
 } from './userProfile';
 import { CREDIT_PACKS, type Plan } from './supabase';
+import {
+  CUSTOM_PERSONA_MAX_NAME, CUSTOM_PERSONA_MAX_DESC,
+  validateCustomPrompt, exportCustomPersonaToJson, parseCustomPersonaJson,
+} from './debatePersonas';
 
 function cx(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
@@ -97,6 +101,180 @@ function Field({ label, hint, action, children }: { label: string; hint?: string
 
 const INPUT_BASE = 'w-full px-4 py-3 border-2 border-[#141414]/10 focus:outline-none text-sm font-medium bg-white transition-colors';
 const TEXTAREA_BASE = INPUT_BASE + ' resize-none leading-relaxed';
+
+// ─── Persona Studio — création, export et import de personas custom ───────
+
+const CUSTOM_PERSONA_LS_KEY = 'challenger:imported_custom_persona';
+
+function PersonaStudioSection() {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Hydrate depuis localStorage au montage
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_PERSONA_LS_KEY);
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj.name === 'string') setName(obj.name);
+      if (obj && typeof obj.description === 'string') setDescription(obj.description);
+    } catch { /* noop */ }
+  }, []);
+
+  const persist = (n: string, d: string) => {
+    try {
+      localStorage.setItem(CUSTOM_PERSONA_LS_KEY, JSON.stringify({
+        name: n.slice(0, CUSTOM_PERSONA_MAX_NAME),
+        description: d.slice(0, CUSTOM_PERSONA_MAX_DESC),
+        updatedAt: new Date().toISOString(),
+      }));
+    } catch { /* quota — ignore */ }
+  };
+
+  const handleSave = () => {
+    setError(null); setStatus(null);
+    const v = validateCustomPrompt(name, description);
+    if (!v.ok) { setError(v.error ?? 'Contenu non autorisé.'); return; }
+    persist(name, description);
+    setStatus('Persona enregistré localement.');
+    setTimeout(() => setStatus(null), 2400);
+  };
+
+  const handleExport = () => {
+    setError(null); setStatus(null);
+    const v = validateCustomPrompt(name, description);
+    if (!v.ok) { setError(v.error ?? 'Renseigne d\'abord un persona valide avant d\'exporter.'); return; }
+    const json = exportCustomPersonaToJson(name, description, 'challengeria.com');
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `challenger-persona-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40) || 'custom'}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    persist(name, description);
+    setStatus('Fichier .json téléchargé.');
+    setTimeout(() => setStatus(null), 2400);
+  };
+
+  const handleImportFile = async (file: File) => {
+    setError(null); setStatus(null);
+    try {
+      const txt = await file.text();
+      const result = parseCustomPersonaJson(txt);
+      if (!result.ok) { setError(result.error); return; }
+      setName(result.persona.name);
+      setDescription(result.persona.description);
+      persist(result.persona.name, result.persona.description);
+      setStatus(`Persona « ${result.persona.name} » importé.`);
+      setTimeout(() => setStatus(null), 3000);
+    } catch (e) {
+      console.error('persona import error:', e);
+      setError('Impossible de lire le fichier.');
+    }
+  };
+
+  const handleCopyJson = async () => {
+    setError(null); setStatus(null);
+    const v = validateCustomPrompt(name, description);
+    if (!v.ok) { setError(v.error ?? 'Renseigne d\'abord un persona valide.'); return; }
+    try {
+      await navigator.clipboard.writeText(exportCustomPersonaToJson(name, description, 'challengeria.com'));
+      persist(name, description);
+      setStatus('JSON copié dans le presse-papier.');
+      setTimeout(() => setStatus(null), 2400);
+    } catch {
+      setError('Impossible de copier — autorise le presse-papier dans le navigateur.');
+    }
+  };
+
+  return (
+    <Section icon={Sparkles} title="Persona Studio (custom)" accent="#7C3AED">
+      <p className="text-[11px] text-[#141414]/55 leading-relaxed">
+        Crée ton propre interlocuteur (prof exigeant, investisseur agressif, client difficile, jury fictif…).
+        Le persona est stocké <strong>localement sur cet appareil</strong>. Tu peux aussi <strong>exporter</strong> un fichier .json
+        pour le partager — ou <strong>importer</strong> celui de quelqu'un d'autre.
+      </p>
+
+      <Field label={`Nom du persona (max ${CUSTOM_PERSONA_MAX_NAME})`}>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value.slice(0, CUSTOM_PERSONA_MAX_NAME))}
+          placeholder="Ex : Prof de droit exigeant, Client difficile, Investisseur agressif…"
+          maxLength={CUSTOM_PERSONA_MAX_NAME}
+          className={cx(INPUT_BASE, 'focus:border-[#7C3AED]')}
+        />
+      </Field>
+
+      <Field
+        label={`Description du persona (max ${CUSTOM_PERSONA_MAX_DESC})`}
+        hint="Décris son style, ses obsessions, ses positions, ses formules typiques. C'est ça qui rendra le persona crédible."
+      >
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value.slice(0, CUSTOM_PERSONA_MAX_DESC))}
+          placeholder="Ex : Prof de droit constitutionnel à la retraite, formé à Sciences Po dans les années 70. Très exigeant sur la rigueur juridique, déteste les approximations. Parle en citant des arrêts du Conseil constitutionnel. Patient mais sec — pose des contre-exemples à chaque hypothèse de l'étudiant."
+          rows={5}
+          maxLength={CUSTOM_PERSONA_MAX_DESC}
+          className={cx(TEXTAREA_BASE, 'focus:border-[#7C3AED]')}
+        />
+        <p className="text-[9px] text-[#141414]/30 mt-1 text-right">{description.length}/{CUSTOM_PERSONA_MAX_DESC}</p>
+      </Field>
+
+      {error && (
+        <div className="px-3 py-2 bg-red-50 border-2 border-red-300 text-red-700 text-[11px]">{error}</div>
+      )}
+      {status && (
+        <div className="px-3 py-2 bg-green-50 border-2 border-green-300 text-green-700 text-[11px]">{status}</div>
+      )}
+
+      <div className="flex flex-wrap gap-2 pt-2">
+        <button
+          onClick={handleSave}
+          disabled={!name.trim()}
+          className="flex items-center gap-2 px-3 py-2 bg-[#7C3AED] hover:bg-[#6D28D9] disabled:bg-[#141414]/10 disabled:text-[#141414]/30 text-white text-[10px] font-black uppercase tracking-widest transition-all"
+        >
+          <Check className="w-3 h-3" /> Enregistrer
+        </button>
+        <button
+          onClick={handleExport}
+          disabled={!name.trim()}
+          className="flex items-center gap-2 px-3 py-2 border-2 border-[#7C3AED] text-[#7C3AED] hover:bg-[#7C3AED]/10 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-black uppercase tracking-widest transition-all"
+        >
+          <Download className="w-3 h-3" /> Exporter .json
+        </button>
+        <button
+          onClick={handleCopyJson}
+          disabled={!name.trim()}
+          className="flex items-center gap-2 px-3 py-2 border-2 border-[#141414]/15 text-[#141414]/60 hover:border-[#141414]/30 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-black uppercase tracking-widest transition-all"
+        >
+          <FileText className="w-3 h-3" /> Copier JSON
+        </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-2 px-3 py-2 border-2 border-[#141414]/15 text-[#141414]/60 hover:border-[#141414]/30 text-[10px] font-black uppercase tracking-widest transition-all"
+        >
+          <Upload className="w-3 h-3" /> Importer .json
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) handleImportFile(f);
+            try { (e.target as HTMLInputElement).value = ''; } catch { /* noop */ }
+          }}
+        />
+      </div>
+    </Section>
+  );
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -950,6 +1128,8 @@ export default function SettingsPage({
               </button>
             </div>
           </Section>
+
+          <PersonaStudioSection />
 
           <div className="pb-8" />
         </>)}
