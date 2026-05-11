@@ -2327,6 +2327,97 @@ RÈGLES ABSOLUES :
     );
   }, [activeId, persona, level, setConversations]);
 
+  // ── Helper : exécute une analyse "cachée" — l'instruction n'apparaît PAS
+  // dans le fil de la conversation (utilisé par /biais et /vote).
+  // On envoie la consigne en tant que message user à l'API uniquement,
+  // mais on n'ajoute qu'un command-msg + un assistant-msg côté UI.
+  const runHiddenAnalysis = useCallback(async (hiddenPrompt: string, commandLabel: string) => {
+    if (!activeId) return;
+    const conv = conversations.find((c) => c.id === activeId);
+    if (!conv) return;
+
+    addCommandMsg(commandLabel);
+
+    // Construire le system prompt comme send() le fait
+    const basePrompt = conv.debatePrompt ?? buildSystemPrompt(persona, level);
+    const profileCtx = (!conv.debatePrompt && !conv.noProfile && !noProfileMode)
+      ? buildProfileContext(userProfile)
+      : '';
+    const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
+
+    // Historique respectant /oublier
+    const memoryResetAt = conv.memoryResetAt;
+    const contextMessages = memoryResetAt
+      ? conv.messages.filter((m) => new Date(m.timestamp).toISOString() > memoryResetAt)
+      : conv.messages;
+
+    // Placeholder assistant message
+    const asstId = uid();
+    setConversations((p) =>
+      p.map((c) => c.id !== activeId ? c : {
+        ...c,
+        messages: [...c.messages, {
+          id: asstId,
+          role: 'assistant' as const,
+          content: '',
+          timestamp: new Date(),
+          persona,
+          level,
+        }],
+        updatedAt: new Date(),
+      })
+    );
+
+    setSending(true);
+    sendingRef.current = true;
+    playReceive();
+    let accumulated = '';
+    try {
+      await streamChat(
+        {
+          model: 'mistral-large-latest',
+          temperature: 0.5,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...contextMessages.filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user', content: hiddenPrompt },
+          ],
+        },
+        (chunk) => {
+          accumulated += chunk;
+          const snap = accumulated;
+          setConversations((p) =>
+            p.map((c) => c.id !== activeId ? c : {
+              ...c,
+              messages: c.messages.map((m) => m.id === asstId ? { ...m, content: snap } : m),
+            })
+          );
+        }
+      );
+      playDone();
+      // Sauvegarde Firestore
+      if (user) {
+        setConversations((p) => {
+          const updated = p.find((c) => c.id === activeId);
+          if (updated) fsSaveConversation(user.uid, updated);
+          return p;
+        });
+      }
+    } catch (err) {
+      console.error('runHiddenAnalysis error:', err);
+      playError();
+      setConversations((p) =>
+        p.map((c) => c.id !== activeId ? c : {
+          ...c,
+          messages: c.messages.map((m) => m.id === asstId ? { ...m, content: '⚠️ Erreur lors de l\'analyse. Réessaie.' } : m),
+        })
+      );
+    } finally {
+      setSending(false);
+      sendingRef.current = false;
+    }
+  }, [activeId, conversations, addCommandMsg, persona, level, noProfileMode, userProfile, user, setConversations]);
+
   const handleSlashCommand = useCallback(
     async (id: SlashCommandId) => {
       playSlash();
@@ -2574,9 +2665,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           '**Comment le corriger :** suggestion concrète.\n\n' +
           'Si aucun biais n\'est détecté, dis-le franchement et explique pourquoi mes arguments sont rigoureux.\n' +
           'Ne flatte pas. Sois sévère mais juste.';
-        send(biasPrompt, []);
         showSlashNotif('Analyse des biais en cours…');
-        addCommandMsg('Détection de biais demandée — analyse en cours…');
+        runHiddenAnalysis(biasPrompt, '🔍 Détection de biais demandée — analyse en cours…');
         return;
       }
 
@@ -2605,9 +2695,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           '## Ce qu\'il aurait fallu\n\n' +
           'En une phrase, l\'argument ou la posture qui m\'aurait fait basculer (ou enfoncer le clou).\n\n' +
           'Sois honnête et sec. Ne flatte pas. Tu peux être dur si l\'échange était faible.';
-        send(votePrompt, []);
         showSlashNotif('Vote en cours…');
-        addCommandMsg(`${personaLabel} rend son verdict — calcul en cours…`);
+        runHiddenAnalysis(votePrompt, `🗳️ ${personaLabel} rend son verdict — calcul en cours…`);
         return;
       }
 
@@ -2616,15 +2705,15 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           showSlashNotif('Active une conversation avant de basculer en mode avocat du diable.', false);
           return;
         }
-        let nextVal = false;
+        // Lire l'état AVANT le flip (sinon le setConversations async fausse la valeur)
+        const currentConv = conversations.find((c) => c.id === activeId);
+        const willActivate = !currentConv?.devilsAdvocate;
         setConversations((p) =>
-          p.map((c) => {
-            if (c.id !== activeId) return c;
-            nextVal = !c.devilsAdvocate;
-            return { ...c, devilsAdvocate: nextVal, updatedAt: new Date() };
-          })
+          p.map((c) =>
+            c.id !== activeId ? c : { ...c, devilsAdvocate: willActivate, updatedAt: new Date() }
+          )
         );
-        const msg = nextVal
+        const msg = willActivate
           ? '⚔️ Mode avocat du diable ACTIVÉ — l\'IA prendra systématiquement le contre-pied.'
           : '⚔️ Mode avocat du diable DÉSACTIVÉ — retour au comportement normal.';
         showSlashNotif(msg);
@@ -2637,17 +2726,16 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           showSlashNotif('Active une conversation avant d\'utiliser la contradiction historique.', false);
           return;
         }
-        let willActivate = false;
+        const currentConv = conversations.find((c) => c.id === activeId);
+        const willActivate = !currentConv?.anachronisticTopic;
         setConversations((p) =>
-          p.map((c) => {
-            if (c.id !== activeId) return c;
-            willActivate = !c.anachronisticTopic;
-            return {
+          p.map((c) =>
+            c.id !== activeId ? c : {
               ...c,
               anachronisticTopic: willActivate ? '__pending__' : undefined,
               updatedAt: new Date(),
-            };
-          })
+            }
+          )
         );
         if (willActivate) {
           showSlashNotif('Contradiction historique ACTIVÉE — donne le sujet anachronique dans ton prochain message.');
@@ -2665,7 +2753,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         return;
       }
     },
-    [activeId, send, showSlashNotif, addCommandMsg, setConversations, conversations, userProfile]
+    [activeId, send, showSlashNotif, addCommandMsg, setConversations, conversations, userProfile, runHiddenAnalysis]
   );
 
   // ── Préparation express : appelle Mistral pour bâtir un plan de session ────
@@ -4174,7 +4262,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           const heatDots = heat === 'hot' ? 5 : heat === 'warm' ? 3 : 1;
           const PIcon = PERSONAS[activeConv.persona].icon;
           return (
-            <div className="flex-shrink-0 flex items-center gap-2.5 px-6 py-1.5 bg-[var(--bg-chat)] border-b border-[#5D7BFF]/10">
+            <div className="flex-shrink-0 flex items-center gap-2.5 px-6 py-1.5 bg-[var(--bg-chat)] border-b border-[#5D7BFF]/10 flex-wrap">
               <PIcon className="w-3 h-3 flex-shrink-0" style={{ color: '#5D7BFF99' }} />
               <p className="text-[7px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">
                 {PERSONAS[activeConv.persona].shortName}
@@ -4182,6 +4270,29 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <span className="text-[6px] font-black uppercase tracking-widest border px-1.5 py-px" style={{ color: '#5D7BFF', borderColor: '#5D7BFF40' }}>
                 {FRICTION[activeConv.level].label}
               </span>
+              {activeConv.devilsAdvocate && (
+                <button
+                  onClick={() => handleSlashCommand('avocatdiable')}
+                  title="Cliquer pour désactiver"
+                  className="flex items-center gap-1 text-[6px] font-black uppercase tracking-widest border px-1.5 py-px hover:bg-[#DC2626]/10"
+                  style={{ color: '#DC2626', borderColor: '#DC262660' }}
+                >
+                  <Swords className="w-2.5 h-2.5" /> Avocat du diable
+                </button>
+              )}
+              {activeConv.anachronisticTopic && (
+                <button
+                  onClick={() => handleSlashCommand('transposer')}
+                  title="Cliquer pour désactiver"
+                  className="flex items-center gap-1 text-[6px] font-black uppercase tracking-widest border px-1.5 py-px hover:bg-[#7C3AED]/10"
+                  style={{ color: '#7C3AED', borderColor: '#7C3AED60' }}
+                >
+                  <Clock className="w-2.5 h-2.5" />
+                  {activeConv.anachronisticTopic === '__pending__'
+                    ? 'Transposition (en attente du sujet…)'
+                    : `Transposition : ${activeConv.anachronisticTopic.slice(0, 40)}${activeConv.anachronisticTopic.length > 40 ? '…' : ''}`}
+                </button>
+              )}
               <span className="text-[7px] text-[var(--text-primary)]/20 font-mono">{msgCount} msg</span>
               <div className="flex items-center gap-1 ml-auto">
                 {[0,1,2,3,4].map(i => (
