@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Trophy, X, Loader2, Eye, EyeOff, Hash, BarChart3, Plus, Trash2 } from 'lucide-react';
+import { X, Loader2, Plus, Trash2 } from 'lucide-react';
 import { createArenaPost, getArenaUser } from './arenaFirestore';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { SerifTitle, MetaLabel, Dot, SERIF, cx } from './_editorial';
 
 interface PropulseModalProps {
   user: FirebaseUser;
@@ -22,11 +23,9 @@ export default function PropulseModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Hashtags
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
 
-  // Sondage
   const [hasPoll, setHasPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [pollDurationH, setPollDurationH] = useState(24);
@@ -88,180 +87,267 @@ export default function PropulseModal({
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-0 sm:px-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[var(--bg-app)]/85 backdrop-blur-md px-0 sm:px-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
-        className="w-full sm:max-w-lg bg-[#111318] border-t-2 sm:border-2 border-[#5D7BFF]/30 p-6 overflow-y-auto"
+        className="w-full sm:max-w-xl bg-[var(--bg-chat)] border-t border-[var(--border)] sm:border overflow-y-auto"
         style={{ maxHeight: '92vh' }}
-        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+        initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }}
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0">
-            <Trophy className="w-4 h-4 text-white" />
+        <div className="px-8 pt-10 pb-8">
+          {/* En-tête éditorial */}
+          <div className="flex items-baseline justify-between mb-2">
+            <MetaLabel>Propulser dans l'Arène</MetaLabel>
+            <button
+              onClick={onClose}
+              className="text-[var(--text-primary)]/50 hover:text-[var(--text-primary)] transition-colors leading-none"
+            >
+              <X size={15} />
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-white">Propulser dans l'Arène</h2>
-            <p className="text-[9px] text-white/40 mt-0.5">Transformez cet échange en débat public</p>
+          <SerifTitle size="md" className="mb-3">
+            Donner à ce débat une seconde vie
+          </SerifTitle>
+          <p
+            className="text-[14px] text-[var(--text-primary)]/65 italic leading-relaxed mb-8"
+            style={{ fontFamily: SERIF }}
+          >
+            Vous transformez cet échange privé en une thèse soumise au regard public. Choisissez le titre avec soin — c'est ce que liront les autres.
+          </p>
+
+          {/* Extrait à publier */}
+          <div className="py-5 border-y border-[var(--border)] mb-8">
+            <MetaLabel className="block mb-3">L'échange à publier</MetaLabel>
+            <blockquote
+              className="text-[15px] text-[var(--text-primary)]/80 italic leading-[1.6] pl-4 border-l border-[var(--text-primary)]/30"
+              style={{ fontFamily: SERIF }}
+            >
+              {question.slice(0, 200)}{question.length > 200 ? '…' : ''}
+            </blockquote>
+            <p
+              className="text-[12px] text-[var(--text-primary)]/55 italic mt-3"
+              style={{ fontFamily: SERIF }}
+            >
+              Réponse de <span className="text-[var(--text-primary)]/75">{personaName}</span> · {aiResponse.length} caractères
+            </p>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Preview */}
-        <div className="bg-white/5 border border-white/8 p-3 mb-4 rounded-sm">
-          <p className="text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">Extrait à publier</p>
-          <p className="text-[10px] text-white/60 line-clamp-2 leading-relaxed">
-            Q : {question.slice(0, 120)}{question.length > 120 ? '…' : ''}
-          </p>
-          <p className="text-[9px] text-[#5D7BFF]/60 mt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 bg-[#5D7BFF] rounded-full inline-block" />
-            {personaName}
-          </p>
-        </div>
-
-        {/* Title */}
-        <div className="mb-3">
-          <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
-            Titre du débat *
-          </label>
-          <input
-            autoFocus
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            maxLength={120}
-            placeholder="Ex : La démocratie directe est-elle réaliste ?"
-            className="w-full bg-white/5 border border-white/12 text-white text-[11px] px-3 py-2.5 focus:outline-none focus:border-[#5D7BFF]/50 placeholder:text-white/20"
-          />
-        </div>
-
-        {/* Preamble */}
-        <div className="mb-4">
-          <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
-            Préambule (optionnel)
-          </label>
-          <textarea
-            value={preamble}
-            onChange={e => setPreamble(e.target.value)}
-            maxLength={300}
-            rows={2}
-            placeholder="Pourquoi cet échange mérite un débat public ?"
-            className="w-full bg-white/5 border border-white/12 text-white text-[11px] px-3 py-2.5 resize-none focus:outline-none focus:border-[#5D7BFF]/50 placeholder:text-white/20"
-          />
-        </div>
-
-        {/* Hashtags */}
-        <div className="mb-4">
-          <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5 flex items-center gap-1">
-            <Hash className="w-3 h-3" /> Hashtags (optionnel)
-          </label>
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {tags.map(t => (
-                <span key={t}
-                  className="flex items-center gap-1 text-[10px] font-bold text-[#5D7BFF] bg-[#5D7BFF]/10 border border-[#5D7BFF]/25 px-2 py-0.5 rounded-full cursor-pointer hover:bg-red-500/10 hover:text-red-400 hover:border-red-400/30 transition-colors"
-                  onClick={() => setTags(prev => prev.filter(x => x !== t))}
-                >
-                  #{t} <X className="w-2.5 h-2.5" />
-                </span>
-              ))}
+          {/* Titre */}
+          <div className="mb-8">
+            <div className="flex items-baseline justify-between mb-2">
+              <MetaLabel>Titre du débat</MetaLabel>
+              <span
+                className="text-[11px] italic text-[var(--text-primary)]/45 tabular-nums"
+                style={{ fontFamily: SERIF }}
+              >
+                {title.length} / 120
+              </span>
             </div>
-          )}
-          {tags.length < 8 && (
-            <div className="flex gap-2">
+            <input
+              autoFocus
+              value={title}
+              onChange={e => {
+                if (e.target.value.length <= 120) setTitle(e.target.value);
+              }}
+              placeholder="Ex : La démocratie directe est-elle réaliste ?"
+              className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[18px] py-2 outline-none transition-colors placeholder:text-[var(--text-primary)]/35"
+              style={{ fontFamily: SERIF, fontWeight: 500 }}
+            />
+          </div>
+
+          {/* Préambule */}
+          <div className="mb-8">
+            <div className="flex items-baseline justify-between mb-2">
+              <MetaLabel>Préambule (facultatif)</MetaLabel>
+              <span
+                className="text-[11px] italic text-[var(--text-primary)]/45 tabular-nums"
+                style={{ fontFamily: SERIF }}
+              >
+                {preamble.length} / 300
+              </span>
+            </div>
+            <textarea
+              value={preamble}
+              onChange={e => {
+                if (e.target.value.length <= 300) setPreamble(e.target.value);
+              }}
+              rows={3}
+              placeholder="Pourquoi cet échange mérite-t-il un débat public ?"
+              className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[15px] py-2 outline-none resize-none transition-colors placeholder:text-[var(--text-primary)]/35 leading-[1.6]"
+              style={{ fontFamily: SERIF, fontStyle: 'italic' }}
+            />
+          </div>
+
+          {/* Hashtags */}
+          <div className="mb-8">
+            <MetaLabel className="block mb-2">Étiquettes</MetaLabel>
+            {tags.length > 0 && (
+              <p
+                className="text-[15px] text-[var(--text-primary)]/80 italic leading-[1.7] mb-3"
+                style={{ fontFamily: SERIF }}
+              >
+                {tags.map((t, i) => (
+                  <span key={t}>
+                    <button
+                      onClick={() => setTags(prev => prev.filter(x => x !== t))}
+                      className="hover:text-[var(--text-primary)]/40 transition-colors"
+                      title="Retirer"
+                    >
+                      #{t}
+                    </button>
+                    {i < tags.length - 1 && <span className="text-[var(--text-primary)]/30"> · </span>}
+                  </span>
+                ))}
+              </p>
+            )}
+            {tags.length < 8 && (
               <input
                 value={tagInput}
                 onChange={e => setTagInput(e.target.value)}
                 onKeyDown={handleTagKey}
                 onBlur={addTag}
-                placeholder="#débat #philosophie…"
-                className="flex-1 bg-white/5 border border-white/12 text-white text-[11px] px-3 py-2 focus:outline-none focus:border-[#5D7BFF]/50 placeholder:text-white/20"
+                placeholder="philosophie, démocratie, ia…"
+                className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[15px] py-2 outline-none transition-colors placeholder:text-[var(--text-primary)]/35"
+                style={{ fontFamily: SERIF, fontStyle: 'italic' }}
               />
-              <button onClick={addTag} className="bg-white/5 border border-white/12 text-white/50 hover:text-white px-3 py-2 text-[11px] transition-colors">
-                +
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Poll toggle */}
-        <div className="mb-4">
-          <button
-            onClick={() => setHasPoll(v => !v)}
-            className="flex items-center gap-2.5 w-full text-left mb-3"
-          >
-            <div className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 ${hasPoll ? 'bg-[#5D7BFF]' : 'bg-white/15'}`}>
-              <div className={`w-3 h-3 bg-white rounded-full transition-transform ${hasPoll ? 'translate-x-4' : 'translate-x-0'}`} />
-            </div>
-            <BarChart3 className="w-3 h-3 text-white/40" />
-            <span className="text-[10px] text-white/50">Ajouter un sondage</span>
-          </button>
-
-          {hasPoll && (
-            <div className="space-y-2 pl-2 border-l border-[#5D7BFF]/30">
-              {pollOptions.map((opt, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    value={opt}
-                    onChange={e => setPollOptions(prev => prev.map((o, j) => j === i ? e.target.value : o))}
-                    placeholder={`Option ${i + 1}`}
-                    maxLength={80}
-                    className="flex-1 bg-white/5 border border-white/12 text-white text-[11px] px-3 py-2 focus:outline-none focus:border-[#5D7BFF]/50 placeholder:text-white/20"
-                  />
-                  {pollOptions.length > 2 && (
-                    <button onClick={() => setPollOptions(prev => prev.filter((_, j) => j !== i))} className="text-white/30 hover:text-red-400 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {pollOptions.length < 5 && (
-                <button onClick={() => setPollOptions(prev => [...prev, ''])} className="flex items-center gap-1.5 text-[10px] text-[#5D7BFF]/70 hover:text-[#5D7BFF] transition-colors">
-                  <Plus className="w-3 h-3" /> Ajouter une option
-                </button>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-[9px] text-white/30 uppercase tracking-wider">Durée :</span>
-                {[24, 48, 72].map(h => (
-                  <button key={h}
-                    onClick={() => setPollDurationH(h)}
-                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full border transition-colors ${pollDurationH === h ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/10' : 'border-white/15 text-white/30 hover:border-white/30'}`}
-                  >
-                    {h}h
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Anonymity toggle */}
-        <button
-          onClick={() => setIsAnonymous(v => !v)}
-          className="flex items-center gap-2.5 mb-5 w-full text-left"
-        >
-          <div className={`w-8 h-4 rounded-full transition-colors flex items-center px-0.5 ${isAnonymous ? 'bg-[#5D7BFF]' : 'bg-white/15'}`}>
-            <div className={`w-3 h-3 bg-white rounded-full transition-transform ${isAnonymous ? 'translate-x-4' : 'translate-x-0'}`} />
+            )}
+            <p
+              className="text-[11px] text-[var(--text-primary)]/45 italic mt-2"
+              style={{ fontFamily: SERIF }}
+            >
+              Pressez Entrée ou Espace pour valider une étiquette.
+            </p>
           </div>
-          {isAnonymous ? <EyeOff className="w-3 h-3 text-white/40" /> : <Eye className="w-3 h-3 text-white/40" />}
-          <span className="text-[10px] text-white/50">
-            {isAnonymous ? 'Publication anonyme' : 'Publier sous mon pseudonyme Arène'}
-          </span>
-        </button>
 
-        {error && <p className="text-[10px] text-[#F87171] mb-3">{error}</p>}
+          {/* Sondage */}
+          <div className="mb-8">
+            <button
+              onClick={() => setHasPoll(v => !v)}
+              className="flex items-baseline gap-3 mb-3"
+            >
+              <span
+                className={cx(
+                  'text-[11px] uppercase pb-1 border-b transition-colors',
+                  hasPoll
+                    ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                    : 'text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] border-transparent',
+                )}
+                style={{ letterSpacing: '0.22em' }}
+              >
+                {hasPoll ? 'Sondage activé' : 'Joindre un sondage'}
+              </span>
+            </button>
 
-        <button
-          onClick={handleSubmit}
-          disabled={!title.trim() || submitting}
-          className="w-full bg-[#5D7BFF] disabled:opacity-30 text-white text-[10px] font-black uppercase tracking-widest py-3 flex items-center justify-center gap-2 transition-all hover:bg-[#4a69ff]"
-        >
-          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />}
-          {submitting ? 'Propulsion…' : "Propulser dans l'Arène"}
-        </button>
+            {hasPoll && (
+              <div className="pl-4 border-l border-[var(--border)] space-y-3 mt-4">
+                {pollOptions.map((opt, i) => (
+                  <div key={i} className="flex items-baseline gap-3">
+                    <span
+                      className="text-[11px] text-[var(--text-primary)]/45 italic"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      {i + 1}.
+                    </span>
+                    <input
+                      value={opt}
+                      onChange={e => setPollOptions(prev => prev.map((o, j) => j === i ? e.target.value : o))}
+                      placeholder={`Option ${i + 1}`}
+                      maxLength={80}
+                      className="flex-1 bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[15px] py-1.5 outline-none transition-colors placeholder:text-[var(--text-primary)]/35"
+                      style={{ fontFamily: SERIF, fontStyle: 'italic' }}
+                    />
+                    {pollOptions.length > 2 && (
+                      <button
+                        onClick={() => setPollOptions(prev => prev.filter((_, j) => j !== i))}
+                        className="text-[var(--text-primary)]/45 hover:text-[var(--text-primary)] transition-colors leading-none"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {pollOptions.length < 5 && (
+                  <button
+                    onClick={() => setPollOptions(prev => [...prev, ''])}
+                    className="inline-flex items-center gap-1.5 text-[12px] italic text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] transition-colors"
+                    style={{ fontFamily: SERIF }}
+                  >
+                    <Plus size={11} /> Ajouter une option
+                  </button>
+                )}
+                <div className="flex items-baseline gap-4 pt-2 text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>
+                  <span className="text-[var(--text-primary)]/40">Durée</span>
+                  {[24, 48, 72].map(h => (
+                    <button
+                      key={h}
+                      onClick={() => setPollDurationH(h)}
+                      className={cx(
+                        'transition-colors pb-1 border-b',
+                        pollDurationH === h
+                          ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                          : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+                      )}
+                    >
+                      {h} h
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Anonymat */}
+          <div className="mb-10 flex items-baseline gap-5 text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>
+            <span className="text-[var(--text-primary)]/40">Signature</span>
+            <button
+              onClick={() => setIsAnonymous(false)}
+              className={cx(
+                'transition-colors pb-1 border-b',
+                !isAnonymous
+                  ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                  : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+              )}
+            >
+              Mon nom de plume
+            </button>
+            <Dot />
+            <button
+              onClick={() => setIsAnonymous(true)}
+              className={cx(
+                'transition-colors pb-1 border-b',
+                isAnonymous
+                  ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                  : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+              )}
+            >
+              Anonyme
+            </button>
+          </div>
+
+          {/* Erreur */}
+          {error && (
+            <p
+              className="text-[14px] text-[var(--text-primary)] italic py-3 border-y border-[var(--text-primary)]/30 mb-6"
+              style={{ fontFamily: SERIF }}
+            >
+              {error}
+            </p>
+          )}
+
+          {/* Submit */}
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim() || submitting}
+            className="w-full text-[12px] uppercase text-[var(--text-primary)] py-3 border-y border-[var(--border)] hover:bg-[var(--text-primary)]/[0.04] disabled:opacity-30 disabled:cursor-default transition-all flex items-center justify-center gap-3"
+            style={{ letterSpacing: '0.24em' }}
+          >
+            {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+            {submitting ? 'Propulsion…' : 'Propulser dans l\'Arène'}
+            <span className="text-[var(--text-primary)]/40">→</span>
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
