@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft, Trophy, Flame, Star, Clock,
-  MessageSquare, ThumbsUp, AlertTriangle, Loader2,
-  Send, Check, X, Shield, Search, Sparkles,
-  FileSearch, ChevronDown, ChevronUp, Zap,
-  Users, TrendingUp, BarChart3, Bell, Settings,
+  ArrowLeft, Loader2, Send, Check, X,
+  ChevronDown, ChevronUp, Search,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -25,40 +22,103 @@ import ArenaUserModal from './ArenaUserModal';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
-function timeAgo(iso: string) {
+// Style éditorial : on utilise les serifs (Cormorant Garamond) pour les titres
+// et les sans (Inter) pour le reste. Le serif est déjà chargé via index.css
+// dans la variable --font-serif.
+const SERIF = '"Cormorant Garamond", "Cormorant", Georgia, serif';
+const INK = 'var(--text-primary)';
+const ACCENT = '#5D7BFF';
+
+function timeAgoLong(iso: string) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'maintenant';
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}j`;
+  if (s < 60) return 'à l\'instant';
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    return `il y a ${m} minute${m > 1 ? 's' : ''}`;
+  }
+  if (s < 86400) {
+    const h = Math.floor(s / 3600);
+    return `il y a ${h} heure${h > 1 ? 's' : ''}`;
+  }
+  if (s < 86400 * 7) {
+    const j = Math.floor(s / 86400);
+    return `il y a ${j} jour${j > 1 ? 's' : ''}`;
+  }
+  const d = new Date(iso);
+  const months = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-const PALETTE = ['#5D7BFF','#34D399','#F87171','#FBBF24','#A78BFA','#F97316','#38BDF8','#FB7185'];
-function avatarColor(name: string) {
-  let h = 0; for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
 function initials(name: string) { return name.slice(0, 2).toUpperCase(); }
 
+// Stance : pas de couleurs chromatiques. Distinction par typographie et un signe.
 const STANCE = {
-  agree:    { label: "D'accord",     short: '✓', color: '#34D399', rgb: '52,211,153' },
-  disagree: { label: 'Pas d\'accord', short: '✗', color: '#F87171', rgb: '248,113,113' },
-  nuance:   { label: 'Nuance',        short: '~', color: '#FBBF24', rgb: '251,191,36' },
+  agree:    { label: "D'accord",     short: '+' },
+  disagree: { label: 'Pas d\'accord', short: '−' },
+  nuance:   { label: 'Nuance',        short: '~' },
 } as const;
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
+// Monogramme en serif, cercle hairline, un seul ton d'encre.
 
-function Av({ name, size = 36, ring = false }: { name: string; size?: number; ring?: boolean }) {
-  const c = avatarColor(name);
+function Av({ name, size = 36, prominent = false }: { name: string; size?: number; prominent?: boolean }) {
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: `${c}18`, border: `${ring ? 2.5 : 1.5}px solid ${c}`,
-      color: c, fontSize: size * 0.3, fontWeight: 900, display: 'flex',
-      alignItems: 'center', justifyContent: 'center', letterSpacing: 1,
-    }}>
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        flexShrink: 0,
+        border: `1px solid ${prominent ? INK : 'var(--border)'}`,
+        color: INK,
+        fontFamily: SERIF,
+        fontSize: size * 0.42,
+        fontWeight: 500,
+        fontStyle: 'italic',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        letterSpacing: 0,
+        background: 'transparent',
+        opacity: prominent ? 1 : 0.85,
+      }}
+    >
       {initials(name)}
     </div>
+  );
+}
+
+// ─── Petit séparateur " · " et label small-caps ────────────────────────────────
+
+function Dot() {
+  return <span className="mx-2 text-[var(--text-primary)]/30 select-none">·</span>;
+}
+
+function MetaLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span
+      className={cx('text-[10px] uppercase text-[var(--text-primary)]/45', className)}
+      style={{ letterSpacing: '0.18em', fontVariantCaps: 'all-small-caps' }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SerifTitle({ children, className = '', size = 'lg' }: { children: React.ReactNode; className?: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) {
+  const sizes = {
+    sm: 'text-[20px] leading-[1.15]',
+    md: 'text-[26px] leading-[1.12]',
+    lg: 'text-[32px] leading-[1.1]',
+    xl: 'text-[40px] leading-[1.05]',
+  };
+  return (
+    <h2
+      className={cx(sizes[size], 'text-[var(--text-primary)]', className)}
+      style={{ fontFamily: SERIF, fontWeight: 600, letterSpacing: '-0.01em' }}
+    >
+      {children}
+    </h2>
   );
 }
 
@@ -88,74 +148,64 @@ function PseudoModal({ userId, onCreated }: { userId: string; onCreated: (u: Are
   };
 
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[var(--bg-app)]/90 backdrop-blur-sm px-4 pb-6 sm:pb-0"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <motion.div className="w-full max-w-sm overflow-hidden border-2 border-[var(--border)] bg-[var(--bg-chat)]"
-        style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.25)' }}
-        initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', damping: 22 }}>
-
-        {/* Header */}
-        <div className="border-b-4 border-[#5D7BFF] px-6 pt-8 pb-6 text-center bg-[var(--bg-app)]">
-          <div className="w-14 h-14 border-2 border-[#5D7BFF] bg-[#5D7BFF]/10 flex items-center justify-center mx-auto mb-4">
-            <Trophy size={24} color="#5D7BFF" />
-          </div>
-          <p className="font-black text-sm uppercase tracking-widest text-[var(--text-primary)] mb-1">L'Arène</p>
-          <p className="text-[11px] text-[var(--text-primary)]/40">Choisissez votre identité de débatteur</p>
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[var(--bg-app)]/95 backdrop-blur-md px-4 pb-6 sm:pb-0"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+    >
+      <motion.div
+        className="w-full max-w-md bg-[var(--bg-chat)] border border-[var(--border)]"
+        initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', damping: 26, stiffness: 240 }}
+      >
+        <div className="px-10 pt-12 pb-8 text-center">
+          <p className="text-[10px] uppercase text-[var(--text-primary)]/50 mb-5" style={{ letterSpacing: '0.32em' }}>
+            L'Arène
+          </p>
+          <SerifTitle size="lg" className="mb-3">Choisissez votre nom de plume</SerifTitle>
+          <p
+            className="text-[14px] text-[var(--text-primary)]/55 italic max-w-sm mx-auto leading-relaxed"
+            style={{ fontFamily: SERIF }}
+          >
+            Le pseudonyme sous lequel paraîtront vos arguments. Il vous suit dans tous les débats.
+          </p>
         </div>
 
-        <div className="p-6">
-          {/* Input */}
-          <div className="relative mb-3">
-            <input value={name} onChange={e => onChange(e.target.value)} placeholder="Votre pseudonyme…" maxLength={24}
-              className="w-full bg-[var(--bg-app)] border-2 border-[var(--border)] text-[var(--text-primary)] text-sm py-3.5 pl-4 pr-11 outline-none focus:border-[#5D7BFF]/60 transition-colors placeholder:text-[var(--text-primary)]/30"
-              style={{ boxSizing: 'border-box' }} />
-            <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-              {checking && <Loader2 size={16} color="rgba(93,123,255,0.5)" className="animate-spin" />}
-              {!checking && valid && avail === true  && <Check size={16} color="#34D399" />}
-              {!checking && valid && avail === false && <X    size={16} color="#F87171" />}
+        <div className="px-10 pb-10">
+          <div className="relative mb-2">
+            <input
+              value={name}
+              onChange={e => onChange(e.target.value)}
+              placeholder="Votre nom"
+              maxLength={24}
+              className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[20px] py-2 outline-none transition-colors placeholder:text-[var(--text-primary)]/25"
+              style={{ fontFamily: SERIF, fontWeight: 500 }}
+            />
+            <div className="absolute right-0 bottom-3">
+              {checking && <Loader2 size={14} className="animate-spin text-[var(--text-primary)]/40" />}
+              {!checking && valid && avail === true  && <Check size={14} className="text-[var(--text-primary)]/70" />}
+              {!checking && valid && avail === false && <X    size={14} className="text-[var(--text-primary)]/70" />}
             </div>
           </div>
 
-          {valid && avail === false && <p className="text-[11px] text-[#F87171] mb-3">Pseudonyme déjà pris.</p>}
+          <p className="text-[11px] text-[var(--text-primary)]/40 italic mb-8" style={{ fontFamily: SERIF }}>
+            {!name && 'Trois à vingt-quatre caractères.'}
+            {valid && avail === false && 'Ce nom est déjà pris — essayez-en un autre.'}
+            {valid && avail === true && 'Disponible.'}
+            {name.length > 0 && name.length < 3 && 'Encore quelques caractères…'}
+          </p>
 
-          {/* Preview */}
-          {valid && avail === true && (
-            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 bg-[var(--bg-app)] border-2 border-[var(--border)] p-3 mb-4">
-              <Av name={name} size={42} ring />
-              <div>
-                <p className="font-black text-sm text-[var(--text-primary)]">{name}</p>
-                <p className="text-[10px] text-[var(--text-primary)]/35 mt-0.5">⭐ 0 pts · Nouveau débatteur</p>
-              </div>
-            </motion.div>
-          )}
-
-          <button onClick={submit} disabled={!valid || avail !== true || busy}
-            className="w-full bg-[#5D7BFF] border-2 border-[#5D7BFF] text-white font-black text-[11px] uppercase tracking-widest py-4 flex items-center justify-center gap-2 cursor-pointer hover:bg-[#4a68e8] transition-all disabled:opacity-30"
-            style={{ boxShadow: '3px 3px 0px 0px rgba(93,123,255,0.35)' }}>
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <Trophy size={16} />}
-            {busy ? 'Création…' : "Entrer dans l'Arène"}
+          <button
+            onClick={submit}
+            disabled={!valid || avail !== true || busy}
+            className="w-full text-[12px] uppercase text-[var(--text-primary)] py-3 border-t border-[var(--border)] disabled:opacity-30 transition-all hover:bg-[var(--text-primary)]/[0.04] flex items-center justify-center gap-3"
+            style={{ letterSpacing: '0.24em' }}
+          >
+            {busy ? <Loader2 size={13} className="animate-spin" /> : null}
+            <span>{busy ? 'Création…' : 'Entrer dans l\'arène'}</span>
+            <span className="text-[var(--text-primary)]/40">→</span>
           </button>
         </div>
       </motion.div>
     </motion.div>
-  );
-}
-
-// ─── Story Dot ────────────────────────────────────────────────────────────────
-
-function StoryDot({ post, onClick }: { post: ArenaPost; onClick: () => void }) {
-  const name = post.isAnonymous ? 'AN' : post.authorArenaName;
-  const c = avatarColor(name);
-  return (
-    <button onClick={onClick} className="flex flex-col items-center gap-1.5 flex-shrink-0">
-      <div style={{ padding: 2, border: `2px solid ${c}`, display: 'inline-flex' }}>
-        <Av name={name} size={44} />
-      </div>
-      <span className="text-[9px] text-[var(--text-primary)]/40 max-w-[52px] text-center overflow-hidden text-ellipsis whitespace-nowrap font-bold">
-        {post.isAnonymous ? 'Anonyme' : post.authorArenaName.split(' ')[0]}
-      </span>
-    </button>
   );
 }
 
@@ -185,33 +235,50 @@ function PollBlock({ options, postId, userId, onVoted }: {
   };
 
   return (
-    <div className="mb-3">
-      {options.map(opt => {
-        const pct = total > 0 ? Math.round(((opt.voteCount ?? 0) / total) * 100) : 0;
-        const isMyVote = opt.voterIds?.includes(userId);
-        return (
-          <button key={opt.id} onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
-            className="relative w-full mb-2 px-3 py-2 text-left cursor-pointer overflow-hidden transition-colors border-2"
-            style={{
-              background: 'var(--bg-app)',
-              borderColor: isMyVote ? '#5D7BFF' : 'var(--border)',
-            }}>
-            {myVote && (
-              <div className="absolute left-0 top-0 h-full transition-all" style={{ width: `${pct}%`, background: isMyVote ? 'rgba(93,123,255,0.12)' : 'rgba(93,123,255,0.04)', transitionDuration: '0.4s' }} />
-            )}
-            <div className="relative flex justify-between items-center">
-              <span className="text-xs" style={{ color: isMyVote ? '#5D7BFF' : 'var(--text-primary)', fontWeight: isMyVote ? 700 : 400 }}>{opt.text}</span>
-              {myVote && <span className="text-[11px] text-[var(--text-primary)]/40 font-semibold">{pct}%</span>}
-            </div>
-          </button>
-        );
-      })}
-      <p className="text-[10px] text-[var(--text-primary)]/25 mt-1">{total} vote{total !== 1 ? 's' : ''}</p>
+    <div className="my-5 py-4 border-y border-[var(--border)]">
+      <MetaLabel className="block mb-3">Sondage</MetaLabel>
+      <div className="space-y-2">
+        {options.map(opt => {
+          const pct = total > 0 ? Math.round(((opt.voteCount ?? 0) / total) * 100) : 0;
+          const isMyVote = opt.voterIds?.includes(userId);
+          return (
+            <button
+              key={opt.id}
+              onClick={(e) => { e.stopPropagation(); handleVote(opt.id); }}
+              className="relative w-full text-left overflow-hidden transition-colors group"
+              style={{ padding: '8px 0' }}
+            >
+              {myVote && (
+                <div
+                  className="absolute left-0 top-0 h-full transition-all"
+                  style={{ width: `${pct}%`, background: isMyVote ? 'rgba(93,123,255,0.08)' : 'var(--text-primary)/0.03', transitionDuration: '0.4s' }}
+                />
+              )}
+              <div className="relative flex justify-between items-baseline gap-4">
+                <span
+                  className={cx('text-[15px] transition-colors', isMyVote ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]/75 group-hover:text-[var(--text-primary)]')}
+                  style={{ fontFamily: SERIF, fontWeight: isMyVote ? 600 : 400, fontStyle: 'italic' }}
+                >
+                  {opt.text}
+                </span>
+                {myVote && (
+                  <span className="text-[12px] text-[var(--text-primary)]/55 tabular-nums shrink-0">
+                    {pct}%
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-[var(--text-primary)]/40 italic mt-3" style={{ fontFamily: SERIF }}>
+        {total} {total === 1 ? 'voix' : 'voix'}
+      </p>
     </div>
   );
 }
 
-// ─── Post Card ────────────────────────────────────────────────────────────────
+// ─── Post Card (style article éditorial) ──────────────────────────────────────
 
 function PostCard({ post, onClick, onAvatarClick, userId, onPollVoted }: {
   post: ArenaPost; onClick: () => void; onAvatarClick?: () => void;
@@ -220,111 +287,130 @@ function PostCard({ post, onClick, onAvatarClick, userId, onPollVoted }: {
   const total = post.agreeCount + post.disagreeCount + post.nuanceCount;
   const agreeP    = total > 0 ? (post.agreeCount    / total) * 100 : 0;
   const disagreeP = total > 0 ? (post.disagreeCount / total) * 100 : 0;
-  const nuanceP   = 100 - agreeP - disagreeP;
   const name = post.isAnonymous ? '??' : post.authorArenaName;
-  const c = avatarColor(name);
   const isFeatured = !!post.featuredDate;
   const isHot = post.commentCount >= 5;
 
   return (
-    <motion.button onClick={onClick} whileHover={{ y: -2 }} whileTap={{ scale: 0.99 }}
-      className="w-full text-left group border-2 border-[var(--border)] overflow-hidden block bg-[var(--bg-chat)] hover:border-[#5D7BFF]/40 transition-all"
-      style={{ boxShadow: '3px 3px 0px 0px rgba(93,123,255,0.08)' }}>
+    <article
+      onClick={onClick}
+      className="group cursor-pointer py-8 border-b border-[var(--border)] transition-colors hover:bg-[var(--text-primary)]/[0.015]"
+    >
+      {/* Sur-titre éditorial : "Défi du jour" / "Conversation animée" / persona */}
+      <div className="flex items-baseline gap-3 mb-3">
+        {isFeatured ? (
+          <span
+            className="text-[10px] uppercase text-[var(--text-primary)]/65"
+            style={{ letterSpacing: '0.28em', fontVariantCaps: 'all-small-caps' }}
+          >
+            Défi du jour
+          </span>
+        ) : isHot ? (
+          <span
+            className="text-[10px] uppercase text-[var(--text-primary)]/65 italic"
+            style={{ letterSpacing: '0.22em', fontFamily: SERIF }}
+          >
+            Conversation animée
+          </span>
+        ) : (
+          <MetaLabel>{post.personaName}</MetaLabel>
+        )}
+        {(isFeatured || isHot) && (
+          <>
+            <Dot />
+            <MetaLabel>{post.personaName}</MetaLabel>
+          </>
+        )}
+      </div>
 
-      {/* Top accent strip */}
-      <div style={{ height: 3, background: isFeatured ? '#A78BFA' : isHot ? '#F97316' : c }} />
+      {/* Titre — serif, généreux */}
+      <SerifTitle size="md" className="mb-3 group-hover:text-[var(--text-primary)]">
+        {post.title}
+      </SerifTitle>
 
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-center gap-2.5 mb-3">
-          <button onClick={(e) => { e.stopPropagation(); onAvatarClick?.(); }}
-            className="bg-transparent border-0 p-0 leading-none"
-            style={{ cursor: onAvatarClick ? 'pointer' : 'default' }}>
-            <Av name={name} size={36} ring />
-          </button>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-[var(--text-primary)]">{post.isAnonymous ? 'Anonyme' : post.authorArenaName}</p>
-            <p className="text-[10px] text-[var(--text-primary)]/30 mt-0.5">{timeAgo(post.createdAt)}</p>
-          </div>
-          <div className="flex gap-1.5">
-            {isFeatured && (
-              <span className="text-[8px] font-black uppercase tracking-wide px-2 py-0.5 border border-[#A78BFA]/40 text-[#A78BFA]"
-                style={{ background: 'rgba(167,139,250,0.08)' }}>⭐ Défi</span>
-            )}
-            {isHot && !isFeatured && (
-              <span className="text-[8px] font-black uppercase tracking-wide px-2 py-0.5 border border-[#F97316]/40 text-[#F97316]"
-                style={{ background: 'rgba(249,115,22,0.08)' }}>🔥 Hot</span>
-            )}
-          </div>
+      {/* Lead paragraph */}
+      {post.preamble && (
+        <p
+          className="text-[15px] text-[var(--text-primary)]/70 leading-relaxed mb-4 overflow-hidden"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', fontFamily: SERIF, fontWeight: 400 }}
+        >
+          {post.preamble}
+        </p>
+      )}
+
+      {/* Sondage (optionnel) */}
+      {post.pollOptions && post.pollOptions.length >= 2 && (
+        <div onClick={e => e.stopPropagation()}>
+          <PollBlock
+            options={post.pollOptions}
+            postId={post.id}
+            userId={userId}
+            onVoted={(updated) => onPollVoted?.(post.id, updated)}
+          />
         </div>
+      )}
 
-        {/* Title */}
-        <p className="text-[15px] font-black text-[var(--text-primary)] leading-snug mb-1.5">{post.title}</p>
-        {post.preamble && (
-          <p className="text-[11px] text-[var(--text-primary)]/50 leading-relaxed mb-3 overflow-hidden"
-            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-            {post.preamble}
-          </p>
-        )}
-
-        {/* Tags */}
-        {post.tags && post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2.5">
-            {post.tags.map(t => (
-              <span key={t} className="text-[10px] font-bold px-2 py-0.5 border border-[#5D7BFF]/20 text-[#5D7BFF]"
-                style={{ background: 'rgba(93,123,255,0.06)' }}>
-                #{t}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Sondage */}
-        {post.pollOptions && post.pollOptions.length >= 2 && (
-          <div onClick={e => e.stopPropagation()}>
-            <PollBlock options={post.pollOptions} postId={post.id} userId={userId}
-              onVoted={(updated) => onPollVoted?.(post.id, updated)} />
-          </div>
-        )}
-
-        {/* Persona chip */}
-        <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 inline-block mb-3.5 border border-[#5D7BFF]/20 text-[#5D7BFF]"
-          style={{ background: 'rgba(93,123,255,0.06)' }}>
-          {post.personaName}
-        </span>
-
-        {/* Stance bar */}
-        {total > 0 && (
-          <div className="mb-3.5">
-            <div className="flex h-1.5 overflow-hidden gap-px mb-2">
-              {agreeP    > 0 && <div style={{ width: `${agreeP}%`,    background: '#34D399' }} />}
-              {nuanceP   > 0 && <div style={{ width: `${nuanceP}%`,   background: '#FBBF24' }} />}
-              {disagreeP > 0 && <div style={{ width: `${disagreeP}%`, background: '#F87171' }} />}
-            </div>
-            <div className="flex gap-4">
-              <span className="text-[10px] font-bold text-[#34D399]">✓ {post.agreeCount}</span>
-              <span className="text-[10px] font-bold text-[#FBBF24]">~ {post.nuanceCount}</span>
-              <span className="text-[10px] font-bold text-[#F87171]">✗ {post.disagreeCount}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center gap-4 pt-3 border-t border-[var(--border)]">
-          <div className="flex items-center gap-1.5 text-[var(--text-primary)]/35 text-[11px]">
-            <MessageSquare size={13} />
-            <span>{post.commentCount}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[var(--text-primary)]/35 text-[11px]">
-            <Users size={13} />
-            <span>{post.commentCount} débatteur{post.commentCount !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="ml-auto border-2 border-[#5D7BFF]/40 px-3.5 py-1.5 text-[#5D7BFF] text-[10px] font-black uppercase tracking-widest hover:bg-[#5D7BFF]/10 transition-colors">
-            Débattre →
-          </div>
+      {/* Byline + dateline */}
+      <div className="flex items-center gap-3 mt-5">
+        <button
+          onClick={(e) => { e.stopPropagation(); onAvatarClick?.(); }}
+          className="bg-transparent border-0 p-0 leading-none"
+          style={{ cursor: onAvatarClick ? 'pointer' : 'default' }}
+        >
+          <Av name={name} size={28} />
+        </button>
+        <div className="flex items-baseline gap-2 flex-wrap text-[13px]">
+          <span
+            className="text-[var(--text-primary)] italic"
+            style={{ fontFamily: SERIF, fontWeight: 500 }}
+          >
+            {post.isAnonymous ? 'Anonyme' : post.authorArenaName}
+          </span>
+          <span className="text-[var(--text-primary)]/35 text-[11px]" style={{ fontFamily: SERIF, fontStyle: 'italic' }}>
+            {timeAgoLong(post.createdAt)}
+          </span>
         </div>
       </div>
-    </motion.button>
+
+      {/* Pied de page — meta condensée */}
+      <div className="flex items-baseline gap-4 mt-4 pt-4 border-t border-[var(--border)]/60">
+        <span className="text-[11px] text-[var(--text-primary)]/55 italic" style={{ fontFamily: SERIF }}>
+          {post.commentCount} {post.commentCount === 1 ? 'contribution' : 'contributions'}
+        </span>
+        {total > 0 && (
+          <>
+            <Dot />
+            {/* Mini barre opinion — un trait, deux tons d'encre */}
+            <div className="flex items-center gap-2">
+              <div className="h-px w-20 bg-[var(--text-primary)]/12 relative overflow-hidden">
+                <div
+                  className="absolute top-0 left-0 h-full"
+                  style={{ width: `${agreeP}%`, background: 'var(--text-primary)', opacity: 0.55 }}
+                />
+                <div
+                  className="absolute top-0 h-full"
+                  style={{ left: `${agreeP}%`, width: `${disagreeP}%`, background: 'var(--text-primary)', opacity: 0.25 }}
+                />
+              </div>
+              <span className="text-[11px] text-[var(--text-primary)]/55 italic tabular-nums" style={{ fontFamily: SERIF }}>
+                {Math.round(agreeP)}% favorables
+              </span>
+            </div>
+          </>
+        )}
+        {post.tags && post.tags.length > 0 && (
+          <>
+            <Dot />
+            <span className="text-[11px] text-[var(--text-primary)]/45 italic" style={{ fontFamily: SERIF }}>
+              {post.tags.slice(0, 3).map(t => `#${t}`).join(' ')}
+            </span>
+          </>
+        )}
+        <span className="ml-auto text-[11px] uppercase text-[var(--text-primary)]/50 group-hover:text-[var(--text-primary)] transition-colors" style={{ letterSpacing: '0.22em' }}>
+          Lire →
+        </span>
+      </div>
+    </article>
   );
 }
 
@@ -333,19 +419,22 @@ function PostCard({ post, onClick, onAvatarClick, userId, onPollVoted }: {
 function SophismBadge({ alert }: { alert: SophismAlert }) {
   const [open, setOpen] = useState(false);
   if (!alert.detected) return null;
-  const col = alert.severity === 'high' ? '#F87171' : alert.severity === 'medium' ? '#FBBF24' : '#94A3B8';
   return (
-    <div className="mt-2.5">
-      <button onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide px-2.5 py-1 cursor-pointer border"
-        style={{ background: `${col}10`, color: col, borderColor: `${col}40` }}>
-        <AlertTriangle size={11} />
-        Sophisme · {alert.type}
-        {open ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+    <div className="mt-3 pt-3 border-t border-[var(--border)]">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="inline-flex items-center gap-2 text-[11px] text-[var(--text-primary)]/65 italic hover:text-[var(--text-primary)] transition-colors"
+        style={{ fontFamily: SERIF }}
+      >
+        <span className="text-[var(--text-primary)]/40">⚠</span>
+        Sophisme détecté — {alert.type}
+        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
       </button>
       {open && (
-        <p className="text-[11px] text-[var(--text-primary)]/50 mt-2 pl-3 leading-relaxed"
-          style={{ borderLeft: `2px solid ${col}60` }}>
+        <p
+          className="text-[13px] text-[var(--text-primary)]/65 mt-2 pl-3 leading-relaxed italic border-l border-[var(--text-primary)]/30"
+          style={{ fontFamily: SERIF }}
+        >
           {alert.explanation}
         </p>
       )}
@@ -371,44 +460,70 @@ function CommentItem({ comment, userId, postId, depth, onReply, onUpdated, onChe
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="flex gap-2.5" style={{ paddingLeft: depth > 0 ? 44 : 0 }}>
-      <Av name={comment.authorArenaName} size={32} />
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex gap-4 py-5 border-b border-[var(--border)]/60 last:border-0"
+      style={{ paddingLeft: depth > 0 ? 36 : 0 }}
+    >
+      <Av name={comment.authorArenaName} size={32} prominent={depth === 0} />
       <div className="flex-1 min-w-0">
-        {/* Bubble */}
-        <div className="border-2 border-[var(--border)] p-3 bg-[var(--bg-app)]">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-black text-[var(--text-primary)]">{comment.authorArenaName}</span>
-            <span className="text-[8px] font-black uppercase tracking-wide px-2 py-0.5 border"
-              style={{ background: `rgba(${s.rgb},0.08)`, color: s.color, borderColor: `rgba(${s.rgb},0.3)` }}>
-              {s.short} {s.label}
-            </span>
-            <span className="text-[9px] text-[var(--text-primary)]/25 ml-auto">{timeAgo(comment.createdAt)}</span>
-          </div>
-          <p className="text-xs text-[var(--text-primary)]/75 leading-relaxed">{comment.content}</p>
-          {comment.sophismAlert && <SophismBadge alert={comment.sophismAlert} />}
+        {/* Byline */}
+        <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+          <span
+            className="text-[14px] text-[var(--text-primary)] italic"
+            style={{ fontFamily: SERIF, fontWeight: 500 }}
+          >
+            {comment.authorArenaName}
+          </span>
+          <span className="text-[var(--text-primary)]/30 text-[11px]">·</span>
+          <span
+            className="text-[11px] text-[var(--text-primary)]/60 italic"
+            style={{ fontFamily: SERIF }}
+          >
+            <span className="text-[var(--text-primary)]/40 mr-1">{s.short}</span>{s.label.toLowerCase()}
+          </span>
+          <span className="text-[var(--text-primary)]/30 text-[11px] ml-auto">{timeAgoLong(comment.createdAt)}</span>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-5 px-1 py-1.5">
-          <button onClick={handleUp}
-            className="flex items-center gap-1.5 text-[11px] font-bold border-0 bg-transparent cursor-pointer p-0 transition-colors"
-            style={{ color: up ? '#5D7BFF' : 'var(--text-primary)', opacity: up ? 1 : 0.35 }}>
-            <ThumbsUp size={13} />
-            {comment.upvotes > 0 ? comment.upvotes : "J'aime"}
+        {/* Corps du commentaire */}
+        <p
+          className="text-[15px] text-[var(--text-primary)]/85 leading-[1.7]"
+          style={{ fontFamily: SERIF, fontWeight: 400 }}
+        >
+          {comment.content}
+        </p>
+
+        {comment.sophismAlert && <SophismBadge alert={comment.sophismAlert} />}
+
+        {/* Actions — barre fine, texte uniquement */}
+        <div className="flex items-center gap-5 mt-3 text-[11px]">
+          <button
+            onClick={handleUp}
+            className="text-[var(--text-primary)]/45 hover:text-[var(--text-primary)] transition-colors italic"
+            style={{ fontFamily: SERIF, color: up ? ACCENT : undefined, opacity: up ? 1 : undefined }}
+          >
+            {up ? '♥ ' : '♡ '}
+            {comment.upvotes > 0 ? `${comment.upvotes} approbation${comment.upvotes > 1 ? 's' : ''}` : 'approuver'}
           </button>
           {depth === 0 && (
-            <button onClick={() => onReply(comment.id, comment.authorArenaName)}
-              className="text-[11px] font-bold border-0 bg-transparent cursor-pointer p-0 text-[var(--text-primary)]/35 hover:text-[var(--text-primary)]/60 transition-colors">
-              Répondre
+            <button
+              onClick={() => onReply(comment.id, comment.authorArenaName)}
+              className="text-[var(--text-primary)]/45 hover:text-[var(--text-primary)] transition-colors italic"
+              style={{ fontFamily: SERIF }}
+            >
+              répondre
             </button>
           )}
           {comment.authorId !== userId && !comment.sophismAlert && (
-            <button onClick={() => onCheck(comment)} disabled={checkingId === comment.id}
-              className="flex items-center gap-1 text-[11px] font-bold border-0 bg-transparent cursor-pointer p-0 ml-auto text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/50 transition-colors"
-              style={{ opacity: checkingId === comment.id ? 0.4 : 1 }}>
-              {checkingId === comment.id ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
-              Vérifier · 0.25cr
+            <button
+              onClick={() => onCheck(comment)}
+              disabled={checkingId === comment.id}
+              className="text-[var(--text-primary)]/35 hover:text-[var(--text-primary)]/70 transition-colors italic ml-auto disabled:opacity-50 inline-flex items-center gap-1.5"
+              style={{ fontFamily: SERIF }}
+            >
+              {checkingId === comment.id && <Loader2 size={10} className="animate-spin" />}
+              vérifier la rhétorique · 0,25 cr.
             </button>
           )}
         </div>
@@ -417,38 +532,68 @@ function CommentItem({ comment, userId, postId, depth, onReply, onUpdated, onChe
   );
 }
 
-// ─── Markdown (adapté au thème) ───────────────────────────────────────────────
+// ─── Markdown (adapté au thème éditorial) ─────────────────────────────────────
 
 const mdArena: Record<string, any> = {
-  p: ({ children }: any) => <p className="text-[13px] text-[var(--text-primary)]/80 leading-7 mb-2.5">{children}</p>,
-  h2: ({ children }: any) => (
-    <div className="flex items-center gap-2 my-4">
-      <div className="flex-1 h-px bg-[var(--border)]" />
-      <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 border border-[var(--border)] px-2 py-0.5">{children}</span>
-      <div className="flex-1 h-px bg-[var(--border)]" />
-    </div>
+  p: ({ children }: any) => (
+    <p
+      className="text-[15px] text-[var(--text-primary)]/85 leading-[1.75] mb-3"
+      style={{ fontFamily: SERIF }}
+    >
+      {children}
+    </p>
   ),
-  h3: ({ children }: any) => <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mt-3 mb-1.5">{children}</p>,
-  strong: ({ children }: any) => <strong className="font-black text-[var(--text-primary)] bg-[#5D7BFF]/10 px-1">{children}</strong>,
-  em: ({ children }: any) => <em className="italic text-[var(--text-primary)]/70">{children}</em>,
-  ul: ({ children }: any) => <ul className="my-1.5 mb-2.5 pl-0 list-none">{children}</ul>,
+  h2: ({ children }: any) => (
+    <h3
+      className="text-[20px] text-[var(--text-primary)] mt-6 mb-3"
+      style={{ fontFamily: SERIF, fontWeight: 600 }}
+    >
+      {children}
+    </h3>
+  ),
+  h3: ({ children }: any) => (
+    <h4
+      className="text-[16px] text-[var(--text-primary)] mt-5 mb-2 italic"
+      style={{ fontFamily: SERIF, fontWeight: 500 }}
+    >
+      {children}
+    </h4>
+  ),
+  strong: ({ children }: any) => <strong className="text-[var(--text-primary)]" style={{ fontWeight: 600 }}>{children}</strong>,
+  em: ({ children }: any) => <em className="italic text-[var(--text-primary)]/75">{children}</em>,
+  ul: ({ children }: any) => <ul className="my-3 pl-5 list-none space-y-2">{children}</ul>,
   li: ({ children }: any) => (
-    <li className="flex items-start gap-2 mb-1.5 text-[13px] text-[var(--text-primary)]/80 leading-relaxed">
-      <span className="w-1.5 h-1.5 bg-[#5D7BFF] flex-shrink-0 mt-1.5" />
-      <span>{children}</span>
+    <li
+      className="text-[15px] text-[var(--text-primary)]/80 leading-relaxed relative pl-4"
+      style={{ fontFamily: SERIF }}
+    >
+      <span className="absolute left-0 top-[0.5em] text-[var(--text-primary)]/40">—</span>
+      {children}
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <div className="border-l-4 border-[#5D7BFF] bg-[#5D7BFF]/5 pl-3 pr-3 py-2.5 my-2.5">
-      <div className="text-[7px] font-black uppercase tracking-widest text-[var(--text-primary)]/35 mb-1.5 flex items-center gap-1.5">
-        <span className="w-3 h-px bg-[var(--border)]" />Référence
-      </div>
-      <div className="text-[11px] text-[var(--text-primary)]/70 italic leading-relaxed">{children}</div>
+    <blockquote
+      className="my-4 pl-5 border-l border-[var(--text-primary)]/40 text-[15px] text-[var(--text-primary)]/75 italic leading-relaxed"
+      style={{ fontFamily: SERIF }}
+    >
+      {children}
+    </blockquote>
+  ),
+  code: ({ children }: any) => (
+    <code className="font-mono text-[12px] text-[var(--text-primary)]/90 bg-[var(--text-primary)]/[0.06] px-1.5 py-0.5">
+      {children}
+    </code>
+  ),
+  hr: () => (
+    <div className="flex items-center justify-center my-6">
+      <span className="text-[var(--text-primary)]/30 text-lg" style={{ fontFamily: SERIF }}>· · ·</span>
     </div>
   ),
-  code: ({ children }: any) => <code className="font-mono text-xs bg-[var(--bg-app)] border border-[var(--border)] px-1.5 py-0.5 text-[var(--text-primary)]">{children}</code>,
-  hr: () => <div className="border-t border-[var(--border)] my-3.5" />,
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#5D7BFF] underline underline-offset-2">{children}</a>,
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[var(--text-primary)] underline underline-offset-4 decoration-[var(--text-primary)]/40 hover:decoration-[var(--text-primary)] transition-all">
+      {children}
+    </a>
+  ),
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -560,29 +705,43 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
   // ── Guards ────────────────────────────────────────────────────────────────
 
   if (!user) return (
-    <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--bg-app)]">
-      <div className="w-16 h-16 border-2 border-[#5D7BFF]/30 bg-[#5D7BFF]/5 flex items-center justify-center">
-        <Trophy size={28} color="rgba(93,123,255,0.4)" />
-      </div>
-      <p className="text-sm text-[var(--text-primary)]/40 text-center">Connectez-vous pour accéder à l'Arène.</p>
-      <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-[#5D7BFF] bg-transparent border-0 cursor-pointer">← Retour</button>
+    <div className="h-full flex flex-col items-center justify-center gap-5 bg-[var(--bg-app)] px-8">
+      <SerifTitle size="md" className="text-center">L'Arène est réservée aux membres</SerifTitle>
+      <p
+        className="text-[14px] text-[var(--text-primary)]/55 italic text-center max-w-sm"
+        style={{ fontFamily: SERIF }}
+      >
+        Connectez-vous pour rejoindre la conversation.
+      </p>
+      <button
+        onClick={onBack}
+        className="text-[11px] uppercase text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors mt-2"
+        style={{ letterSpacing: '0.24em' }}
+      >
+        ← Retour
+      </button>
     </div>
   );
 
   if (loadingUser) return (
     <div className="h-full flex items-center justify-center bg-[var(--bg-app)]">
-      <Loader2 size={24} color="rgba(93,123,255,0.4)" className="animate-spin" />
+      <Loader2 size={20} className="animate-spin text-[var(--text-primary)]/40" />
     </div>
   );
 
   if (firestoreError) return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-8 bg-[var(--bg-app)]">
-      <AlertTriangle size={32} color="rgba(251,191,36,0.6)" />
-      <div className="text-center">
-        <p className="text-sm font-black text-[var(--text-primary)] mb-1.5">Règles Firestore non déployées</p>
-        <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed">Firebase Console → Firestore → Règles → Publier les nouvelles règles arena_users, arena_posts.</p>
-      </div>
-      <button onClick={onBack} className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 bg-transparent border-0 cursor-pointer">← Retour</button>
+      <SerifTitle size="sm" className="text-center">Règles Firestore non déployées</SerifTitle>
+      <p className="text-[13px] text-[var(--text-primary)]/55 italic text-center max-w-md leading-relaxed" style={{ fontFamily: SERIF }}>
+        Firebase Console → Firestore → Règles → Publier les nouvelles règles arena_users, arena_posts.
+      </p>
+      <button
+        onClick={onBack}
+        className="text-[11px] uppercase text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors mt-2"
+        style={{ letterSpacing: '0.24em' }}
+      >
+        ← Retour
+      </button>
     </div>
   );
 
@@ -628,75 +787,103 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
         )}
       </AnimatePresence>
 
-      {/* ── Top bar — exact même style que le chatbot ──────────────────── */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3.5 bg-[var(--bg-chat)] border-b-4 border-[#5D7BFF]">
-        <button onClick={view === 'post' ? () => { setView('feed'); setSelectedPost(null); setSynthesis(null); } : onBack}
-          className="text-[var(--text-primary)]/40 bg-transparent border-0 cursor-pointer p-0 leading-none hover:text-[var(--text-primary)]/70 transition-colors">
-          <ArrowLeft size={18} />
-        </button>
+      {/* ── Top bar éditoriale ───────────────────────────────────────────── */}
+      <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)]">
+        <div className="flex items-center gap-4 px-6 py-4 max-w-3xl mx-auto w-full">
+          <button
+            onClick={view === 'post' ? () => { setView('feed'); setSelectedPost(null); setSynthesis(null); } : onBack}
+            className="text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors leading-none"
+          >
+            <ArrowLeft size={16} />
+          </button>
 
-        {view === 'feed' ? (
-          <>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <Trophy size={14} color="#5D7BFF" />
-                <span className="text-sm font-black uppercase tracking-widest text-[var(--text-primary)]">L'Arène</span>
-              </div>
-              {arenaUser && (
-                <p className="text-[9px] text-[var(--text-primary)]/30 mt-0.5">
-                  Bienvenue, <span className="text-[#5D7BFF] font-bold">{arenaUser.arenaName}</span>
+          {view === 'feed' ? (
+            <>
+              <div className="flex-1 min-w-0">
+                <h1
+                  className="text-[22px] text-[var(--text-primary)] leading-none"
+                  style={{ fontFamily: SERIF, fontWeight: 600, letterSpacing: '-0.01em' }}
+                >
+                  L'Arène
+                </h1>
+                <p
+                  className="text-[11px] text-[var(--text-primary)]/45 italic mt-1"
+                  style={{ fontFamily: SERIF }}
+                >
+                  {arenaUser ? <>Sous le nom de <span className="text-[var(--text-primary)]/75">{arenaUser.arenaName}</span></> : 'Place publique des arguments'}
                 </p>
-              )}
-            </div>
-            <button onClick={() => setShowSearch(v => !v)}
-              className="bg-transparent border-0 cursor-pointer leading-none transition-colors"
-              style={{ color: showSearch ? '#5D7BFF' : 'var(--text-primary)', opacity: showSearch ? 1 : 0.35 }}>
-              <Search size={18} />
-            </button>
-            {arenaUser && (
-              <div className="flex items-center gap-1.5 border border-[#FBBF24]/30 px-2.5 py-1.5"
-                style={{ background: 'rgba(251,191,36,0.06)' }}>
-                <Star size={11} color="#FBBF24" />
-                <span className="text-[11px] font-black text-[#FBBF24]">{arenaUser.credibilityScore}</span>
               </div>
-            )}
-            {onGoToXpose && (
-              <button onClick={onGoToXpose}
-                className="flex items-center gap-1.5 bg-[#5D7BFF] border-2 border-[#5D7BFF] px-3 py-1.5 cursor-pointer text-white text-[9px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all">
-                <Zap size={11} />
-                XPOSE
+
+              <button
+                onClick={() => setShowSearch(v => !v)}
+                className={cx('transition-colors leading-none', showSearch ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]/45 hover:text-[var(--text-primary)]')}
+              >
+                <Search size={15} />
               </button>
-            )}
-            {arenaUser && (
-              <button onClick={() => setView('settings')}
-                className="text-[var(--text-primary)]/30 bg-transparent border-0 cursor-pointer leading-none hover:text-[var(--text-primary)]/60 transition-colors">
-                <Settings size={18} />
-              </button>
-            )}
-          </>
-        ) : (
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-[var(--text-primary)] overflow-hidden text-ellipsis whitespace-nowrap">{selectedPost?.title}</p>
-            <p className="text-[9px] text-[var(--text-primary)]/30 mt-0.5">{selectedPost?.commentCount} contributions</p>
-          </div>
-        )}
+
+              {arenaUser && (
+                <button
+                  onClick={() => setView('settings')}
+                  className="text-[11px] italic text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors"
+                  style={{ fontFamily: SERIF }}
+                  title="Mon profil"
+                >
+                  <span className="tabular-nums">{arenaUser.credibilityScore}</span> pts
+                </button>
+              )}
+
+              {onGoToXpose && (
+                <button
+                  onClick={onGoToXpose}
+                  className="text-[11px] uppercase text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] transition-colors border-l border-[var(--border)] pl-4"
+                  style={{ letterSpacing: '0.24em' }}
+                >
+                  Xpose →
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-[14px] text-[var(--text-primary)] italic truncate"
+                style={{ fontFamily: SERIF, fontWeight: 500 }}
+              >
+                {selectedPost?.title}
+              </p>
+              <p
+                className="text-[11px] text-[var(--text-primary)]/45 italic"
+                style={{ fontFamily: SERIF }}
+              >
+                {selectedPost?.commentCount} {selectedPost?.commentCount === 1 ? 'contribution' : 'contributions'}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── FEED ──────────────────────────────────────────────────────────── */}
       {view === 'feed' && (
         <div className="flex-1 overflow-y-auto">
-          {/* Search bar */}
           <AnimatePresence>
             {showSearch && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-b border-[var(--border)] bg-[var(--bg-chat)]">
-                <div className="flex items-center gap-2.5 px-4 py-3">
-                  <Search size={14} color="var(--text-primary)" style={{ opacity: 0.35 }} />
-                  <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un débat…"
-                    className="flex-1 bg-transparent border-0 text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-primary)]/30" />
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden border-b border-[var(--border)] bg-[var(--bg-chat)]"
+              >
+                <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+                  <Search size={14} className="text-[var(--text-primary)]/40" />
+                  <input
+                    autoFocus
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Rechercher un débat…"
+                    className="flex-1 bg-transparent border-0 text-[var(--text-primary)] text-[15px] outline-none placeholder:text-[var(--text-primary)]/35"
+                    style={{ fontFamily: SERIF, fontStyle: 'italic' }}
+                  />
                   {search && (
-                    <button onClick={() => setSearch('')}
-                      className="bg-transparent border-0 cursor-pointer leading-none text-[var(--text-primary)]/35">
+                    <button onClick={() => setSearch('')} className="text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] transition-colors">
                       <X size={14} />
                     </button>
                   )}
@@ -705,60 +892,58 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
             )}
           </AnimatePresence>
 
-          {/* Filter tabs */}
-          <div className="flex gap-2 px-4 py-3.5 overflow-x-auto border-b border-[var(--border)]">
-            {([
-              { key: 'recent',   label: 'Récents',      icon: Clock },
-              { key: 'trending', label: 'Tendance',     icon: TrendingUp },
-              { key: 'featured', label: 'Défi du jour', icon: Star },
-            ] as { key: typeof filter; label: string; icon: React.ElementType }[]).map(({ key, label, icon: Icon }) => (
-              <button key={key} onClick={() => setFilter(key)}
-                className="flex items-center gap-1.5 px-4 py-2 border-2 flex-shrink-0 font-black text-[10px] uppercase tracking-wide cursor-pointer transition-all"
-                style={{
-                  borderColor: filter === key ? '#5D7BFF' : 'var(--border)',
-                  background: filter === key ? 'rgba(93,123,255,0.08)' : 'var(--bg-chat)',
-                  color: filter === key ? '#5D7BFF' : 'var(--text-primary)',
-                  opacity: filter === key ? 1 : 0.5,
-                  boxShadow: filter === key ? '2px 2px 0px 0px rgba(93,123,255,0.25)' : 'none',
-                }}>
-                <Icon size={11} />{label}
-              </button>
-            ))}
-          </div>
+          <div className="max-w-3xl mx-auto px-6 pt-6 pb-32">
+            {/* Onglets filtres — texte simple avec underline */}
+            <nav className="flex items-baseline gap-6 mb-2 pb-4 border-b border-[var(--border)]">
+              {([
+                { key: 'recent',   label: 'Récents' },
+                { key: 'trending', label: 'Tendance' },
+                { key: 'featured', label: 'Défi du jour' },
+              ] as { key: typeof filter; label: string }[]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={cx(
+                    'text-[12px] uppercase transition-colors pb-2 -mb-px border-b',
+                    filter === key
+                      ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                      : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent'
+                  )}
+                  style={{ letterSpacing: '0.22em' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
 
-          {/* Stories strip */}
-          {filtered.length > 0 && (
-            <div className="px-4 py-4 overflow-x-auto border-b border-[var(--border)]">
-              <div className="flex gap-4 pb-1">
-                {filtered.slice(0, 8).map(p => <StoryDot key={p.id} post={p} onClick={() => openPost(p)} />)}
-              </div>
-            </div>
-          )}
-
-          {/* Posts */}
-          <div className="px-4 py-4 pb-32 flex flex-col gap-3">
             {loadingPosts ? (
-              <div className="flex justify-center py-16">
-                <Loader2 size={22} color="rgba(93,123,255,0.4)" className="animate-spin" />
+              <div className="flex justify-center py-20">
+                <Loader2 size={20} className="animate-spin text-[var(--text-primary)]/40" />
               </div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-16 h-16 border-2 border-[#5D7BFF]/20 bg-[#5D7BFF]/5 flex items-center justify-center mx-auto mb-4">
-                  <Trophy size={28} color="rgba(93,123,255,0.3)" />
-                </div>
-                <p className="text-sm font-black text-[var(--text-primary)]/30 mb-1.5">L'Arène est vide</p>
-                <p className="text-[11px] text-[var(--text-primary)]/20">Propulsez un échange depuis le chat !</p>
+              <div className="text-center py-20">
+                <SerifTitle size="md" className="mb-3">L'arène est silencieuse</SerifTitle>
+                <p
+                  className="text-[14px] text-[var(--text-primary)]/55 italic max-w-md mx-auto"
+                  style={{ fontFamily: SERIF }}
+                >
+                  Aucune thèse à débattre pour le moment. Propulsez la prochaine depuis le chat.
+                </p>
               </div>
-            ) : filtered.map(p => (
-              <PostCard
-                key={p.id}
-                post={p}
-                userId={user?.uid ?? ''}
-                onClick={() => openPost(p)}
-                onAvatarClick={p.authorId && !p.isAnonymous ? () => { if (arenaUser) setUserModalId(p.authorId); } : undefined}
-                onPollVoted={(postId, opts) => setPosts(prev => prev.map(x => x.id === postId ? { ...x, pollOptions: opts } : x))}
-              />
-            ))}
+            ) : (
+              <div>
+                {filtered.map(p => (
+                  <PostCard
+                    key={p.id}
+                    post={p}
+                    userId={user?.uid ?? ''}
+                    onClick={() => openPost(p)}
+                    onAvatarClick={p.authorId && !p.isAnonymous ? () => { if (arenaUser) setUserModalId(p.authorId); } : undefined}
+                    onPollVoted={(postId, opts) => setPosts(prev => prev.map(x => x.id === postId ? { ...x, pollOptions: opts } : x))}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -766,221 +951,343 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
       {/* ── POST DETAIL ───────────────────────────────────────────────────── */}
       {view === 'post' && selectedPost && (
         <div className="flex-1 overflow-y-auto">
-          {/* Post meta */}
-          <div className="px-4 pt-4 pb-3 border-b border-[var(--border)] bg-[var(--bg-chat)]">
-            <div className="flex gap-2.5 mb-3">
-              <Av name={selectedPost.isAnonymous ? '??' : selectedPost.authorArenaName} size={40} ring />
-              <div className="flex-1">
-                <p className="text-sm font-black text-[var(--text-primary)]">{selectedPost.isAnonymous ? 'Anonyme' : selectedPost.authorArenaName}</p>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 border border-[#5D7BFF]/20 text-[#5D7BFF]"
-                    style={{ background: 'rgba(93,123,255,0.06)' }}>
-                    {selectedPost.personaName}
+          <div className="max-w-3xl mx-auto px-6 pt-10 pb-40">
+            {/* Sur-titre */}
+            <div className="flex items-baseline gap-3 mb-5">
+              <MetaLabel>{selectedPost.personaName}</MetaLabel>
+              <Dot />
+              <span
+                className="text-[12px] text-[var(--text-primary)]/55 italic"
+                style={{ fontFamily: SERIF }}
+              >
+                {timeAgoLong(selectedPost.createdAt)}
+              </span>
+            </div>
+
+            {/* Titre — généreux, centré sur la page */}
+            <SerifTitle size="xl" className="mb-5">
+              {selectedPost.title}
+            </SerifTitle>
+
+            {selectedPost.preamble && (
+              <p
+                className="text-[19px] text-[var(--text-primary)]/65 leading-[1.5] italic mb-8 font-light"
+                style={{ fontFamily: SERIF }}
+              >
+                {selectedPost.preamble}
+              </p>
+            )}
+
+            {/* Byline */}
+            <div className="flex items-center gap-3 pb-8 mb-8 border-b border-[var(--border)]">
+              <Av name={selectedPost.isAnonymous ? '??' : selectedPost.authorArenaName} size={34} prominent />
+              <div>
+                <p
+                  className="text-[14px] text-[var(--text-primary)] italic leading-tight"
+                  style={{ fontFamily: SERIF, fontWeight: 500 }}
+                >
+                  {selectedPost.isAnonymous ? 'Anonyme' : selectedPost.authorArenaName}
+                </p>
+                <p className="text-[11px] text-[var(--text-primary)]/45 italic mt-0.5" style={{ fontFamily: SERIF }}>
+                  Propulsé depuis Challenger IA
+                </p>
+              </div>
+            </div>
+
+            {/* Question — bloc citation */}
+            <div className="mb-6">
+              <MetaLabel className="block mb-3">La question</MetaLabel>
+              <blockquote
+                className="text-[17px] text-[var(--text-primary)]/85 italic leading-[1.55] pl-5 border-l border-[var(--text-primary)]/30"
+                style={{ fontFamily: SERIF }}
+              >
+                {selectedPost.question}
+              </blockquote>
+            </div>
+
+            {/* Réponse de l'IA */}
+            <div className="mb-10">
+              <MetaLabel className="block mb-3">La réponse de l'IA</MetaLabel>
+              {(() => {
+                const LIMIT = 600;
+                const long = selectedPost.aiResponse.length > LIMIT;
+                const shown = long && !expanded ? selectedPost.aiResponse.slice(0, LIMIT) : selectedPost.aiResponse;
+                return (
+                  <>
+                    <div className={cx('relative', long && !expanded ? 'overflow-hidden' : '')}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{shown}</ReactMarkdown>
+                      {long && !expanded && (
+                        <div
+                          className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+                          style={{ background: 'linear-gradient(to top, var(--bg-app), transparent)' }}
+                        />
+                      )}
+                    </div>
+                    {long && (
+                      <button
+                        onClick={() => setExpanded(v => !v)}
+                        className="mt-3 text-[12px] italic text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors inline-flex items-center gap-1.5"
+                        style={{ fontFamily: SERIF }}
+                      >
+                        {expanded ? <><ChevronUp size={12} />Replier la réponse</> : <><ChevronDown size={12} />Lire la suite</>}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Synthèse de l'opinion */}
+            {selectedPost.commentCount > 0 && (
+              <div className="mb-10 py-5 border-y border-[var(--border)]">
+                <MetaLabel className="block mb-3">L'opinion — {selectedPost.commentCount} {selectedPost.commentCount === 1 ? 'voix' : 'voix'}</MetaLabel>
+                <div className="flex h-px bg-[var(--text-primary)]/12 relative overflow-hidden mb-3">
+                  {selectedPost.agreeCount > 0 && (
+                    <div
+                      style={{
+                        width: `${(selectedPost.agreeCount / selectedPost.commentCount) * 100}%`,
+                        background: 'var(--text-primary)',
+                        opacity: 0.6,
+                      }}
+                    />
+                  )}
+                  {selectedPost.nuanceCount > 0 && (
+                    <div
+                      style={{
+                        width: `${(selectedPost.nuanceCount / selectedPost.commentCount) * 100}%`,
+                        background: 'var(--text-primary)',
+                        opacity: 0.35,
+                      }}
+                    />
+                  )}
+                  {selectedPost.disagreeCount > 0 && (
+                    <div
+                      style={{
+                        width: `${(selectedPost.disagreeCount / selectedPost.commentCount) * 100}%`,
+                        background: 'var(--text-primary)',
+                        opacity: 0.15,
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="flex items-baseline gap-6 text-[12px]" style={{ fontFamily: SERIF }}>
+                  <span className="italic text-[var(--text-primary)]/75">
+                    <span className="tabular-nums">{selectedPost.agreeCount}</span> favorables
                   </span>
-                  <span className="text-[9px] text-[var(--text-primary)]/25">{timeAgo(selectedPost.createdAt)}</span>
+                  <span className="italic text-[var(--text-primary)]/55">
+                    <span className="tabular-nums">{selectedPost.nuanceCount}</span> nuancés
+                  </span>
+                  <span className="italic text-[var(--text-primary)]/40">
+                    <span className="tabular-nums">{selectedPost.disagreeCount}</span> opposés
+                  </span>
                 </div>
               </div>
+            )}
+
+            {/* Outils IA — boutons texte */}
+            <div className="flex items-baseline gap-6 mb-6 text-[12px]" style={{ fontFamily: SERIF }}>
+              <button
+                onClick={doSynthesis}
+                disabled={synthLoading || comments.length === 0}
+                className="italic text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors inline-flex items-center gap-1.5"
+              >
+                {synthLoading ? <Loader2 size={11} className="animate-spin" /> : null}
+                Demander une synthèse <span className="text-[var(--text-primary)]/35">· 0,25 cr.</span>
+              </button>
+              <Dot />
+              <button
+                onClick={() => { setShowFc(v => !v); setFcResult(null); }}
+                className="italic text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] transition-colors"
+              >
+                Vérifier une affirmation <span className="text-[var(--text-primary)]/35">· 0,25 cr.</span>
+              </button>
             </div>
-            <p className="text-lg font-black text-[var(--text-primary)] leading-snug mb-2">{selectedPost.title}</p>
-            {selectedPost.preamble && <p className="text-xs text-[var(--text-primary)]/45 leading-relaxed">{selectedPost.preamble}</p>}
+
+            <AnimatePresence>
+              {showFc && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden mb-6"
+                >
+                  <div className="flex items-end gap-3 border-b border-[var(--text-primary)]/30 pb-2">
+                    <input
+                      autoFocus
+                      value={fcClaim}
+                      onChange={e => setFcClaim(e.target.value)}
+                      placeholder="L'affirmation à vérifier…"
+                      className="flex-1 bg-transparent border-0 text-[var(--text-primary)] text-[16px] outline-none placeholder:text-[var(--text-primary)]/35"
+                      style={{ fontFamily: SERIF, fontStyle: 'italic' }}
+                    />
+                    <button
+                      onClick={doFactCheck}
+                      disabled={!fcClaim.trim() || fcLoading}
+                      className="text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors leading-none pb-1"
+                    >
+                      {fcLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {synthesis && (
+                <motion.aside
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="my-6 py-5 border-y border-[var(--text-primary)]/25"
+                >
+                  <div className="flex items-baseline justify-between mb-3">
+                    <MetaLabel>Synthèse de la conversation</MetaLabel>
+                    <button onClick={() => setSynthesis(null)} className="text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] transition-colors">
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{synthesis}</ReactMarkdown>
+                </motion.aside>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {fcResult && (
+                <motion.aside
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="my-6 py-5 border-y border-[var(--text-primary)]/25"
+                >
+                  <div className="flex items-baseline justify-between mb-3">
+                    <MetaLabel>Vérification</MetaLabel>
+                    <button onClick={() => setFcResult(null)} className="text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] transition-colors">
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{fcResult}</ReactMarkdown>
+                </motion.aside>
+              )}
+            </AnimatePresence>
+
+            {/* Commentaires */}
+            <div className="pt-6 mt-8 border-t-2 border-[var(--text-primary)]/25">
+              <SerifTitle size="sm" className="mb-1">
+                Les contributions
+              </SerifTitle>
+              <p
+                className="text-[12px] text-[var(--text-primary)]/45 italic mb-6"
+                style={{ fontFamily: SERIF }}
+              >
+                {selectedPost.commentCount} {selectedPost.commentCount === 1 ? 'voix s\'est exprimée' : 'voix se sont exprimées'}.
+              </p>
+
+              {loadingComments ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 size={18} className="animate-spin text-[var(--text-primary)]/40" />
+                </div>
+              ) : roots.length === 0 ? (
+                <p
+                  className="text-[14px] text-[var(--text-primary)]/55 italic text-center py-10"
+                  style={{ fontFamily: SERIF }}
+                >
+                  Soyez la première voix.
+                </p>
+              ) : (
+                <div>
+                  {roots.map(c => (
+                    <React.Fragment key={c.id}>
+                      <CommentItem
+                        comment={c}
+                        userId={user.uid}
+                        postId={selectedPost.id}
+                        depth={0}
+                        onReply={(id, name) => { setReplyTo({ id, name }); boxRef.current?.focus(); }}
+                        onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
+                        onCheck={checkSophism}
+                        checkingId={checkingId}
+                      />
+                      {replies(c.id).map(r => (
+                        <CommentItem
+                          key={r.id}
+                          comment={r}
+                          userId={user.uid}
+                          postId={selectedPost.id}
+                          depth={1}
+                          onReply={() => {}}
+                          onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
+                          onCheck={checkSophism}
+                          checkingId={checkingId}
+                        />
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Q/A exchange */}
-          <div className="px-4 py-4 flex flex-col gap-2.5 border-b border-[var(--border)]">
-            {/* Q bubble */}
-            <div className="flex gap-2.5">
-              <div className="w-7 h-7 border-2 border-[var(--border)] bg-[var(--bg-app)] flex items-center justify-center flex-shrink-0 mt-0.5 text-[9px] font-black text-[var(--text-primary)]/40">Q</div>
-              <div className="flex-1 border-2 border-[var(--border)] px-3.5 py-3 bg-[var(--bg-app)]">
-                <p className="text-xs text-[var(--text-primary)]/60 leading-relaxed">{selectedPost.question}</p>
-              </div>
-            </div>
-
-            {/* AI bubble */}
-            <div className="flex gap-2.5">
-              <div className="w-7 h-7 border-2 border-[#5D7BFF]/50 bg-[#5D7BFF]/8 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Zap size={13} color="#5D7BFF" />
-              </div>
-              <div className="flex-1 border-2 border-[#5D7BFF]/20 px-4 py-3.5 bg-[#5D7BFF]/5">
-                <p className="text-[8px] font-black uppercase tracking-widest text-[#5D7BFF]/60 mb-2.5">Réponse IA</p>
-                {(() => {
-                  const LIMIT = 600;
-                  const long = selectedPost.aiResponse.length > LIMIT;
-                  const shown = long && !expanded ? selectedPost.aiResponse.slice(0, LIMIT) : selectedPost.aiResponse;
-                  return (
-                    <>
-                      <div className={cx('relative', long && !expanded ? 'overflow-hidden' : '')}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{shown}</ReactMarkdown>
-                        {long && !expanded && (
-                          <div className="absolute bottom-0 left-0 right-0 h-10"
-                            style={{ background: 'linear-gradient(to top, var(--bg-chat), transparent)' }} />
-                        )}
-                      </div>
-                      {long && (
-                        <button onClick={() => setExpanded(v => !v)}
-                          className="mt-2 flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-[#5D7BFF] bg-transparent border-0 cursor-pointer p-0 hover:text-[#5D7BFF]/70 transition-colors">
-                          {expanded ? <><ChevronUp size={11} />Condenser</> : <><ChevronDown size={11} />Voir tout</>}
-                        </button>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-
-          {/* Opinion summary */}
-          {selectedPost.commentCount > 0 && (
-            <div className="px-4 py-3 border-b border-[var(--border)]">
-              <div className="flex items-center gap-2 mb-2.5">
-                <BarChart3 size={13} color="var(--text-primary)" style={{ opacity: 0.3 }} />
-                <span className="text-[9px] font-black uppercase tracking-wide text-[var(--text-primary)]/30">Opinion · {selectedPost.commentCount} voix</span>
-              </div>
-              <div className="flex h-2 overflow-hidden gap-px mb-2.5">
-                {selectedPost.agreeCount    > 0 && <div style={{ width: `${(selectedPost.agreeCount    / selectedPost.commentCount) * 100}%`, background: '#34D399' }} />}
-                {selectedPost.nuanceCount   > 0 && <div style={{ width: `${(selectedPost.nuanceCount   / selectedPost.commentCount) * 100}%`, background: '#FBBF24' }} />}
-                {selectedPost.disagreeCount > 0 && <div style={{ width: `${(selectedPost.disagreeCount / selectedPost.commentCount) * 100}%`, background: '#F87171' }} />}
-              </div>
-              <div className="flex gap-5">
-                <span className="text-[11px] font-black text-[#34D399]">✓ {selectedPost.agreeCount} pour</span>
-                <span className="text-[11px] font-black text-[#FBBF24]">~ {selectedPost.nuanceCount} nuances</span>
-                <span className="text-[11px] font-black text-[#F87171]">✗ {selectedPost.disagreeCount} contre</span>
-              </div>
-            </div>
-          )}
-
-          {/* AI tools */}
-          <div className="px-4 py-3 border-b border-[var(--border)] flex gap-2 flex-wrap">
-            <button onClick={doSynthesis} disabled={synthLoading || comments.length === 0}
-              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide border-2 border-[#5D7BFF]/30 px-3.5 py-1.5 text-[#5D7BFF] cursor-pointer bg-transparent hover:bg-[#5D7BFF]/8 transition-colors disabled:opacity-30">
-              {synthLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-              Synthèse · 0.25cr
-            </button>
-            <button onClick={() => { setShowFc(v => !v); setFcResult(null); }}
-              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide border-2 border-[#FBBF24]/30 px-3.5 py-1.5 text-[#FBBF24] cursor-pointer bg-transparent hover:bg-[#FBBF24]/8 transition-colors">
-              <FileSearch size={12} />
-              Fact-check · 0.25cr
-            </button>
-          </div>
-
-          <AnimatePresence>
-            {showFc && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-b border-[var(--border)]">
-                <div className="flex gap-2 px-4 py-3">
-                  <input autoFocus value={fcClaim} onChange={e => setFcClaim(e.target.value)} placeholder="Entrez l'affirmation à vérifier…"
-                    className="flex-1 bg-[var(--bg-app)] border-2 border-[var(--border)] text-[var(--text-primary)] text-xs px-3.5 py-2.5 outline-none focus:border-[#FBBF24]/50 placeholder:text-[var(--text-primary)]/30 transition-colors" />
-                  <button onClick={doFactCheck} disabled={!fcClaim.trim() || fcLoading}
-                    className="bg-[#FBBF24] border-2 border-[#FBBF24] px-3.5 cursor-pointer leading-none disabled:opacity-40 transition-opacity">
-                    {fcLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          {/* Formulaire — sticky, style éditorial */}
+          <div className="sticky bottom-0 bg-[var(--bg-chat)] border-t border-[var(--border)]">
+            <div className="max-w-3xl mx-auto px-6 py-4">
+              {replyTo && (
+                <div
+                  className="flex items-baseline gap-2 mb-3 text-[12px] italic text-[var(--text-primary)]/55"
+                  style={{ fontFamily: SERIF }}
+                >
+                  <span>En réponse à <span className="text-[var(--text-primary)]">{replyTo.name}</span></span>
+                  <button onClick={() => setReplyTo(null)} className="ml-auto text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] transition-colors">
+                    <X size={12} />
                   </button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
 
-          <AnimatePresence>
-            {synthesis && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                className="mx-4 my-3 border-2 border-[#5D7BFF]/25 p-4 bg-[#5D7BFF]/5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles size={14} color="#5D7BFF" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] flex-1">Synthèse de l'Arène</span>
-                  <button onClick={() => setSynthesis(null)} className="bg-transparent border-0 cursor-pointer text-[var(--text-primary)]/30 leading-none"><X size={14} /></button>
-                </div>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{synthesis}</ReactMarkdown>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {fcResult && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                className="mx-4 my-3 border-2 border-[#FBBF24]/25 p-4 bg-[#FBBF24]/5">
-                <div className="flex items-center gap-2 mb-3">
-                  <FileSearch size={14} color="#FBBF24" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#FBBF24] flex-1">Fact-check</span>
-                  <button onClick={() => setFcResult(null)} className="bg-transparent border-0 cursor-pointer text-[var(--text-primary)]/30 leading-none"><X size={14} /></button>
-                </div>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdArena}>{fcResult}</ReactMarkdown>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Comments */}
-          <div className="px-4 pt-4 pb-40">
-            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 mb-4">
-              {selectedPost.commentCount} contribution{selectedPost.commentCount !== 1 ? 's' : ''}
-            </p>
-            {loadingComments ? (
-              <div className="flex justify-center py-8">
-                <Loader2 size={20} color="rgba(93,123,255,0.4)" className="animate-spin" />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {roots.map(c => (
-                  <div key={c.id} className="flex flex-col gap-3">
-                    <CommentItem comment={c} userId={user.uid} postId={selectedPost.id} depth={0}
-                      onReply={(id, name) => { setReplyTo({ id, name }); boxRef.current?.focus(); }}
-                      onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
-                      onCheck={checkSophism} checkingId={checkingId} />
-                    {replies(c.id).map(r => (
-                      <CommentItem key={r.id} comment={r} userId={user.uid} postId={selectedPost.id} depth={1}
-                        onReply={() => {}}
-                        onUpdated={u => setComments(cs => cs.map(x => x.id === u.id ? u : x))}
-                        onCheck={checkSophism} checkingId={checkingId} />
-                    ))}
-                  </div>
+              {/* Sélecteur de posture — texte uniquement */}
+              <div className="flex items-baseline gap-5 mb-3 text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>
+                <span className="text-[var(--text-primary)]/40">Votre posture</span>
+                {(['agree', 'disagree', 'nuance'] as Stance[]).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setStance(s)}
+                    className={cx(
+                      'transition-colors pb-1 border-b',
+                      stance === s
+                        ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                        : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/65 border-transparent'
+                    )}
+                  >
+                    {STANCE[s].label}
+                  </button>
                 ))}
               </div>
-            )}
-          </div>
 
-          {/* Comment form — sticky */}
-          <div className="sticky bottom-0 border-t-4 border-[#5D7BFF] p-4 bg-[var(--bg-chat)]">
-            {replyTo && (
-              <div className="flex items-center gap-2 mb-2.5 text-[10px] text-[var(--text-primary)]/35">
-                <span>↩ Réponse à <strong className="text-[var(--text-primary)]/60 font-black">{replyTo.name}</strong></span>
-                <button onClick={() => setReplyTo(null)} className="bg-transparent border-0 cursor-pointer ml-auto text-[var(--text-primary)]/30 leading-none"><X size={12} /></button>
-              </div>
-            )}
-
-            {/* Stance buttons */}
-            <div className="flex gap-1.5 mb-3">
-              {(['agree', 'disagree', 'nuance'] as Stance[]).map(s => {
-                const cfg = STANCE[s]; const active = stance === s;
-                return (
-                  <button key={s} onClick={() => setStance(s)}
-                    className="flex-1 py-2 text-[9px] font-black uppercase tracking-wide cursor-pointer transition-all border-2"
-                    style={{
-                      borderColor: active ? cfg.color : 'var(--border)',
-                      background: active ? `rgba(${cfg.rgb},0.08)` : 'var(--bg-app)',
-                      color: active ? cfg.color : 'var(--text-primary)',
-                      opacity: active ? 1 : 0.5,
-                      boxShadow: active ? `2px 2px 0px 0px rgba(${cfg.rgb},0.25)` : 'none',
-                    }}>
-                    {cfg.short} {cfg.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Input + send */}
-            <div className="flex gap-2.5 items-end">
-              {arenaUser && <Av name={arenaUser.arenaName} size={32} />}
-              <div className="flex-1 border-2 border-[var(--border)] overflow-hidden bg-[var(--bg-app)] focus-within:border-[#5D7BFF]/50 transition-colors">
-                <textarea ref={boxRef} value={text} onChange={e => setText(e.target.value)}
+              {/* Champ texte */}
+              <div className="flex items-end gap-3 border-b border-[var(--text-primary)]/30 pb-2">
+                {arenaUser && <Av name={arenaUser.arenaName} size={28} />}
+                <textarea
+                  ref={boxRef}
+                  value={text}
+                  onChange={e => setText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitComment(); }}
-                  placeholder="Votre argument… (Ctrl+↵)"
-                  rows={2} className="w-full bg-transparent border-0 text-[var(--text-primary)] text-xs px-3.5 py-3 resize-none outline-none box-border placeholder:text-[var(--text-primary)]/30" />
-                <div className="flex justify-end px-2.5 pb-2">
-                  <button onClick={submitComment} disabled={!text.trim() || posting}
-                    className="flex items-center gap-1.5 bg-[#5D7BFF] border-2 border-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest px-3.5 py-1.5 cursor-pointer hover:bg-[#4a68e8] transition-all disabled:opacity-30"
-                    style={{ boxShadow: '2px 2px 0px 0px rgba(93,123,255,0.35)' }}>
-                    {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                    Publier
-                  </button>
-                </div>
+                  placeholder="Votre argument…"
+                  rows={2}
+                  className="flex-1 bg-transparent border-0 text-[var(--text-primary)] text-[15px] resize-none outline-none placeholder:text-[var(--text-primary)]/35 leading-relaxed"
+                  style={{ fontFamily: SERIF, fontStyle: 'italic' }}
+                />
+                <button
+                  onClick={submitComment}
+                  disabled={!text.trim() || posting}
+                  className="text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors leading-none pb-1 inline-flex items-center gap-2"
+                  title="Publier (⌘/Ctrl + Entrée)"
+                >
+                  {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  <span className="text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>Publier</span>
+                </button>
               </div>
+              <p
+                className="text-[10px] text-[var(--text-primary)]/35 italic mt-2"
+                style={{ fontFamily: SERIF }}
+              >
+                Pressez ⌘/Ctrl + Entrée pour envoyer.
+              </p>
             </div>
           </div>
         </div>
