@@ -1,20 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft, Settings, Star, MessageSquare, Users, Briefcase, Heart,
-  Globe, Twitter, Instagram, Edit3, Plus, Send, Loader2, X,
-  ThumbsUp, Zap, ChevronDown, ChevronUp, Lock, Eye, EyeOff,
-  UserPlus, UserCheck, UserMinus, Rss, Bookmark,
+  ArrowLeft, Send, Loader2, X, ChevronDown, ChevronUp,
+  Globe, Twitter, Instagram,
 } from 'lucide-react';
 import type {
   ArenaUser, PersonalPost, PersonalComment, PersonalCommentType,
-  Visibility, ConnectionType,
+  Visibility,
 } from './arenaTypes';
 import {
   getArenaUser, getPersonalPosts, getPersonalComments, addPersonalComment,
   createPersonalPost, likePersonalPost, upvotePersonalComment,
-  getConnectionStatus, sendConnection, acceptConnection, removeConnection,
+  getConnectionStatus, sendConnection, removeConnection,
 } from './arenaFirestore';
+import { Av, SerifTitle, MetaLabel, Dot, SERIF, cx, timeAgoLong } from './_editorial';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,38 +29,18 @@ interface Props {
 type Tab = 'posts' | 'about' | 'badges';
 type PostMode = 'ia' | 'text';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
 
-const PALETTE = ['#5D7BFF','#34D399','#F87171','#FBBF24','#A78BFA','#F97316','#38BDF8','#FB7185'];
-
-function avatarColor(name: string): string {
-  let h = 0;
-  for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
-
-function initials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
-}
-
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'maintenant';
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}j`;
-}
-
-const COMMENT_TYPES: Record<PersonalCommentType, { label: string; emoji: string; color: string; desc: string }> = {
-  argument:  { label: 'Argument',  emoji: '⚡', color: '#5D7BFF', desc: 'Raisonnement structuré' },
-  question:  { label: 'Question',  emoji: '?',  color: '#FBBF24', desc: 'Questionne le post' },
-  intuition: { label: 'Intuition', emoji: '→',  color: '#A78BFA', desc: 'Réaction immédiate' },
+const COMMENT_TYPES: Record<PersonalCommentType, { label: string; desc: string }> = {
+  argument:  { label: 'Argument',  desc: 'Un raisonnement structuré.' },
+  question:  { label: 'Question',  desc: 'Une interrogation directe.' },
+  intuition: { label: 'Intuition', desc: 'Une réaction immédiate.' },
 };
 
-const VISIBILITY_CONFIG: Record<Visibility, { label: string; icon: React.ReactNode }> = {
-  public:  { label: 'Public',  icon: <Eye size={12} /> },
-  friends: { label: 'Amis',   icon: <Users size={12} /> },
-  private: { label: 'Privé',  icon: <Lock size={12} /> },
+const VISIBILITY_CONFIG: Record<Visibility, { label: string; desc: string }> = {
+  public:  { label: 'Public',  desc: 'Visible de tous' },
+  friends: { label: 'Connexions', desc: 'Vos connexions uniquement' },
+  private: { label: 'Privé',  desc: 'Vous seul·e' },
 };
 
 const BADGE_LABELS: Record<string, string> = {
@@ -72,33 +51,16 @@ const BADGE_LABELS: Record<string, string> = {
   'pioneer':       'Pionnier',
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Av({ name, size = 36 }: { name: string; size?: number }) {
-  const c = avatarColor(name);
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: `${c}22`, border: `1.5px solid ${c}55`,
-      color: c, fontSize: size * 0.32, fontWeight: 900,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', letterSpacing: 1,
-    }}>
-      {initials(name)}
-    </div>
-  );
-}
-
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({
-  post, myUserId, myArenaUser, isOwn,
+  post, myUserId, myArenaUser,
 }: {
   post: PersonalPost;
   myUserId: string;
   myArenaUser: ArenaUser | null;
   isOwn: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [aiExpanded, setAiExpanded] = useState(false);
   const [liked, setLiked] = useState(post.likedBy.includes(myUserId));
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -165,75 +127,70 @@ function PostCard({
   const visConfig = VISIBILITY_CONFIG[post.visibility];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
+    <motion.article
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      style={{
-        background: '#13161E',
-        borderRadius: 20,
-        border: '1px solid rgba(255,255,255,0.07)',
-        overflow: 'hidden',
-        marginBottom: 12,
-      }}
+      className="py-8 border-b border-[var(--border)]"
     >
-      {/* Header */}
-      <div style={{ padding: '14px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Av name={post.authorArenaName} size={34} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{post.authorArenaName}</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {timeAgo(post.createdAt)}
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: 'rgba(255,255,255,0.3)' }}>
-              · {visConfig.icon} {visConfig.label}
-            </span>
-          </div>
-        </div>
+      {/* Byline */}
+      <div className="flex items-baseline gap-2 mb-3 flex-wrap">
+        <Av name={post.authorArenaName} size={28} photoURL={post.authorPhotoURL} />
+        <span
+          className="text-[14px] text-[var(--text-primary)] italic ml-1"
+          style={{ fontFamily: SERIF, fontWeight: 500 }}
+        >
+          {post.authorArenaName}
+        </span>
+        <Dot />
+        <span className="text-[11px] text-[var(--text-primary)]/45 italic" style={{ fontFamily: SERIF }}>
+          {timeAgoLong(post.createdAt)}
+        </span>
+        <Dot />
+        <span className="text-[11px] text-[var(--text-primary)]/45 italic" style={{ fontFamily: SERIF }}>
+          {visConfig.label.toLowerCase()}
+        </span>
       </div>
 
-      {/* Content */}
-      <div style={{ padding: '12px 16px' }}>
+      {/* Corps */}
+      <div>
         {post.type === 'text' ? (
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6, margin: 0 }}>
+          <p
+            className="text-[16px] text-[var(--text-primary)]/85 leading-[1.7]"
+            style={{ fontFamily: SERIF }}
+          >
             {post.content}
           </p>
         ) : (
           <div>
             {post.content && (
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6, marginBottom: 10 }}>
+              <p
+                className="text-[16px] text-[var(--text-primary)]/85 leading-[1.7] mb-4"
+                style={{ fontFamily: SERIF }}
+              >
                 {post.content}
               </p>
             )}
-            {/* Question bubble */}
+
             {post.aiQuestion && (
-              <div style={{
-                background: 'rgba(93,123,255,0.12)', border: '1px solid rgba(93,123,255,0.25)',
-                borderRadius: 14, padding: '10px 14px', marginBottom: 8,
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#5D7BFF', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Question
-                </div>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', margin: 0 }}>{post.aiQuestion}</p>
+              <div className="my-4">
+                <MetaLabel className="block mb-2">La question</MetaLabel>
+                <blockquote
+                  className="text-[16px] text-[var(--text-primary)]/85 italic leading-[1.55] pl-4 border-l border-[var(--text-primary)]/30"
+                  style={{ fontFamily: SERIF }}
+                >
+                  {post.aiQuestion}
+                </blockquote>
               </div>
             )}
-            {/* AI response bubble (collapsible) */}
+
             {post.aiResponse && (
-              <div style={{
-                background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)',
-                borderRadius: 14, overflow: 'hidden',
-              }}>
+              <div className="my-4">
                 <button
                   onClick={() => setAiExpanded(v => !v)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#A78BFA',
-                  }}
+                  className="inline-flex items-baseline gap-2 text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] transition-colors mb-2"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    <span style={{ opacity: 0.7 }}>Réponse IA</span>
-                    {post.personaName && <span style={{ opacity: 0.5 }}>· {post.personaName}</span>}
-                  </div>
-                  {aiExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  <MetaLabel>La réponse {post.personaName ? `de ${post.personaName}` : 'de l\'IA'}</MetaLabel>
+                  {aiExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                 </button>
                 <AnimatePresence>
                   {aiExpanded && (
@@ -242,12 +199,12 @@ function PostCard({
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      style={{ overflow: 'hidden' }}
+                      className="overflow-hidden"
                     >
-                      <p style={{
-                        fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.65,
-                        margin: 0, padding: '0 14px 12px',
-                      }}>
+                      <p
+                        className="text-[15px] text-[var(--text-primary)]/75 leading-[1.7] mt-2"
+                        style={{ fontFamily: SERIF }}
+                      >
                         {post.aiResponse}
                       </p>
                     </motion.div>
@@ -259,43 +216,36 @@ function PostCard({
         )}
       </div>
 
-      {/* Actions bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: '8px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.05)',
-      }}>
+      {/* Actions */}
+      <div className="flex items-baseline gap-5 mt-5 text-[12px]" style={{ fontFamily: SERIF }}>
         <button
           onClick={handleLike}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '6px 12px', borderRadius: 10,
-            background: liked ? 'rgba(251,113,133,0.15)' : 'rgba(255,255,255,0.04)',
-            border: liked ? '1px solid rgba(251,113,133,0.3)' : '1px solid transparent',
-            color: liked ? '#FB7185' : 'rgba(255,255,255,0.4)',
-            cursor: myArenaUser ? 'pointer' : 'default',
-            fontSize: 12, fontWeight: 600,
-          }}
+          disabled={!myArenaUser}
+          className={cx(
+            'italic transition-colors disabled:cursor-default',
+            liked
+              ? 'text-[var(--text-primary)]'
+              : 'text-[var(--text-primary)]/45 hover:text-[var(--text-primary)]',
+          )}
         >
-          <Heart size={13} fill={liked ? '#FB7185' : 'none'} />
-          {likeCount}
+          {liked ? '♥ ' : '♡ '}
+          {likeCount > 0 ? `${likeCount} approbation${likeCount > 1 ? 's' : ''}` : 'approuver'}
         </button>
+        <Dot />
         <button
           onClick={handleToggleComments}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '6px 12px', borderRadius: 10,
-            background: showComments ? 'rgba(93,123,255,0.12)' : 'rgba(255,255,255,0.04)',
-            border: showComments ? '1px solid rgba(93,123,255,0.25)' : '1px solid transparent',
-            color: showComments ? '#5D7BFF' : 'rgba(255,255,255,0.4)',
-            cursor: 'pointer', fontSize: 12, fontWeight: 600,
-          }}
+          className={cx(
+            'italic transition-colors',
+            showComments
+              ? 'text-[var(--text-primary)]'
+              : 'text-[var(--text-primary)]/45 hover:text-[var(--text-primary)]',
+          )}
         >
-          <MessageSquare size={13} />
-          {post.commentCount}
+          {post.commentCount > 0 ? `${post.commentCount} commentaire${post.commentCount > 1 ? 's' : ''}` : 'commenter'}
         </button>
       </div>
 
-      {/* Comments section */}
+      {/* Commentaires */}
       <AnimatePresence>
         {showComments && (
           <motion.div
@@ -303,112 +253,108 @@ function PostCard({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            style={{ overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.05)' }}
+            className="overflow-hidden"
           >
-            <div style={{ padding: '12px 14px' }}>
+            <div className="mt-6 pl-4 border-l border-[var(--border)]">
               {commentsLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
-                  <Loader2 size={18} color="#5D7BFF" style={{ animation: 'spin 1s linear infinite' }} />
+                <div className="flex justify-center py-6">
+                  <Loader2 size={16} className="animate-spin text-[var(--text-primary)]/40" />
                 </div>
+              ) : comments.length === 0 ? (
+                <p
+                  className="text-[13px] text-[var(--text-primary)]/50 italic py-3"
+                  style={{ fontFamily: SERIF }}
+                >
+                  Soyez la première voix sur ce post.
+                </p>
               ) : (
-                <>
-                  {comments.map(comment => {
+                <div className="space-y-4">
+                  {comments.map((comment) => {
                     const ct = COMMENT_TYPES[comment.type];
                     const isUpvoted = comment.upvotedBy.includes(myUserId);
                     return (
-                      <div
-                        key={comment.id}
-                        style={{
-                          background: 'rgba(255,255,255,0.03)', borderRadius: 12,
-                          padding: '10px 12px', marginBottom: 8,
-                          border: `1px solid ${ct.color}18`,
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Av name={comment.authorArenaName} size={24} />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>{comment.authorArenaName}</span>
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 8,
-                              background: `${ct.color}18`, color: ct.color, display: 'flex', alignItems: 'center', gap: 3,
-                            }}>
-                              {ct.emoji} {ct.label}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleUpvoteComment(comment)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 4,
-                              background: 'none', border: 'none', cursor: myArenaUser ? 'pointer' : 'default',
-                              color: isUpvoted ? '#5D7BFF' : 'rgba(255,255,255,0.3)',
-                              fontSize: 11,
-                            }}
+                      <div key={comment.id} className="pb-4 border-b border-[var(--border)]/60 last:border-0">
+                        <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+                          <Av name={comment.authorArenaName} size={22} photoURL={comment.authorPhotoURL} />
+                          <span
+                            className="text-[13px] text-[var(--text-primary)] italic ml-1"
+                            style={{ fontFamily: SERIF, fontWeight: 500 }}
                           >
-                            <ThumbsUp size={12} fill={isUpvoted ? '#5D7BFF' : 'none'} />
-                            {comment.upvotes}
-                          </button>
+                            {comment.authorArenaName}
+                          </span>
+                          <Dot />
+                          <span
+                            className="text-[11px] text-[var(--text-primary)]/55 italic"
+                            style={{ fontFamily: SERIF }}
+                          >
+                            {ct.label.toLowerCase()}
+                          </span>
+                          <span className="text-[11px] text-[var(--text-primary)]/35 italic ml-auto" style={{ fontFamily: SERIF }}>
+                            {timeAgoLong(comment.createdAt)}
+                          </span>
                         </div>
-                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: 0, lineHeight: 1.55 }}>
+                        <p
+                          className="text-[14px] text-[var(--text-primary)]/80 leading-[1.7]"
+                          style={{ fontFamily: SERIF }}
+                        >
                           {comment.content}
                         </p>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
-                          {timeAgo(comment.createdAt)}
-                        </div>
+                        <button
+                          onClick={() => handleUpvoteComment(comment)}
+                          disabled={!myArenaUser}
+                          className={cx(
+                            'mt-2 text-[11px] italic transition-colors disabled:cursor-default',
+                            isUpvoted
+                              ? 'text-[var(--text-primary)]'
+                              : 'text-[var(--text-primary)]/45 hover:text-[var(--text-primary)]',
+                          )}
+                          style={{ fontFamily: SERIF }}
+                        >
+                          {isUpvoted ? '♥ ' : '♡ '}
+                          {comment.upvotes > 0 ? comment.upvotes : 'approuver'}
+                        </button>
                       </div>
                     );
                   })}
-                </>
+                </div>
               )}
 
-              {/* Comment input */}
+              {/* Champ de commentaire */}
               {myArenaUser && (
-                <div style={{ marginTop: 8 }}>
-                  {/* Type selector */}
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                    {(Object.keys(COMMENT_TYPES) as PersonalCommentType[]).map(type => {
-                      const ct = COMMENT_TYPES[type];
-                      const active = commentType === type;
-                      return (
-                        <button
-                          key={type}
-                          onClick={() => setCommentType(type)}
-                          style={{
-                            flex: 1, padding: '6px 4px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                            cursor: 'pointer', transition: 'all 0.15s',
-                            background: active ? `${ct.color}22` : 'rgba(255,255,255,0.04)',
-                            border: active ? `1px solid ${ct.color}55` : '1px solid rgba(255,255,255,0.06)',
-                            color: active ? ct.color : 'rgba(255,255,255,0.4)',
-                          }}
-                        >
-                          {ct.emoji} {ct.label}
-                        </button>
-                      );
-                    })}
+                <div className="mt-5">
+                  {/* Sélecteur de type */}
+                  <div className="flex items-baseline gap-4 mb-3 text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>
+                    <span className="text-[var(--text-primary)]/40">Type</span>
+                    {(Object.keys(COMMENT_TYPES) as PersonalCommentType[]).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setCommentType(type)}
+                        className={cx(
+                          'transition-colors pb-1 border-b',
+                          commentType === type
+                            ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                            : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+                        )}
+                      >
+                        {COMMENT_TYPES[type].label}
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div className="flex items-end gap-3 border-b border-[var(--text-primary)]/30 pb-2">
                     <textarea
                       value={commentText}
-                      onChange={e => setCommentText(e.target.value)}
-                      placeholder={COMMENT_TYPES[commentType].desc + '…'}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder={COMMENT_TYPES[commentType].desc}
                       rows={2}
-                      style={{
-                        flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 12, padding: '8px 12px', color: '#fff', fontSize: 13,
-                        resize: 'none', outline: 'none', fontFamily: 'inherit',
-                      }}
+                      className="flex-1 bg-transparent border-0 text-[var(--text-primary)] text-[14px] resize-none outline-none placeholder:text-[var(--text-primary)]/35 leading-relaxed"
+                      style={{ fontFamily: SERIF, fontStyle: 'italic' }}
                     />
                     <button
                       onClick={handleSubmitComment}
                       disabled={!commentText.trim() || submitting}
-                      style={{
-                        width: 36, height: 36, borderRadius: 10, border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
-                        background: commentText.trim() ? '#5D7BFF' : 'rgba(255,255,255,0.06)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: commentText.trim() ? '#fff' : 'rgba(255,255,255,0.25)',
-                        flexShrink: 0,
-                      }}
+                      className="text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors leading-none pb-1"
                     >
-                      {submitting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
+                      {submitting ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
                     </button>
                   </div>
                 </div>
@@ -417,11 +363,11 @@ function PostCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </motion.article>
   );
 }
 
-// ─── New Post Form ────────────────────────────────────────────────────────────
+// ─── Nouveau post ─────────────────────────────────────────────────────────────
 
 function NewPostForm({
   myUserId, myArenaUser, onCreated, onClose,
@@ -469,155 +415,141 @@ function NewPostForm({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      style={{
-        background: '#13161E', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 20, padding: 18, marginBottom: 16,
-      }}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="py-6 mb-6 border-y border-[var(--text-primary)]/25"
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Nouveau post</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
-          <X size={18} />
+      <div className="flex items-baseline justify-between mb-5">
+        <MetaLabel>Nouveau post</MetaLabel>
+        <button onClick={onClose} className="text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] transition-colors leading-none">
+          <X size={14} />
         </button>
       </div>
 
-      {/* Mode toggle */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {(['text', 'ia'] as PostMode[]).map(m => (
+      {/* Mode */}
+      <div className="flex items-baseline gap-4 mb-5 text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>
+        <span className="text-[var(--text-primary)]/40">Format</span>
+        {(['text', 'ia'] as PostMode[]).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
-            style={{
-              flex: 1, padding: '8px 0', borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              background: mode === m ? 'rgba(93,123,255,0.2)' : 'rgba(255,255,255,0.04)',
-              border: mode === m ? '1px solid rgba(93,123,255,0.4)' : '1px solid rgba(255,255,255,0.06)',
-              color: mode === m ? '#5D7BFF' : 'rgba(255,255,255,0.4)',
-            }}
+            className={cx(
+              'transition-colors pb-1 border-b',
+              mode === m
+                ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+            )}
           >
-            {m === 'text' ? '✍️ Texte libre' : '🤖 Conversation IA'}
+            {m === 'text' ? 'Texte libre' : 'Conversation IA'}
           </button>
         ))}
       </div>
 
-      {/* Fields */}
+      {/* Champs */}
       {mode === 'text' ? (
-        <div style={{ position: 'relative' }}>
+        <div>
           <textarea
             value={content}
-            onChange={e => setContent(e.target.value)}
+            onChange={(e) => setContent(e.target.value)}
             placeholder="Partagez une pensée…"
             rows={4}
             maxLength={500}
-            style={{
-              width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 14, padding: '10px 12px', color: '#fff', fontSize: 13,
-              resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-            }}
+            className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[16px] py-2 outline-none resize-none transition-colors placeholder:text-[var(--text-primary)]/35 leading-[1.6]"
+            style={{ fontFamily: SERIF, fontStyle: 'italic' }}
           />
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textAlign: 'right', marginTop: 4 }}>
-            {content.length}/500
-          </div>
+          <p
+            className="text-[11px] text-[var(--text-primary)]/40 italic mt-2 text-right tabular-nums"
+            style={{ fontFamily: SERIF }}
+          >
+            {content.length} / 500
+          </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="space-y-5">
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, fontWeight: 600 }}>Votre question</div>
+            <MetaLabel className="block mb-2">Votre question</MetaLabel>
             <textarea
               value={aiQuestion}
-              onChange={e => setAiQuestion(e.target.value)}
+              onChange={(e) => setAiQuestion(e.target.value)}
               placeholder="Quelle question avez-vous posée à l'IA ?"
               rows={2}
-              style={{
-                width: '100%', background: 'rgba(93,123,255,0.08)', border: '1px solid rgba(93,123,255,0.2)',
-                borderRadius: 12, padding: '9px 12px', color: '#fff', fontSize: 13,
-                resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-              }}
+              className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[15px] py-2 outline-none resize-none transition-colors placeholder:text-[var(--text-primary)]/35 leading-[1.6]"
+              style={{ fontFamily: SERIF, fontStyle: 'italic' }}
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, fontWeight: 600 }}>Réponse de l'IA</div>
+            <MetaLabel className="block mb-2">Réponse de l'IA</MetaLabel>
             <textarea
               value={aiResponse}
-              onChange={e => setAiResponse(e.target.value)}
-              placeholder="Collez la réponse de l'IA…"
+              onChange={(e) => setAiResponse(e.target.value)}
+              placeholder="Collez ici la réponse de l'IA…"
               rows={4}
-              style={{
-                width: '100%', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)',
-                borderRadius: 12, padding: '9px 12px', color: '#fff', fontSize: 13,
-                resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-              }}
+              className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[15px] py-2 outline-none resize-none transition-colors placeholder:text-[var(--text-primary)]/35 leading-[1.6]"
+              style={{ fontFamily: SERIF, fontStyle: 'italic' }}
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, fontWeight: 600 }}>Persona (optionnel)</div>
+            <MetaLabel className="block mb-2">Persona (facultatif)</MetaLabel>
             <input
               value={personaName}
-              onChange={e => setPersonaName(e.target.value)}
+              onChange={(e) => setPersonaName(e.target.value)}
               placeholder="ex. Socrate, GPT-4, Mistral…"
-              style={{
-                width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 12, padding: '9px 12px', color: '#fff', fontSize: 13,
-                outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-              }}
+              className="w-full bg-transparent border-0 border-b border-[var(--border)] focus:border-[var(--text-primary)] text-[var(--text-primary)] text-[15px] py-2 outline-none transition-colors placeholder:text-[var(--text-primary)]/35"
+              style={{ fontFamily: SERIF, fontStyle: 'italic' }}
             />
           </div>
         </div>
       )}
 
-      {/* Visibility */}
-      <div style={{ marginTop: 14 }}>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontWeight: 600 }}>Visibilité</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {(Object.keys(VISIBILITY_CONFIG) as Visibility[]).map(v => {
-            const cfg = VISIBILITY_CONFIG[v];
-            const active = visibility === v;
-            return (
-              <button
-                key={v}
-                onClick={() => setVisibility(v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '6px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  background: active ? 'rgba(93,123,255,0.18)' : 'rgba(255,255,255,0.04)',
-                  border: active ? '1px solid rgba(93,123,255,0.35)' : '1px solid rgba(255,255,255,0.06)',
-                  color: active ? '#5D7BFF' : 'rgba(255,255,255,0.4)',
-                }}
-              >
-                {cfg.icon} {cfg.label}
-              </button>
-            );
-          })}
+      {/* Visibilité */}
+      <div className="mt-6">
+        <div className="flex items-baseline gap-4 text-[11px] uppercase" style={{ letterSpacing: '0.22em' }}>
+          <span className="text-[var(--text-primary)]/40">Visibilité</span>
+          {(Object.keys(VISIBILITY_CONFIG) as Visibility[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setVisibility(v)}
+              className={cx(
+                'transition-colors pb-1 border-b',
+                visibility === v
+                  ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                  : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+              )}
+            >
+              {VISIBILITY_CONFIG[v].label}
+            </button>
+          ))}
         </div>
+        <p
+          className="text-[11px] text-[var(--text-primary)]/45 italic mt-2"
+          style={{ fontFamily: SERIF }}
+        >
+          {VISIBILITY_CONFIG[visibility].desc}.
+        </p>
       </div>
 
       {/* Submit */}
       <button
         onClick={handleSubmit}
         disabled={!canSubmit || submitting}
-        style={{
-          width: '100%', marginTop: 16, padding: '11px 0',
-          borderRadius: 14, border: 'none', cursor: canSubmit ? 'pointer' : 'default',
-          background: canSubmit ? 'linear-gradient(135deg, #5D7BFF, #A78BFA)' : 'rgba(255,255,255,0.06)',
-          color: canSubmit ? '#fff' : 'rgba(255,255,255,0.25)',
-          fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        }}
+        className="mt-6 w-full text-[12px] uppercase text-[var(--text-primary)] py-3 border-y border-[var(--border)] hover:bg-[var(--text-primary)]/[0.04] disabled:opacity-30 disabled:cursor-default transition-all flex items-center justify-center gap-3"
+        style={{ letterSpacing: '0.24em' }}
       >
-        {submitting ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={15} />}
+        {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
         Publier
+        <span className="text-[var(--text-primary)]/40">→</span>
       </button>
     </motion.div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function ArenaProfilePage({
-  targetUserId, myUserId, myArenaUser, onBack, onOpenSettings, onViewProfile,
+  targetUserId, myUserId, myArenaUser, onBack, onOpenSettings, onViewProfile: _onViewProfile,
 }: Props) {
+  void _onViewProfile;
   const isOwn = targetUserId === myUserId;
 
   const [profileUser, setProfileUser] = useState<ArenaUser | null>(null);
@@ -630,24 +562,19 @@ export default function ArenaProfilePage({
 
   const [showNewPost, setShowNewPost] = useState(false);
 
-  // Connection state
   const [connectStatus, setConnectStatus] = useState<string | null>(null);
   const [followStatus, setFollowStatus] = useState<string | null>(null);
   const [connBusy, setConnBusy] = useState(false);
-
-  // ── Load profile ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     setLoading(true);
     setNotFound(false);
     getArenaUser(targetUserId).then(u => {
-      if (!u) { setNotFound(true); }
-      else { setProfileUser(u); }
+      if (!u) setNotFound(true);
+      else setProfileUser(u);
       setLoading(false);
     });
   }, [targetUserId]);
-
-  // ── Load posts ────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!profileUser || tab !== 'posts') return;
@@ -659,8 +586,6 @@ export default function ArenaProfilePage({
     });
   }, [profileUser, tab, isOwn, connectStatus, targetUserId]);
 
-  // ── Load connection status ────────────────────────────────────────────────
-
   useEffect(() => {
     if (isOwn || !myUserId || !targetUserId) return;
     getConnectionStatus(myUserId, targetUserId).then(cs => {
@@ -669,15 +594,10 @@ export default function ArenaProfilePage({
     });
   }, [isOwn, myUserId, targetUserId]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-
   const handleConnect = async () => {
     if (!myArenaUser || connBusy || !profileUser) return;
     setConnBusy(true);
-    if (connectStatus === 'accepted') {
-      await removeConnection(myUserId, targetUserId, 'connect');
-      setConnectStatus(null);
-    } else if (connectStatus === 'pending') {
+    if (connectStatus === 'accepted' || connectStatus === 'pending') {
       await removeConnection(myUserId, targetUserId, 'connect');
       setConnectStatus(null);
     } else {
@@ -714,417 +634,400 @@ export default function ArenaProfilePage({
     setProfileUser(prev => prev ? { ...prev, personalPostsCount: (prev.personalPostsCount ?? 0) + 1 } : prev);
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  const connectLabel = () => {
-    if (connectStatus === 'accepted') return { text: 'Connecté', icon: <UserCheck size={13} /> };
-    if (connectStatus === 'pending') return { text: 'En attente', icon: <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> };
-    return { text: 'Se connecter', icon: <UserPlus size={13} /> };
-  };
-
-  const followLabel = () => {
-    if (followStatus === 'accepted') return { text: 'Suivi', icon: <Rss size={13} /> };
-    return { text: 'Suivre', icon: <Rss size={13} /> };
-  };
-
-  // ── Render states ─────────────────────────────────────────────────────────
+  // ── États ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0A0C12', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>
-        <Loader2 size={28} color="#5D7BFF" style={{ animation: 'spin 1s linear infinite' }} />
-        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Chargement du profil…</p>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <div className="h-full flex items-center justify-center bg-[var(--bg-app)]">
+        <Loader2 size={20} className="animate-spin text-[var(--text-primary)]/40" />
       </div>
     );
   }
 
   if (notFound || !profileUser) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0A0C12', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>
-        <div style={{ fontSize: 40 }}>🔍</div>
-        <p style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>Profil introuvable</p>
-        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>Cet utilisateur n'existe pas ou a supprimé son compte.</p>
+      <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--bg-app)] px-8">
+        <SerifTitle size="md" className="text-center">Profil introuvable</SerifTitle>
+        <p
+          className="text-[14px] text-[var(--text-primary)]/55 italic text-center max-w-md leading-relaxed"
+          style={{ fontFamily: SERIF }}
+        >
+          Cet utilisateur n'existe pas ou a quitté l'Arène.
+        </p>
         <button
           onClick={onBack}
-          style={{
-            marginTop: 8, padding: '10px 24px', borderRadius: 14,
-            background: 'rgba(93,123,255,0.15)', border: '1px solid rgba(93,123,255,0.3)',
-            color: '#5D7BFF', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}
+          className="text-[11px] uppercase text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors mt-2"
+          style={{ letterSpacing: '0.24em' }}
         >
-          Retour
+          ← Retour
         </button>
       </div>
     );
   }
 
-  const color = avatarColor(profileUser.arenaName);
-  const cl = connectLabel();
-  const fl = followLabel();
+  const connectVerb = (): string => {
+    if (connectStatus === 'accepted') return 'Vous êtes connectés';
+    if (connectStatus === 'pending') return 'Demande en attente';
+    return 'Se connecter';
+  };
+
+  const followVerb = (): string => followStatus === 'accepted' ? 'Vous suivez' : 'Suivre';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0C12', color: '#fff', fontFamily: 'inherit' }}>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-
-      {/* ── Header bar ─────────────────────────────────────────────────────── */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 30,
-        background: 'rgba(10,12,18,0.92)', backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 16px',
-      }}>
-        <button
-          onClick={onBack}
-          style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5 }}>Profil</span>
-        {isOwn ? (
+    <div className="h-full flex flex-col overflow-hidden bg-[var(--bg-app)]">
+      {/* Top bar éditoriale */}
+      <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)]">
+        <div className="flex items-center gap-4 px-6 py-4 max-w-3xl mx-auto w-full">
           <button
-            onClick={onOpenSettings}
-            style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.7)' }}
+            onClick={onBack}
+            className="text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors leading-none"
           >
-            <Settings size={18} />
+            <ArrowLeft size={16} />
           </button>
-        ) : (
-          <div style={{ width: 36 }} />
-        )}
-      </div>
-
-      {/* ── Hero section ───────────────────────────────────────────────────── */}
-      <div style={{ position: 'relative' }}>
-        {/* Cover band */}
-        <div style={{
-          height: 120,
-          background: `linear-gradient(135deg, ${color}55, ${color}22, rgba(10,12,18,0))`,
-          borderBottom: `1px solid ${color}22`,
-        }} />
-
-        {/* Avatar overlapping cover */}
-        <div style={{
-          position: 'absolute', top: 76, left: 20,
-          width: 80, height: 80, borderRadius: '50%',
-          background: `${color}22`, border: `3px solid #0A0C12`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color, fontSize: 28, fontWeight: 900, letterSpacing: 1,
-        }}>
-          {initials(profileUser.arenaName)}
-        </div>
-
-        {/* Action button(s) top-right */}
-        <div style={{ position: 'absolute', top: 130, right: 16, display: 'flex', gap: 8 }}>
-          {isOwn ? (
+          <h1
+            className="flex-1 text-[18px] text-[var(--text-primary)] leading-none"
+            style={{ fontFamily: SERIF, fontWeight: 600, letterSpacing: '-0.01em' }}
+          >
+            Profil
+          </h1>
+          {isOwn && (
             <button
               onClick={onOpenSettings}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 16px', borderRadius: 12,
-                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-                color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              }}
+              className="text-[11px] uppercase text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] transition-colors"
+              style={{ letterSpacing: '0.22em' }}
             >
-              <Edit3 size={13} /> Modifier le profil
+              Modifier
             </button>
-          ) : (
-            <>
-              <button
-                onClick={handleFollow}
-                disabled={connBusy}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  background: followStatus === 'accepted' ? 'rgba(93,123,255,0.18)' : 'rgba(255,255,255,0.06)',
-                  border: followStatus === 'accepted' ? '1px solid rgba(93,123,255,0.35)' : '1px solid rgba(255,255,255,0.1)',
-                  color: followStatus === 'accepted' ? '#5D7BFF' : 'rgba(255,255,255,0.7)',
-                }}
-              >
-                {fl.icon} {fl.text}
-              </button>
-              <button
-                onClick={handleConnect}
-                disabled={connBusy}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  background: connectStatus === 'accepted' ? 'rgba(52,211,153,0.15)' : 'rgba(93,123,255,0.18)',
-                  border: connectStatus === 'accepted' ? '1px solid rgba(52,211,153,0.35)' : '1px solid rgba(93,123,255,0.35)',
-                  color: connectStatus === 'accepted' ? '#34D399' : '#5D7BFF',
-                }}
-              >
-                {cl.icon} {cl.text}
-              </button>
-            </>
           )}
-        </div>
-
-        {/* Name, job, bio */}
-        <div style={{ padding: '56px 20px 20px' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 2px', letterSpacing: 0.3 }}>
-            {profileUser.arenaName}
-          </h1>
-          {profileUser.job && (
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Briefcase size={12} /> {profileUser.job}
-            </p>
-          )}
-          {profileUser.bio && (
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: '6px 0 0', maxWidth: 380 }}>
-              {profileUser.bio}
-            </p>
-          )}
-
-          {/* Stats row */}
-          <div style={{ display: 'flex', gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
-            {[
-              { value: profileUser.connectionsCount ?? 0, label: 'connexions' },
-              { value: profileUser.followersCount ?? 0, label: 'abonnés' },
-              { value: profileUser.personalPostsCount ?? 0, label: 'posts' },
-            ].map(stat => (
-              <div key={stat.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{stat.value}</span>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>{stat.label}</span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: '#FBBF24', display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Star size={14} fill="#FBBF24" /> {profileUser.credibilityScore}
-              </span>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>pts</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)',
-        position: 'sticky', top: 60, zIndex: 20,
-        background: 'rgba(10,12,18,0.95)', backdropFilter: 'blur(12px)',
-      }}>
-        {([
-          { id: 'posts',  label: 'Posts' },
-          { id: 'about',  label: 'À propos' },
-          { id: 'badges', label: 'Badges' },
-        ] as { id: Tab; label: string }[]).map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              flex: 1, padding: '13px 0', background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: tab === t.id ? 800 : 500,
-              color: tab === t.id ? '#5D7BFF' : 'rgba(255,255,255,0.4)',
-              borderBottom: tab === t.id ? '2px solid #5D7BFF' : '2px solid transparent',
-              transition: 'all 0.15s',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Tab content ────────────────────────────────────────────────────── */}
-      <div style={{ padding: '16px 16px 80px' }}>
-        <AnimatePresence mode="wait">
-
-          {/* Posts tab */}
-          {tab === 'posts' && (
-            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {isOwn && (
-                <div style={{ marginBottom: 14 }}>
-                  <AnimatePresence>
-                    {showNewPost ? (
-                      <NewPostForm
-                        key="form"
-                        myUserId={myUserId}
-                        myArenaUser={myArenaUser!}
-                        onCreated={handlePostCreated}
-                        onClose={() => setShowNewPost(false)}
-                      />
-                    ) : (
-                      <motion.button
-                        key="btn"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setShowNewPost(true)}
-                        style={{
-                          width: '100%', padding: '12px 0', borderRadius: 16,
-                          background: 'rgba(93,123,255,0.1)', border: '1.5px dashed rgba(93,123,255,0.3)',
-                          color: '#5D7BFF', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        }}
-                      >
-                        <Plus size={15} /> Nouveau post
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-
-              {postsLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-                  <Loader2 size={24} color="#5D7BFF" style={{ animation: 'spin 1s linear infinite' }} />
-                </div>
-              ) : posts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '48px 16px' }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>📝</div>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
-                    {isOwn ? 'Aucun post pour le moment. Partagez votre première pensée !' : 'Aucun post visible.'}
-                  </p>
-                </div>
-              ) : (
-                posts.map(post => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    myUserId={myUserId}
-                    myArenaUser={myArenaUser}
-                    isOwn={isOwn}
-                  />
-                ))
-              )}
-            </motion.div>
-          )}
-
-          {/* À propos tab */}
-          {tab === 'about' && (
-            <motion.div key="about" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div style={{
-                background: '#13161E', borderRadius: 20,
-                border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden',
-              }}>
-                {/* Job */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 pt-12 pb-32">
+          {/* En-tête éditorial du profil */}
+          <header className="pb-8 border-b border-[var(--border)]">
+            <div className="flex items-start gap-6 mb-6">
+              <Av name={profileUser.arenaName} size={84} prominent photoURL={profileUser.photoURL} />
+              <div className="flex-1 min-w-0 pt-2">
+                <SerifTitle size="xl" className="mb-2">
+                  {profileUser.arenaName}
+                </SerifTitle>
                 {profileUser.job && (
-                  <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(93,123,255,0.12)', border: '1px solid rgba(93,123,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Briefcase size={15} color="#5D7BFF" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8 }}>Profession</div>
-                      <div style={{ fontSize: 14, color: '#fff', fontWeight: 600, marginTop: 2 }}>{profileUser.job}</div>
-                    </div>
+                  <p
+                    className="text-[16px] text-[var(--text-primary)]/65 italic leading-tight"
+                    style={{ fontFamily: SERIF }}
+                  >
+                    {profileUser.job}
+                  </p>
+                )}
+                <p
+                  className="text-[12px] text-[var(--text-primary)]/55 italic mt-2"
+                  style={{ fontFamily: SERIF }}
+                >
+                  <span className="tabular-nums">{profileUser.credibilityScore}</span> points de crédibilité
+                </p>
+              </div>
+            </div>
+
+            {/* Bio */}
+            {profileUser.bio && (
+              <p
+                className="text-[17px] text-[var(--text-primary)]/80 italic leading-[1.6] mb-6 max-w-2xl"
+                style={{ fontFamily: SERIF }}
+              >
+                « {profileUser.bio} »
+              </p>
+            )}
+
+            {/* Statistiques */}
+            <div className="flex items-baseline gap-10 mb-6 flex-wrap">
+              {[
+                { value: profileUser.connectionsCount ?? 0, label: 'Connexions' },
+                { value: profileUser.followersCount ?? 0, label: 'Abonnés' },
+                { value: profileUser.personalPostsCount ?? 0, label: 'Posts' },
+              ].map((stat) => (
+                <div key={stat.label} className="flex flex-col items-baseline gap-1">
+                  <span
+                    className="text-[28px] text-[var(--text-primary)] tabular-nums leading-none"
+                    style={{ fontFamily: SERIF, fontWeight: 600 }}
+                  >
+                    {stat.value}
+                  </span>
+                  <MetaLabel>{stat.label}</MetaLabel>
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            {!isOwn && (
+              <div className="flex items-baseline gap-5 text-[12px] uppercase flex-wrap" style={{ letterSpacing: '0.22em' }}>
+                <button
+                  onClick={handleConnect}
+                  disabled={connBusy}
+                  className={cx(
+                    'transition-colors pb-1 border-b disabled:opacity-50 disabled:cursor-default',
+                    connectStatus === 'accepted'
+                      ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                      : 'text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] border-transparent',
+                  )}
+                >
+                  {connBusy ? <Loader2 size={11} className="animate-spin inline mr-1" /> : null}
+                  {connectVerb()}
+                </button>
+                <Dot />
+                <button
+                  onClick={handleFollow}
+                  disabled={connBusy}
+                  className={cx(
+                    'transition-colors pb-1 border-b disabled:opacity-50 disabled:cursor-default',
+                    followStatus === 'accepted'
+                      ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                      : 'text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] border-transparent',
+                  )}
+                >
+                  {followVerb()}
+                </button>
+              </div>
+            )}
+          </header>
+
+          {/* Onglets */}
+          <nav className="flex items-baseline gap-6 pt-6 pb-4 border-b border-[var(--border)]">
+            {([
+              { id: 'posts',  label: 'Posts' },
+              { id: 'about',  label: 'À propos' },
+              { id: 'badges', label: 'Distinctions' },
+            ] as { id: Tab; label: string }[]).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={cx(
+                  'text-[12px] uppercase transition-colors pb-2 -mb-px border-b',
+                  tab === t.id
+                    ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                    : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 border-transparent',
+                )}
+                style={{ letterSpacing: '0.22em' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Contenu des onglets */}
+          <AnimatePresence mode="wait">
+            {tab === 'posts' && (
+              <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {isOwn && (
+                  <div>
+                    <AnimatePresence mode="wait">
+                      {showNewPost && myArenaUser ? (
+                        <NewPostForm
+                          key="form"
+                          myUserId={myUserId}
+                          myArenaUser={myArenaUser}
+                          onCreated={handlePostCreated}
+                          onClose={() => setShowNewPost(false)}
+                        />
+                      ) : (
+                        <motion.button
+                          key="btn"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          onClick={() => setShowNewPost(true)}
+                          className="w-full text-[12px] uppercase text-[var(--text-primary)]/65 hover:text-[var(--text-primary)] py-5 mt-2 mb-2 border-b border-[var(--border)] hover:bg-[var(--text-primary)]/[0.02] transition-colors flex items-center justify-center gap-3"
+                          style={{ letterSpacing: '0.24em' }}
+                        >
+                          <span className="text-[var(--text-primary)]/40">+</span>
+                          Écrire un nouveau post
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 
-                {/* Passions */}
-                {profileUser.passions && profileUser.passions.length > 0 && (
-                  <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Heart size={11} /> Passions
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {profileUser.passions.map(p => (
-                        <span key={p} style={{
-                          padding: '5px 12px', borderRadius: 20,
-                          background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.2)',
-                          color: '#A78BFA', fontSize: 12, fontWeight: 600,
-                        }}>
-                          {p}
-                        </span>
-                      ))}
-                    </div>
+                {postsLoading ? (
+                  <div className="flex justify-center py-16">
+                    <Loader2 size={18} className="animate-spin text-[var(--text-primary)]/40" />
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="text-center py-16">
+                    <SerifTitle size="sm" className="mb-2">
+                      {isOwn ? 'Vous n\'avez encore rien publié' : 'Pas encore de posts'}
+                    </SerifTitle>
+                    <p
+                      className="text-[14px] text-[var(--text-primary)]/55 italic max-w-md mx-auto"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      {isOwn
+                        ? 'Partagez votre première pensée — un texte libre ou une conversation IA marquante.'
+                        : 'Cette personne n\'a pas encore partagé de publications visibles.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    {posts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        myUserId={myUserId}
+                        myArenaUser={myArenaUser}
+                        isOwn={isOwn}
+                      />
+                    ))}
                   </div>
                 )}
+              </motion.div>
+            )}
 
-                {/* Socials */}
-                {profileUser.socials && Object.values(profileUser.socials).some(Boolean) && (
-                  <div style={{ padding: '16px 18px' }}>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
-                      Réseaux sociaux
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {profileUser.socials.twitter && (
-                        <a href={`https://twitter.com/${profileUser.socials.twitter}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#38BDF8', textDecoration: 'none', fontSize: 13 }}>
-                          <Twitter size={16} /> @{profileUser.socials.twitter}
-                        </a>
-                      )}
-                      {profileUser.socials.instagram && (
-                        <a href={`https://instagram.com/${profileUser.socials.instagram}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#FB7185', textDecoration: 'none', fontSize: 13 }}>
-                          <Instagram size={16} /> @{profileUser.socials.instagram}
-                        </a>
-                      )}
-                      {profileUser.socials.website && (
-                        <a href={profileUser.socials.website} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#34D399', textDecoration: 'none', fontSize: 13 }}>
-                          <Globe size={16} /> {profileUser.socials.website.replace(/^https?:\/\//, '')}
-                        </a>
-                      )}
-                      {profileUser.socials.linkedin && (
-                        <a href={`https://linkedin.com/in/${profileUser.socials.linkedin}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#5D7BFF', textDecoration: 'none', fontSize: 13 }}>
-                          <Bookmark size={16} /> {profileUser.socials.linkedin}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Empty state */}
-                {!profileUser.job && (!profileUser.passions || profileUser.passions.length === 0) && (!profileUser.socials || !Object.values(profileUser.socials).some(Boolean)) && (
-                  <div style={{ padding: '40px 16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>🌐</div>
-                    <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>
-                      {isOwn ? 'Complétez votre profil dans les paramètres.' : 'Aucune information disponible.'}
+            {tab === 'about' && (
+              <motion.div key="about" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-8 space-y-8">
+                {profileUser.job && (
+                  <div>
+                    <MetaLabel className="block mb-2">Profession</MetaLabel>
+                    <p
+                      className="text-[18px] text-[var(--text-primary)] italic"
+                      style={{ fontFamily: SERIF, fontWeight: 500 }}
+                    >
+                      {profileUser.job}
                     </p>
                   </div>
                 )}
-              </div>
-            </motion.div>
-          )}
 
-          {/* Badges tab */}
-          {tab === 'badges' && (
-            <motion.div key="badges" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {profileUser.badges && profileUser.badges.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                  {profileUser.badges.map(badge => (
-                    <motion.div
-                      key={badge}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      style={{
-                        background: '#13161E', borderRadius: 18,
-                        border: '1px solid rgba(255,255,255,0.07)',
-                        padding: '20px 16px', textAlign: 'center',
-                      }}
+                {profileUser.passions && profileUser.passions.length > 0 && (
+                  <div>
+                    <MetaLabel className="block mb-3">Centres d'intérêt</MetaLabel>
+                    <p
+                      className="text-[17px] text-[var(--text-primary)]/80 italic leading-[1.7]"
+                      style={{ fontFamily: SERIF }}
                     >
-                      <div style={{
-                        width: 52, height: 52, borderRadius: '50%', margin: '0 auto 10px',
-                        background: 'linear-gradient(135deg, #FBBF2422, #F9731622)',
-                        border: '1px solid #FBBF2430',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 24,
-                      }}>
-                        ⭐
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', marginBottom: 3 }}>
-                        {BADGE_LABELS[badge] ?? badge}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
-                        Badge mérité
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '60px 16px' }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>🏅</div>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
-                    {isOwn
-                      ? 'Participez aux débats pour gagner vos premiers badges !'
-                      : 'Aucun badge encore.'}
-                  </p>
-                </div>
-              )}
-            </motion.div>
-          )}
+                      {profileUser.passions.join(' · ')}
+                    </p>
+                  </div>
+                )}
 
-        </AnimatePresence>
+                {profileUser.socials && Object.values(profileUser.socials).some(Boolean) && (
+                  <div>
+                    <MetaLabel className="block mb-3">Présent ailleurs</MetaLabel>
+                    <div className="space-y-2">
+                      {profileUser.socials.twitter && (
+                        <a
+                          href={`https://twitter.com/${profileUser.socials.twitter}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-[15px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors block"
+                          style={{ fontFamily: SERIF }}
+                        >
+                          <Twitter size={14} className="text-[var(--text-primary)]/55" />
+                          @{profileUser.socials.twitter}
+                        </a>
+                      )}
+                      {profileUser.socials.instagram && (
+                        <a
+                          href={`https://instagram.com/${profileUser.socials.instagram}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-[15px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors block"
+                          style={{ fontFamily: SERIF }}
+                        >
+                          <Instagram size={14} className="text-[var(--text-primary)]/55" />
+                          @{profileUser.socials.instagram}
+                        </a>
+                      )}
+                      {profileUser.socials.website && (
+                        <a
+                          href={profileUser.socials.website.startsWith('http') ? profileUser.socials.website : `https://${profileUser.socials.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-[15px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors block"
+                          style={{ fontFamily: SERIF }}
+                        >
+                          <Globe size={14} className="text-[var(--text-primary)]/55" />
+                          {profileUser.socials.website.replace(/^https?:\/\//, '')}
+                        </a>
+                      )}
+                      {profileUser.socials.linkedin && (
+                        <a
+                          href={`https://linkedin.com/in/${profileUser.socials.linkedin}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-[15px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors block"
+                          style={{ fontFamily: SERIF }}
+                        >
+                          <span className="text-[var(--text-primary)]/55 text-[14px]">in</span>
+                          {profileUser.socials.linkedin}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!profileUser.job
+                  && (!profileUser.passions || profileUser.passions.length === 0)
+                  && (!profileUser.socials || !Object.values(profileUser.socials).some(Boolean)) && (
+                    <p
+                      className="text-[14px] text-[var(--text-primary)]/55 italic text-center py-16"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      {isOwn
+                        ? 'Complétez votre profil dans les paramètres pour qu\'on apprenne à vous connaître.'
+                        : 'Cette personne n\'a pas encore renseigné d\'informations.'}
+                    </p>
+                  )}
+              </motion.div>
+            )}
+
+            {tab === 'badges' && (
+              <motion.div key="badges" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="py-8">
+                {profileUser.badges && profileUser.badges.length > 0 ? (
+                  <div className="space-y-5">
+                    {profileUser.badges.map((badge) => (
+                      <motion.div
+                        key={badge}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-baseline gap-4 pb-5 border-b border-[var(--border)] last:border-0"
+                      >
+                        <span
+                          className="text-[var(--text-primary)]/55"
+                          style={{ fontFamily: SERIF, fontSize: 24, fontStyle: 'italic' }}
+                        >
+                          ✦
+                        </span>
+                        <div className="flex-1">
+                          <SerifTitle size="sm" className="leading-tight">
+                            {BADGE_LABELS[badge] ?? badge}
+                          </SerifTitle>
+                          <p
+                            className="text-[13px] text-[var(--text-primary)]/55 italic mt-1"
+                            style={{ fontFamily: SERIF }}
+                          >
+                            Distinction obtenue
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <SerifTitle size="sm" className="mb-2">
+                      Aucune distinction pour l'instant
+                    </SerifTitle>
+                    <p
+                      className="text-[14px] text-[var(--text-primary)]/55 italic max-w-md mx-auto"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      {isOwn
+                        ? 'Participez à des débats — défendez vos idées avec rigueur, et les distinctions viendront.'
+                        : 'Cette personne n\'a pas encore reçu de distinction.'}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

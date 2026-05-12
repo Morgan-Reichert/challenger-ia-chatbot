@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  X, UserPlus, UserCheck, Users, Star, MessageSquare,
-  Briefcase, Globe, Twitter, Instagram, ExternalLink,
-  Loader2, UserMinus, Rss,
+  X, Globe, Twitter, Instagram, ExternalLink, Loader2,
 } from 'lucide-react';
-import type { ArenaUser, ArenaConnection } from './arenaTypes';
+import type { ArenaUser } from './arenaTypes';
 import {
   getArenaUser, getConnectionStatus, sendConnection,
   acceptConnection, removeConnection,
 } from './arenaFirestore';
-
-// ─── Props ────────────────────────────────────────────────────────────────────
+import { Av, SerifTitle, MetaLabel, Dot, SERIF, cx } from './_editorial';
 
 interface Props {
   targetUserId: string;
@@ -21,24 +18,8 @@ interface Props {
   onViewFullProfile: (userId: string) => void;
 }
 
-// ─── Avatar helpers ───────────────────────────────────────────────────────────
-
-const PALETTE = ['#5D7BFF', '#34D399', '#F87171', '#FBBF24', '#A78BFA', '#F97316', '#38BDF8', '#FB7185'];
-function avatarColor(name: string) {
-  let h = 0;
-  for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
-function initials(name: string) {
-  return name.slice(0, 2).toUpperCase();
-}
-
-// ─── Connection/Follow state types ───────────────────────────────────────────
-
 type ConnectState = 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 type FollowState = 'none' | 'following';
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ArenaUserModal({ targetUserId, myUserId, myArenaUser, onClose, onViewFullProfile }: Props) {
   const isSelf = targetUserId === myUserId;
@@ -50,7 +31,6 @@ export default function ArenaUserModal({ targetUserId, myUserId, myArenaUser, on
   const [followState, setFollowState] = useState<FollowState>('none');
   const [actionBusy, setActionBusy] = useState<'connect' | 'follow' | null>(null);
 
-  // Load profile + connection status on mount
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -61,37 +41,17 @@ export default function ArenaUserModal({ targetUserId, myUserId, myArenaUser, on
       ]);
       if (cancelled) return;
       setTargetUser(user);
-
       if (status) {
-        // Connection state
-        if (status.connect === 'accepted') {
-          setConnectState('accepted');
-        } else if (status.connect === 'pending') {
-          // We need to know if WE sent it or THEY sent it.
-          // getConnectionStatus checks both directions; it returns the doc it finds.
-          // We re-derive: if cSent exists → we sent it; else cReceived exists → they sent it.
-          // Since getConnectionStatus already merges, we can't tell direction here.
-          // We mark as pending_sent (safe fallback — UI shows "En attente").
-          setConnectState('pending_sent');
-        } else {
-          setConnectState('none');
-        }
-
-        // Follow state
-        if (status.iFollowThem) {
-          setFollowState('following');
-        } else {
-          setFollowState('none');
-        }
+        if (status.connect === 'accepted') setConnectState('accepted');
+        else if (status.connect === 'pending') setConnectState('pending_sent');
+        else setConnectState('none');
+        setFollowState(status.iFollowThem ? 'following' : 'none');
       }
-
       setLoading(false);
     }
     load();
     return () => { cancelled = true; };
   }, [targetUserId, myUserId, isSelf]);
-
-  // ── Connect action ──────────────────────────────────────────────────────────
 
   async function handleConnect() {
     if (!targetUser || actionBusy) return;
@@ -108,7 +68,6 @@ export default function ArenaUserModal({ targetUserId, myUserId, myArenaUser, on
         await acceptConnection(targetUserId, myUserId);
         setConnectState('accepted');
       } else if (connectState === 'accepted') {
-        // Disconnect — try both directions
         await removeConnection(myUserId, targetUserId, 'connect').catch(() =>
           removeConnection(targetUserId, myUserId, 'connect'),
         );
@@ -118,8 +77,6 @@ export default function ArenaUserModal({ targetUserId, myUserId, myArenaUser, on
       setActionBusy(null);
     }
   }
-
-  // ── Follow action ───────────────────────────────────────────────────────────
 
   async function handleFollow() {
     if (!targetUser || actionBusy) return;
@@ -141,330 +98,238 @@ export default function ArenaUserModal({ targetUserId, myUserId, myArenaUser, on
     }
   }
 
-  // ── View full profile ───────────────────────────────────────────────────────
-
   function handleViewFullProfile() {
     onViewFullProfile(targetUserId);
     onClose();
   }
 
-  // ── Connect button label/style ──────────────────────────────────────────────
-
-  function connectLabel() {
-    if (actionBusy === 'connect') return <Loader2 size={14} className="animate-spin" />;
-    if (connectState === 'accepted') return <><UserCheck size={14} />Connecté</>;
-    if (connectState === 'pending_sent' || connectState === 'pending_received') return 'En attente';
-    return <><UserPlus size={14} />Se connecter</>;
+  function connectVerb(): string {
+    if (connectState === 'accepted') return 'Vous êtes connectés';
+    if (connectState === 'pending_sent' || connectState === 'pending_received') return 'Demande en attente';
+    return 'Se connecter';
   }
 
-  function connectStyle(): React.CSSProperties {
-    const base: React.CSSProperties = {
-      display: 'flex', alignItems: 'center', gap: 6,
-      padding: '10px 18px', borderRadius: 12, fontWeight: 700,
-      fontSize: 13, cursor: actionBusy ? 'not-allowed' : 'pointer',
-      border: 'none', transition: 'opacity 0.15s',
-      opacity: actionBusy ? 0.6 : 1,
-    };
-    if (connectState === 'accepted') {
-      return { ...base, background: 'rgba(52,211,153,0.15)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' };
-    }
-    if (connectState === 'pending_sent' || connectState === 'pending_received') {
-      return { ...base, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', cursor: 'default' };
-    }
-    return { ...base, background: 'linear-gradient(135deg, #5D7BFF, #A78BFA)', color: '#fff' };
+  function followVerb(): string {
+    return followState === 'following' ? 'Vous suivez' : 'Suivre';
   }
-
-  // ── Follow button label/style ───────────────────────────────────────────────
-
-  function followLabel() {
-    if (actionBusy === 'follow') return <Loader2 size={14} className="animate-spin" />;
-    if (followState === 'following') return <><Rss size={14} />Abonné ✓</>;
-    return <><Rss size={14} />Suivre</>;
-  }
-
-  function followStyle(): React.CSSProperties {
-    const base: React.CSSProperties = {
-      display: 'flex', alignItems: 'center', gap: 6,
-      padding: '10px 18px', borderRadius: 12, fontWeight: 700,
-      fontSize: 13, cursor: actionBusy ? 'not-allowed' : 'pointer',
-      border: 'none', transition: 'opacity 0.15s',
-      opacity: actionBusy ? 0.6 : 1,
-    };
-    if (followState === 'following') {
-      return { ...base, background: 'rgba(93,123,255,0.15)', color: '#5D7BFF', border: '1px solid rgba(93,123,255,0.3)' };
-    }
-    return { ...base, background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.1)' };
-  }
-
-  // ── Avatar ──────────────────────────────────────────────────────────────────
-
-  function Avatar({ user, size = 72 }: { user: ArenaUser; size?: number }) {
-    const color = avatarColor(user.arenaName);
-    if (user.photoURL) {
-      return (
-        <img
-          src={user.photoURL}
-          alt={user.arenaName}
-          style={{
-            width: size, height: size, borderRadius: '50%',
-            objectFit: 'cover', border: `2.5px solid ${color}55`,
-            flexShrink: 0,
-          }}
-        />
-      );
-    }
-    return (
-      <div style={{
-        width: size, height: size, borderRadius: '50%', flexShrink: 0,
-        background: `${color}22`, border: `2.5px solid ${color}55`,
-        color, fontSize: size * 0.3, fontWeight: 900,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        letterSpacing: 1,
-      }}>
-        {initials(user.arenaName)}
-      </div>
-    );
-  }
-
-  // ── Stat pill ───────────────────────────────────────────────────────────────
-
-  function StatPill({ icon, value, label }: { icon: React.ReactNode; value: number | undefined; label: string }) {
-    return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-        padding: '10px 12px', borderRadius: 14,
-        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
-        flex: 1, minWidth: 0,
-      }}>
-        <div style={{ color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center' }}>{icon}</div>
-        <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>{value ?? 0}</span>
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
-      </div>
-    );
-  }
-
-  // ── Social link ─────────────────────────────────────────────────────────────
-
-  function SocialLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
-    return (
-      <a
-        href={href.startsWith('http') ? href : `https://${href}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '6px 12px', borderRadius: 10,
-          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-          color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600,
-          textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden',
-          textOverflow: 'ellipsis', maxWidth: 140,
-        }}
-      >
-        {icon}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-        <ExternalLink size={10} style={{ flexShrink: 0, opacity: 0.5 }} />
-      </a>
-    );
-  }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <AnimatePresence>
-      {/* Backdrop */}
       <motion.div
         key="backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 60,
-          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
-        }}
+        className="fixed inset-0 z-[60] bg-[var(--bg-app)]/85 backdrop-blur-md"
       />
 
-      {/* Sheet / Modal */}
       <motion.div
         key="sheet"
-        initial={{ y: '100%', opacity: 0 }}
+        initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-        style={{
-          position: 'fixed', zIndex: 61,
-          bottom: 0, left: 0, right: 0,
-          margin: '0 auto',
-          maxWidth: 480,
-          background: '#13161E',
-          borderRadius: '28px 28px 0 0',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderBottom: 'none',
-          overflow: 'hidden',
-          // On desktop, float it centered as a modal
-          ...(window.innerWidth >= 640 ? {
-            bottom: 'auto',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            borderRadius: 28,
-            border: '1px solid rgba(255,255,255,0.08)',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-          } : {}),
-        }}
+        exit={{ y: 24, opacity: 0 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+        className="fixed z-[61] inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 max-w-md w-full mx-auto bg-[var(--bg-chat)] border border-[var(--border)] overflow-y-auto max-h-[90vh]"
       >
-        {/* Close button */}
+        {/* Bouton fermer — discret, en haut à droite */}
         <button
           onClick={onClose}
-          style={{
-            position: 'absolute', top: 16, right: 16,
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.07)', border: 'none',
-            cursor: 'pointer', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', color: 'rgba(255,255,255,0.5)',
-            zIndex: 10,
-          }}
+          className="absolute top-4 right-4 text-[var(--text-primary)]/50 hover:text-[var(--text-primary)] transition-colors leading-none z-10"
         >
           <X size={16} />
         </button>
 
-        {/* Loading state */}
         {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 24px' }}>
-            <Loader2 size={28} color="#5D7BFF" className="animate-spin" />
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={20} className="animate-spin text-[var(--text-primary)]/40" />
           </div>
         )}
 
-        {/* Error / not found */}
         {!loading && !targetUser && (
-          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
-            Profil introuvable.
+          <div className="px-8 py-16 text-center">
+            <p
+              className="text-[15px] text-[var(--text-primary)]/55 italic"
+              style={{ fontFamily: SERIF }}
+            >
+              Profil introuvable.
+            </p>
           </div>
         )}
 
-        {/* Content */}
         {!loading && targetUser && (
           <>
-            {/* Header gradient band */}
-            <div style={{
-              background: `linear-gradient(135deg, ${avatarColor(targetUser.arenaName)}18, rgba(167,139,250,0.10))`,
-              padding: '32px 24px 20px',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <Avatar user={targetUser} size={72} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 900, fontSize: 17, color: '#fff', margin: 0, letterSpacing: 0.3 }}>
+            {/* En-tête éditorial : monogramme + nom serif + métier en italique */}
+            <div className="px-8 pt-12 pb-6 border-b border-[var(--border)]">
+              <div className="flex items-start gap-5">
+                <Av name={targetUser.arenaName} size={64} prominent photoURL={targetUser.photoURL} />
+                <div className="flex-1 min-w-0 pt-1">
+                  <SerifTitle size="md" className="mb-1">
                     {targetUser.arenaName}
-                  </p>
+                  </SerifTitle>
                   {targetUser.job && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                      <Briefcase size={12} color="rgba(255,255,255,0.4)" />
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {targetUser.job}
-                      </span>
-                    </div>
+                    <p
+                      className="text-[14px] text-[var(--text-primary)]/65 italic"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      {targetUser.job}
+                    </p>
                   )}
-                  {/* Credibility badge */}
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    marginTop: 6, padding: '3px 8px', borderRadius: 8,
-                    background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.25)',
-                  }}>
-                    <Star size={11} color="#FBBF24" fill="#FBBF24" />
-                    <span style={{ fontSize: 11, fontWeight: 800, color: '#FBBF24' }}>
-                      {targetUser.credibilityScore} pts
-                    </span>
-                  </div>
+                  <p
+                    className="text-[12px] text-[var(--text-primary)]/55 italic mt-1"
+                    style={{ fontFamily: SERIF }}
+                  >
+                    <span className="tabular-nums">{targetUser.credibilityScore}</span> points de crédibilité
+                  </p>
                 </div>
               </div>
 
-              {/* Bio */}
+              {/* Bio en italique, deux lignes max */}
               {targetUser.bio && (
-                <p style={{
-                  marginTop: 14, fontSize: 13, color: 'rgba(255,255,255,0.6)',
-                  lineHeight: 1.55, overflow: 'hidden',
-                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                }}>
-                  {targetUser.bio}
+                <p
+                  className="text-[15px] text-[var(--text-primary)]/75 italic leading-[1.6] mt-5 overflow-hidden"
+                  style={{
+                    fontFamily: SERIF,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                  }}
+                >
+                  « {targetUser.bio} »
                 </p>
               )}
             </div>
 
-            {/* Stats row */}
-            <div style={{ display: 'flex', gap: 8, padding: '16px 20px 0' }}>
-              <StatPill icon={<Users size={14} />} value={targetUser.connectionsCount} label="Connexions" />
-              <StatPill icon={<Rss size={14} />} value={targetUser.followersCount} label="Abonnés" />
-              <StatPill icon={<MessageSquare size={14} />} value={targetUser.totalComments} label="Posts" />
+            {/* Statistiques en ligne — typo */}
+            <div className="px-8 py-5 border-b border-[var(--border)]">
+              <div className="flex items-baseline justify-between gap-6">
+                {[
+                  { value: targetUser.connectionsCount ?? 0, label: 'Connexions' },
+                  { value: targetUser.followersCount ?? 0, label: 'Abonnés' },
+                  { value: targetUser.totalComments ?? 0, label: 'Contributions' },
+                ].map((stat) => (
+                  <div key={stat.label} className="flex flex-col items-baseline gap-1">
+                    <span
+                      className="text-[24px] text-[var(--text-primary)] tabular-nums leading-none"
+                      style={{ fontFamily: SERIF, fontWeight: 600 }}
+                    >
+                      {stat.value}
+                    </span>
+                    <MetaLabel>{stat.label}</MetaLabel>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Social links */}
-            {targetUser.socials && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '12px 20px 0' }}>
-                {targetUser.socials.twitter && (
-                  <SocialLink
-                    href={`https://twitter.com/${targetUser.socials.twitter.replace('@', '')}`}
-                    icon={<Twitter size={12} />}
-                    label={targetUser.socials.twitter}
-                  />
-                )}
-                {targetUser.socials.instagram && (
-                  <SocialLink
-                    href={`https://instagram.com/${targetUser.socials.instagram.replace('@', '')}`}
-                    icon={<Instagram size={12} />}
-                    label={targetUser.socials.instagram}
-                  />
-                )}
-                {targetUser.socials.website && (
-                  <SocialLink
-                    href={targetUser.socials.website}
-                    icon={<Globe size={12} />}
-                    label={targetUser.socials.website.replace(/^https?:\/\//, '')}
-                  />
-                )}
+            {/* Réseaux sociaux — liens texte */}
+            {targetUser.socials && (targetUser.socials.twitter || targetUser.socials.instagram || targetUser.socials.website) && (
+              <div className="px-8 py-4 border-b border-[var(--border)]">
+                <MetaLabel className="block mb-3">Le retrouver ailleurs</MetaLabel>
+                <div className="flex flex-col gap-2">
+                  {targetUser.socials.twitter && (
+                    <a
+                      href={`https://twitter.com/${targetUser.socials.twitter.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-[14px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      <Twitter size={13} className="text-[var(--text-primary)]/55" />
+                      {targetUser.socials.twitter}
+                      <ExternalLink size={10} className="text-[var(--text-primary)]/40" />
+                    </a>
+                  )}
+                  {targetUser.socials.instagram && (
+                    <a
+                      href={`https://instagram.com/${targetUser.socials.instagram.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-[14px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      <Instagram size={13} className="text-[var(--text-primary)]/55" />
+                      {targetUser.socials.instagram}
+                      <ExternalLink size={10} className="text-[var(--text-primary)]/40" />
+                    </a>
+                  )}
+                  {targetUser.socials.website && (
+                    <a
+                      href={targetUser.socials.website.startsWith('http') ? targetUser.socials.website : `https://${targetUser.socials.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-[14px] text-[var(--text-primary)]/75 hover:text-[var(--text-primary)] italic transition-colors"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      <Globe size={13} className="text-[var(--text-primary)]/55" />
+                      {targetUser.socials.website.replace(/^https?:\/\//, '')}
+                      <ExternalLink size={10} className="text-[var(--text-primary)]/40" />
+                    </a>
+                  )}
+                </div>
               </div>
             )}
 
             {/* Actions */}
-            <div style={{ padding: '16px 20px 24px' }}>
+            <div className="px-8 py-6">
               {isSelf ? (
-                /* Self — only show "Voir mon profil" */
                 <button
                   onClick={handleViewFullProfile}
-                  style={{
-                    width: '100%', padding: '14px', borderRadius: 16, border: 'none',
-                    background: 'linear-gradient(135deg, #5D7BFF, #A78BFA)',
-                    color: '#fff', fontWeight: 800, fontSize: 14,
-                    cursor: 'pointer', letterSpacing: 0.3,
-                  }}
+                  className="w-full text-[12px] uppercase text-[var(--text-primary)] py-3 border-y border-[var(--border)] hover:bg-[var(--text-primary)]/[0.04] transition-colors flex items-center justify-center gap-3"
+                  style={{ letterSpacing: '0.24em' }}
                 >
                   Voir mon profil
+                  <span className="text-[var(--text-primary)]/40">→</span>
                 </button>
               ) : (
                 <>
-                  {/* Connect + Follow row */}
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                    <button onClick={handleConnect} style={connectStyle()} disabled={!!actionBusy || connectState === 'pending_sent'}>
-                      {connectLabel()}
+                  {/* Connect + Follow — texte underline */}
+                  <div className="flex items-baseline gap-5 mb-5 flex-wrap text-[12px]" style={{ letterSpacing: '0.22em' }}>
+                    <button
+                      onClick={handleConnect}
+                      disabled={!!actionBusy || connectState === 'pending_sent'}
+                      className={cx(
+                        'uppercase transition-colors pb-1 border-b disabled:cursor-default',
+                        connectState === 'accepted'
+                          ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                          : 'text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] border-transparent',
+                        actionBusy === 'connect' && 'opacity-50',
+                      )}
+                    >
+                      {actionBusy === 'connect' ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 size={11} className="animate-spin" />
+                          {connectVerb()}
+                        </span>
+                      ) : connectVerb()}
                     </button>
-                    <button onClick={handleFollow} style={followStyle()} disabled={!!actionBusy}>
-                      {followLabel()}
+                    <Dot />
+                    <button
+                      onClick={handleFollow}
+                      disabled={!!actionBusy}
+                      className={cx(
+                        'uppercase transition-colors pb-1 border-b',
+                        followState === 'following'
+                          ? 'text-[var(--text-primary)] border-[var(--text-primary)]'
+                          : 'text-[var(--text-primary)]/55 hover:text-[var(--text-primary)] border-transparent',
+                        actionBusy === 'follow' && 'opacity-50',
+                      )}
+                    >
+                      {actionBusy === 'follow' ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 size={11} className="animate-spin" />
+                          {followVerb()}
+                        </span>
+                      ) : followVerb()}
                     </button>
                   </div>
 
-                  {/* Full profile CTA */}
                   <button
                     onClick={handleViewFullProfile}
-                    style={{
-                      width: '100%', padding: '14px', borderRadius: 16, border: 'none',
-                      background: 'linear-gradient(135deg, #5D7BFF, #A78BFA)',
-                      color: '#fff', fontWeight: 800, fontSize: 14,
-                      cursor: 'pointer', letterSpacing: 0.3,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
+                    className="w-full text-[12px] uppercase text-[var(--text-primary)] py-3 border-t border-[var(--border)] hover:bg-[var(--text-primary)]/[0.04] transition-colors flex items-center justify-center gap-3"
+                    style={{ letterSpacing: '0.24em' }}
                   >
-                    <ExternalLink size={15} />
-                    Voir le profil complet
+                    Lire le profil complet
+                    <span className="text-[var(--text-primary)]/40">→</span>
                   </button>
                 </>
               )}
