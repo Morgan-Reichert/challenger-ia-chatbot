@@ -3065,13 +3065,13 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 alt="Challenger IA"
                 className="h-14 w-auto mx-auto mb-3 object-contain"
               />
-              <p className="text-[8px] font-black uppercase tracking-widest text-white/20">
+              <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">
                 Stariax Group — Challenger IA
               </p>
             </div>
 
             {/* Toggle Connexion / Créer un compte */}
-            <div className="grid grid-cols-2 border-2 border-white/10 mb-6">
+            <div className="grid grid-cols-2 border-2 border-[var(--text-primary)]/15 mb-6">
               {(['login', 'signup'] as const).map((mode) => (
                 <button
                   key={mode}
@@ -3080,7 +3080,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     'py-2.5 text-[9px] font-black uppercase tracking-widest transition-all',
                     authMode === mode
                       ? 'bg-[#5D7BFF] text-white'
-                      : 'text-white/30 hover:text-white/60'
+                      : 'text-[var(--text-primary)]/50 hover:text-[var(--text-primary)]/80'
                   )}
                 >
                   {mode === 'login' ? 'Connexion' : 'Créer un compte'}
@@ -3095,11 +3095,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             >
               {/* Email */}
               <div>
-                <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">
+                <label className="block text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-1.5">
                   Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)]/40 pointer-events-none" />
                   <input
                     type="email"
                     required
@@ -3107,18 +3107,18 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     placeholder="votre@email.com"
-                    className="w-full bg-white/5 border-2 border-white/10 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                    className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
 
               {/* Mot de passe */}
               <div>
-                <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">
+                <label className="block text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-1.5">
                   Mot de passe
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)]/40 pointer-events-none" />
                   <input
                     type={authShowPassword ? 'text' : 'password'}
                     required
@@ -3126,12 +3126,12 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
                     placeholder={authMode === 'signup' ? '6 caractères minimum' : '••••••••'}
-                    className="w-full bg-white/5 border-2 border-white/10 focus:border-[#5D7BFF] pl-10 pr-10 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                    className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] pl-10 pr-10 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setAuthShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 transition-colors"
                   >
                     {authShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -3148,11 +3148,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     transition={{ duration: 0.18 }}
                     style={{ overflow: 'hidden' }}
                   >
-                    <label className="block text-[8px] font-black uppercase tracking-widest text-white/30 mb-1.5">
+                    <label className="block text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-1.5">
                       Confirmer le mot de passe
                     </label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-primary)]/40 pointer-events-none" />
                       <input
                         type={authShowPassword ? 'text' : 'password'}
                         required
@@ -3160,7 +3160,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         value={authConfirmPassword}
                         onChange={(e) => setAuthConfirmPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-white/5 border-2 border-white/10 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none transition-colors"
+                        className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
                       />
                     </div>
                   </motion.div>
@@ -3174,10 +3174,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 px-3 py-2.5"
+                    className="flex items-start gap-2 bg-red-500/10 border border-red-500/40 px-3 py-2.5"
                   >
-                    <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-red-400 leading-relaxed">{authFormError}</p>
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-red-500 leading-relaxed">{authFormError}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -3187,7 +3187,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 type="submit"
                 disabled={authFormLoading}
                 className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] disabled:opacity-40 transition-all"
-                style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.06)' }}
+                style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.18)' }}
               >
                 {authFormLoading
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Chargement…</>
@@ -3200,16 +3200,16 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
             {/* Séparateur */}
             <div className="flex items-center gap-4 my-5">
-              <div className="flex-1 h-px bg-white/10" />
-              <p className="text-[7px] font-black uppercase tracking-widest text-white/20">ou</p>
-              <div className="flex-1 h-px bg-white/10" />
+              <div className="flex-1 h-px bg-[var(--text-primary)]/15" />
+              <p className="text-[7px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">ou</p>
+              <div className="flex-1 h-px bg-[var(--text-primary)]/15" />
             </div>
 
             {/* Google */}
             <button
               onClick={handleSignIn}
               disabled={authFormLoading}
-              className="w-full flex items-center justify-center gap-3 py-3 bg-white/5 border-2 border-white/10 hover:border-white/25 hover:bg-white/10 text-white disabled:opacity-40 transition-all"
+              className="w-full flex items-center justify-center gap-3 py-3 bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 hover:border-[var(--text-primary)]/35 hover:bg-[var(--text-primary)]/[0.08] text-[var(--text-primary)] disabled:opacity-40 transition-all"
             >
               {/* Google icon SVG */}
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
@@ -3225,7 +3225,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
             {/* Auth error global (Google) */}
             {authError && (
-              <p className="mt-3 text-center text-[8px] text-red-400">{authError}</p>
+              <p className="mt-3 text-center text-[8px] text-red-500">{authError}</p>
             )}
 
           </div>
