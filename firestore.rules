@@ -2,81 +2,156 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Donnees utilisateur - acces prive uniquement
-    match /users/{userId}/{collection}/{docId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+    // Champs effectivement modifiés par cette écriture
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+    // L'écriture ne touche QUE les champs listés
+    function onlyChanged(allowedKeys) {
+      return changedKeys().hasOnly(allowedKeys);
     }
 
-    // Conversations partagees - lecture publique, ecriture authentifiee
+    // ─── Données utilisateur — accès privé strict ─────────────────────────────
+    match /users/{userId}/{collection}/{docId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ─── Conversations partagées ──────────────────────────────────────────────
+    // Lecture publique (lien de partage), création par tout user authentifié,
+    // mais seul le créateur peut modifier/supprimer ensuite.
     match /shared/{shareId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if isAuth()
+                    && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuth()
+                            && resource.data.ownerId == request.auth.uid;
     }
 
-    // Arena - profils utilisateurs
+    // ─── Arena — profils ──────────────────────────────────────────────────────
     match /arena_users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isAuth();
+      allow write: if isOwner(userId);
     }
 
-    // Arena - posts publics
+    // ─── Arena — posts ────────────────────────────────────────────────────────
+    // Author can edit content. Anyone authed can update counters (commentaires,
+    // votes, sondages) — sinon le débat se fige.
     match /arena_posts/{postId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && (request.resource.data.authorId == request.auth.uid
+                        || request.resource.data.isAnonymous == true);
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.authorId
+        || onlyChanged([
+             'commentCount',
+             'agreeCount', 'disagreeCount', 'nuanceCount',
+             'pollOptions',
+           ])
+      );
+      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
     }
 
-    // Arena - commentaires
+    // ─── Arena — commentaires ─────────────────────────────────────────────────
     match /arena_posts/{postId}/comments/{commentId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.authorId
+        || onlyChanged(['upvotes', 'upvotedBy'])
+      );
+      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
     }
 
-    // Arena - connexions (follow/connect)
+    // ─── Arena — connexions (follow / connect) ────────────────────────────────
+    // Emetteur crée, destinataire ou émetteur peut accepter / annuler.
     match /arena_connections/{connId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.fromUserId == request.auth.uid;
-      allow update: if request.auth != null;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.fromUserId == request.auth.uid;
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.fromUserId
+        || request.auth.uid == resource.data.toUserId
+      );
+      allow delete: if isAuth() && (
+        request.auth.uid == resource.data.fromUserId
+        || request.auth.uid == resource.data.toUserId
+      );
     }
 
-    // Arena - posts personnels
+    // ─── Arena — posts personnels ─────────────────────────────────────────────
     match /arena_personal_posts/{postId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.authorId
+        || onlyChanged(['likeCount', 'commentCount', 'likedBy'])
+      );
+      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
     }
 
-    // Arena - commentaires posts personnels
     match /arena_personal_posts/{postId}/comments/{commentId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.authorId
+        || onlyChanged(['upvotes', 'upvotedBy'])
+      );
+      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
     }
 
-    // XPOSE - posts
+    // ─── XPOSE — posts ────────────────────────────────────────────────────────
     match /xpose_posts/{postId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.authorId
+        || onlyChanged([
+             'resonanceCount', 'commentCount', 'amplifyCount',
+             'resonatedBy', 'amplifiedBy',
+             'pollOptions',
+           ])
+      );
+      allow delete: if isAuth() && resource.data.authorId == request.auth.uid;
     }
 
-    // XPOSE - commentaires
+    // ─── XPOSE — commentaires ────────────────────────────────────────────────
     match /xpose_posts/{postId}/comments/{commentId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null && resource.data.authorId == request.auth.uid;
+      allow read: if isAuth();
+      allow create: if isAuth()
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuth() && (
+        request.auth.uid == resource.data.authorId
+        || onlyChanged(['upvotes', 'upvotedBy'])
+      );
+      allow delete: if isAuth() && resource.data.authorId == request.auth.uid;
     }
 
-    // XPOSE - streaks
+    // ─── XPOSE — streaks ──────────────────────────────────────────────────────
     match /xpose_streaks/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isAuth();
+      allow write: if isOwner(userId);
     }
 
-    // Bloquer tout le reste
+    // ─── Daily challenges générés (cache lecture seule côté client) ──────────
+    // Écriture réservée au serveur via Admin SDK (bypass des rules).
+    match /daily_challenges/{dayId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ─── Bloquer tout le reste ────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

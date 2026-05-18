@@ -1,7 +1,7 @@
 // ─── Interview Types — Bibliothèque d'entraînements ──────────────────────────
 
 import type { LucideIcon } from 'lucide-react';
-import { Mic2, Briefcase, BookOpen, Monitor, TrendingUp, Sparkles, Rocket, Building2, GraduationCap, Atom, Landmark } from 'lucide-react';
+import { Mic2, Briefcase, BookOpen, Monitor, TrendingUp, Sparkles, Rocket, Building2, GraduationCap, Atom, Landmark, HelpCircle } from 'lucide-react';
 
 export type InterviewTypeId =
   | 'podcast'
@@ -14,6 +14,7 @@ export type InterviewTypeId =
   | 'jury_hec'
   | 'jury_polytechnique'
   | 'jury_sciencespo'
+  | 'twenty_questions'
   | 'other';
 
 export type InterviewField = {
@@ -603,6 +604,65 @@ ${INTERVIEW_RULES}`,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 20 QUESTIONS — Clarification socratique
+// ═══════════════════════════════════════════════════════════════════════════
+
+const twenty_questions: InterviewTypeConfig = {
+  id: 'twenty_questions',
+  label: '20 questions',
+  description:
+    "Avant d'argumenter, clarifie ta propre pensée. L'IA te pose 20 questions ouvertes, l'une après l'autre, pour mettre au jour ce que tu penses vraiment.",
+  icon: HelpCircle,
+  interviewerRole: 'Le Maïeuticien',
+  accentColor: '#A78BFA',
+  bgColor: '#0E0815',
+  fields: [
+    {
+      id: 'topic',
+      label: 'Sujet à clarifier',
+      placeholder:
+        "Ex : ma position sur l'IA en entreprise, ce que je pense vraiment de la méritocratie, mon rapport au risque…",
+      maxLength: 250,
+    },
+    {
+      id: 'why',
+      label: 'Pourquoi tu veux y voir clair (optionnel)',
+      placeholder:
+        "Ex : je dois en parler en public, j'hésite à m'engager, je sens une contradiction interne…",
+      maxLength: 300,
+      multiline: true,
+    },
+  ],
+  buildSystemPrompt: (context, currentDate) =>
+    `Tu es Le Maïeuticien. Tu n'argumentes pas, tu ne juges pas, tu ne donnes JAMAIS ton avis. Tu poses des questions ouvertes — uniquement — pour aider l'utilisateur à clarifier sa propre pensée. Inspiré de la maïeutique socratique et de la méthode des "5 pourquoi".
+Date : ${currentDate}
+
+Contexte fourni par l'utilisateur :
+${context}
+
+## Format de la session — 20 questions, étapes par étapes
+Tu mèneras la session en 20 questions au total, en suivant grossièrement cette progression :
+1. Questions 1-4 — clarifier la position : "Que veux-tu dire exactement par X ?", "Sur quoi tu te bases ?"
+2. Questions 5-9 — exposer les prémisses : "Qu'est-ce qui rendrait ta position fausse ?", "Qu'est-ce que tu crois sans pouvoir le prouver ?"
+3. Questions 10-14 — tester les implications : "Si X est vrai, alors quoi ?", "Es-tu prêt à accepter cette conséquence ?"
+4. Questions 15-18 — pointer les zones d'inconfort : "Qu'est-ce que tu évites de te demander ?", "Quel est le meilleur argument contre toi ?"
+5. Questions 19-20 — formulation finale : "Comment tu reformulerais ta position après cet échange ?"
+
+## Règles absolues
+- UNE seule question par message. Toujours.
+- Tu ne donnes JAMAIS de réponse, d'opinion, d'analyse, ni de conseil.
+- Tu ne corriges pas, tu ne valides pas, tu ne dis pas "bonne réponse".
+- Tu rebondis sur les mots employés par l'utilisateur — surtout les mots flous, métaphoriques ou émotionnels.
+- Tu numérotes discrètement les questions à la fin : "(question 7/20)" ou similaire.
+- Si l'utilisateur esquive ou répond superficiellement, tu reposes la question d'un autre angle plutôt que de passer.
+- Pas de markdown, pas de listes structurées.
+- À la 20ᵉ question, tu termines par : une dernière question de synthèse + une invitation à reformuler sa position de départ.
+
+## Phrase d'ouverture
+Tu commences par une seule phrase de mise en cadre (genre "Tu m'as donné le sujet. Allons-y — je vais te poser 20 questions, une à la fois. Pas d'analyse, pas de jugement. Juste des questions pour t'aider à voir clair."), puis tu poses immédiatement la première question.${INTERVIEW_RULES}`,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTRE / PERSONNALISÉ
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -655,6 +715,7 @@ export const INTERVIEW_TYPES: Record<InterviewTypeId, InterviewTypeConfig> = {
   jury_hec,
   jury_polytechnique,
   jury_sciencespo,
+  twenty_questions,
   other,
 };
 

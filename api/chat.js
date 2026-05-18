@@ -4,11 +4,18 @@
  * - TAVILY_API_KEY  : idem — recherche web côté serveur uniquement
  * - Paramètre `stream` : si true → SSE, sinon → JSON bloc (pour LibraryPage)
  *
+ * Garde-fous (cf. api/_lib/admin.js + api/_lib/quota.js) :
+ *  - Authentification ID token Firebase si Admin SDK configuré
+ *  - Rate limit (req/min/user) + quota journalier + déduction crédits
+ *    atomiques côté Supabase
+ *
  * Recherche web automatique :
  * - Détecte les questions nécessitant des infos récentes/actuelles
  * - Analyse de crédibilité des sources
  * - Détection de fake news par cross-référencement
  */
+import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
+import { checkAndConsumeQuota } from './_lib/quota.js';
 
 // ─── Sources connues et leur niveau de fiabilité ─────────────────────────────
 const SOURCE_TIERS = {
@@ -167,7 +174,7 @@ async function searchAndAnalyze(query, mode, tavilyKey) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { messages, model, temperature, searchQuery, stream = true } = req.body;
+  const { messages, model, temperature, searchQuery, stream = true, attachmentCount = 0 } = req.body;
 
   if (!messages || !model) {
     return res.status(400).json({ error: 'messages et model sont requis' });
@@ -176,6 +183,33 @@ export default async function handler(req, res) {
   const mistralKey = process.env.MISTRAL_API_KEY;
   if (!mistralKey) {
     return res.status(500).json({ error: 'MISTRAL_API_KEY non configurée sur le serveur' });
+  }
+
+  // ── Authentification + quota / rate limit ────────────────────────────────
+  // Si FIREBASE_ADMIN_* est configuré, le token est obligatoire.
+  // Sinon (dev local), on laisse passer en mode "skipped".
+  const { uid, error: authErr, skipped: authSkipped } = await verifyIdToken(req);
+  if (isAuthEnforced() && !uid) {
+    return res.status(401).json({ error: authErr === 'invalid_token' ? 'Token invalide' : 'Authentification requise' });
+  }
+
+  // Cap les pièces jointes (3 max — cf. README) pour éviter les coûts abusifs.
+  const safeAttachCount = Math.max(0, Math.min(3, Number(attachmentCount) || 0));
+  const cost = 1 + safeAttachCount * 3;
+
+  if (!authSkipped) {
+    const quota = await checkAndConsumeQuota(uid, cost);
+    if (!quota.allowed) {
+      const status = quota.reason === 'rate_limited' ? 429 :
+                     quota.reason === 'no_credits'   ? 402 :
+                     500;
+      return res.status(status).json({
+        error: quota.reason === 'rate_limited' ? 'Trop de requêtes — réessaie dans une minute'
+             : quota.reason === 'no_credits'   ? 'Quota épuisé et solde de crédits insuffisant'
+             : 'Erreur quota',
+        reason: quota.reason,
+      });
+    }
   }
 
   // ── Recherche web (auto-détection + manuelle) ─────────────────────────────

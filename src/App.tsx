@@ -11,7 +11,8 @@ import {
   Mic, MicOff, Volume2, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Moon, Sun, Copy, Share2, Link, Trophy, Rocket, Wrench,
-  Hexagon, ShieldAlert, Vote, Clock, Sparkles, Hourglass,
+  Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
+  HelpCircle,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ArenaPage from './arena/ArenaPage';
@@ -20,7 +21,7 @@ import remarkGfm from 'remark-gfm';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
 import { generateMarkdown, generateNotionMarkdown, generateObsidianMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
-import { getDailyChallenge, getChallengeProgress, incrementChallengeProgress } from './dailyChallenges';
+import { getDailyChallenge, fetchDailyChallenge, getChallengeProgress, incrementChallengeProgress, type DailyChallenge } from './dailyChallenges';
 import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
@@ -36,7 +37,8 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
-import { subscribeToNewsletter, getSubscription, getUserCredits, deductOneCredit, addCredits, CREDIT_PACKS, type Plan } from './supabase';
+import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
+import { apiFetch } from './apiClient';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -929,18 +931,24 @@ const SLASH_COMMANDS = [
     icon: Hourglass,
     shortcut: '/preparation',
   },
+  {
+    id: 'steelman',
+    label: 'Steelman mon argument',
+    desc: "L'IA reformule ton argument dans sa version la plus défendable, puis te pousse à le rendre encore plus solide",
+    icon: ShieldCheck,
+    shortcut: '/steelman',
+  },
 ] as const;
 
 type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
 
 // ─── Appel API Chat avec streaming SSE ───────────────────────────────────────
 async function streamChat(
-  payload: { messages: object[]; model: string; temperature: number; searchQuery?: string },
+  payload: { messages: object[]; model: string; temperature: number; searchQuery?: string; attachmentCount?: number },
   onChunk: (text: string) => void
 ): Promise<void> {
-  const res = await fetch('/api/chat', {
+  const res = await apiFetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, stream: true }),
   });
 
@@ -984,10 +992,10 @@ async function callChat(payload: {
   model: string;
   temperature: number;
   searchQuery?: string;
+  attachmentCount?: number;
 }): Promise<Response> {
-  return fetch('/api/chat', {
+  return apiFetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, stream: false }),
   });
 }
@@ -1342,7 +1350,16 @@ export default function App() {
   const [challengeRewarded, setChallengeRewarded] = useState<boolean>(() => {
     try { return getChallengeProgress() >= 3; } catch { return false; }
   });
-  const dailyChallenge = getDailyChallenge();
+  // Charge le défi via Firestore (généré par le cron) avec fallback statique
+  // synchrone pour éviter un flash vide au premier rendu.
+  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge>(() => getDailyChallenge());
+  useEffect(() => {
+    let cancelled = false;
+    fetchDailyChallenge()
+      .then((c) => { if (!cancelled) setDailyChallenge(c); })
+      .catch(() => {}); // fallback déjà en place
+    return () => { cancelled = true; };
+  }, []);
 
   // ── UX features
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('cia_onboarding_done'));
@@ -2027,10 +2044,11 @@ export default function App() {
             return;
           }
           creditConfirmedRef.current = false;
-          // Déduire les crédits
+          // Mise à jour UI optimiste — la déduction réelle se fait côté serveur
+          // dans api/chat.js (RPC check_chat_quota). Le solde sera reconfirmé
+          // par getUserCredits au prochain refresh.
           const remaining = userCredits - cost;
           setUserCredits(c => c - cost);
-          if (user) { const u = user; (async () => { for (let i = 0; i < cost; i++) await deductOneCredit(u.uid); })(); }
           const newWeekly = wkCount + cost;
           setWeeklyUsage({ count: newWeekly, week: thisWeek });
           // Notif selon crédits restants
@@ -2237,6 +2255,7 @@ RÈGLES ABSOLUES :
             model: debateModel,
             temperature,
             searchQuery: text,
+            attachmentCount: attachments?.length ?? 0,
             messages: [
               { role: 'system', content: enrichedSystemPrompt },
               ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
@@ -2667,6 +2686,38 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           'Ne flatte pas. Sois sévère mais juste.';
         showSlashNotif('Analyse des biais en cours…');
         runHiddenAnalysis(biasPrompt, '🔍 Détection de biais demandée — analyse en cours…');
+        return;
+      }
+
+      if (id === 'steelman') {
+        if (!activeId) {
+          showSlashNotif("Lance d'abord une conversation pour activer le steelman.", false);
+          return;
+        }
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv || conv.messages.filter((m) => m.role === 'user').length === 0) {
+          showSlashNotif("Aucun argument à renforcer — exprime d'abord ta position.", false);
+          return;
+        }
+        const steelmanPrompt =
+          "COMMANDE /steelman — Tu sors un instant de ton rôle pour faire un exercice de pure rigueur intellectuelle.\n\n" +
+          "Prends la position défendue par l'utilisateur dans cette conversation et reformule-la dans sa version la PLUS FORTE possible — celle qu'un défenseur d'élite et de bonne foi articulerait. Tu dois être plus convaincant que l'utilisateur lui-même.\n\n" +
+          "Format de réponse OBLIGATOIRE :\n\n" +
+          "## La position telle que tu l'as formulée\n" +
+          "Résumé fidèle en 1-2 phrases, sans ironie.\n\n" +
+          "## Steelman — version blindée\n" +
+          "Reformule-la en 3 à 5 phrases en :\n" +
+          "- Précisant les prémisses qui la rendent défendable\n" +
+          "- Utilisant les meilleures formulations possibles (pas les plus radicales)\n" +
+          "- Anticipant et désamorçant la contre-attaque évidente\n" +
+          "- Citant un argument ou une autorité qui la soutiennent\n\n" +
+          "## Ce qui te manque pour atteindre ce niveau\n" +
+          "2 ou 3 points concrets : un argument que tu n'as pas mobilisé, une nuance que tu n'as pas posée, une donnée à aller chercher.\n\n" +
+          "## Question qui te forcerait à monter d'un cran\n" +
+          "UNE seule question — la plus tranchante — que tu devrais pouvoir traiter pour rendre ta position imparable.\n\n" +
+          "Sois rigoureux. Ne flatte pas. L'objectif est de te faire progresser, pas de te rassurer. Tu peux ensuite reprendre ton rôle.";
+        showSlashNotif('Steelman en construction…');
+        runHiddenAnalysis(steelmanPrompt, '🛡️ Steelman demandé — l\'IA forge la version la plus solide…');
         return;
       }
 
@@ -4362,8 +4413,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               {!challengeRewarded ? (
                 <button
                   onClick={() => {
-                    const challenge = getDailyChallenge();
-                    setInput(challenge.prompt);
+                    setInput(dailyChallenge.prompt);
                     taRef.current?.focus();
                   }}
                   className="w-full text-left p-3 md:p-5 mb-3 md:mb-6 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"

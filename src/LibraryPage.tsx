@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { INTERVIEW_TYPES_LIST, type InterviewTypeConfig } from './interviewTypes';
 import { buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
+import { apiFetch } from './apiClient';
 
 // ─── cx helper ──────────────────────────────────────────────────────────────
 function cx(...classes: (string | boolean | undefined | null)[]): string {
@@ -64,9 +65,8 @@ export default function LibraryPage({ onBack, onStartInterview, userProfile }: P
 
     setInterviewRefining(true);
     try {
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mistral-small-latest',
           temperature: 0.4,
@@ -110,9 +110,8 @@ export default function LibraryPage({ onBack, onStartInterview, userProfile }: P
         .map(f => `- "${f.id}" (${f.label}) : ${f.placeholder}`)
         .join('\n');
 
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mistral-small-latest',
           temperature: 0.3,

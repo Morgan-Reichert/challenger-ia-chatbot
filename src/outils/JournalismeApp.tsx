@@ -19,6 +19,7 @@ import {
   type OutilProject,
   type OutilSessionMsg,
 } from './useOutilSessions';
+import { apiFetch } from '../apiClient';
 
 function cx(...c: (string | boolean | undefined | null)[]) { return c.filter(Boolean).join(' '); }
 function uid() { return Math.random().toString(36).slice(2, 11); }
@@ -417,9 +418,8 @@ export default function JournalismeApp({ onBack, paywallActive = false, outil }:
     abortRef.current = ctrl;
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         signal: ctrl.signal,
         body: JSON.stringify({
           model: 'mistral-large-latest',

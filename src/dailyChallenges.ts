@@ -1,7 +1,13 @@
 /**
  * dailyChallenges.ts — Défis quotidiens Challenger IA
- * Nouveau défi chaque jour, récompense +1 crédit après 3 messages
+ * Nouveau défi chaque jour, récompense +1 crédit après 3 messages.
+ *
+ * Source : `daily_challenges/{YYYY-MM-DD}` dans Firestore (généré chaque
+ * semaine par api/generate-challenges.js). Fallback : la liste statique
+ * ci-dessous (utilisée hors-ligne ou si le cron n'a pas tourné).
  */
+
+import { db, FIREBASE_ENABLED, doc, getDoc } from './firebase';
 
 export interface DailyChallenge {
   id: number;
@@ -46,7 +52,7 @@ export const DAILY_CHALLENGES: DailyChallenge[] = [
 ];
 
 /**
- * Retourne le défi du jour basé sur le jour de l'année
+ * Retourne le défi du jour basé sur le jour de l'année (fallback statique).
  */
 export function getDailyChallenge(): DailyChallenge {
   const now = new Date();
@@ -55,6 +61,54 @@ export function getDailyChallenge(): DailyChallenge {
   const oneDay = 1000 * 60 * 60 * 24;
   const dayOfYear = Math.floor(diff / oneDay);
   return DAILY_CHALLENGES[dayOfYear % DAILY_CHALLENGES.length];
+}
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Cache mémoire — évite de relire Firestore à chaque rendu.
+let _cachedDay: string | null = null;
+let _cachedChallenge: DailyChallenge | null = null;
+
+/**
+ * Lit le défi du jour depuis Firestore (généré par cron). Si indisponible
+ * (cron pas encore exécuté, Firebase off, hors-ligne…), fallback statique.
+ */
+export async function fetchDailyChallenge(): Promise<DailyChallenge> {
+  const day = todayISO();
+  if (_cachedDay === day && _cachedChallenge) return _cachedChallenge;
+
+  if (FIREBASE_ENABLED && db) {
+    try {
+      const snap = await getDoc(doc(db, 'daily_challenges', day));
+      if (snap.exists()) {
+        const data = snap.data() as Partial<DailyChallenge>;
+        const challenge: DailyChallenge = {
+          id: 0,
+          theme: data.theme ?? '🧠 Défi',
+          title: data.title ?? 'Défi du jour',
+          prompt: data.prompt ?? '',
+          difficulty: (['facile', 'moyen', 'difficile'] as const).includes(data.difficulty as 'facile')
+            ? (data.difficulty as DailyChallenge['difficulty'])
+            : 'moyen',
+          persona: (['architect', 'factchecker', 'opponent'] as const).includes(data.persona as 'architect')
+            ? (data.persona as DailyChallenge['persona'])
+            : 'architect',
+        };
+        _cachedDay = day;
+        _cachedChallenge = challenge;
+        return challenge;
+      }
+    } catch {
+      // ignore — fallback statique
+    }
+  }
+
+  const fallback = getDailyChallenge();
+  _cachedDay = day;
+  _cachedChallenge = fallback;
+  return fallback;
 }
 
 /**

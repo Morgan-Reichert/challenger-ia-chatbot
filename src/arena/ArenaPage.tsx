@@ -14,6 +14,7 @@ import {
 } from './arenaFirestore';
 import type { ArenaUser, ArenaPost, ArenaComment, Stance, SophismAlert, ArenaPollOption } from './arenaTypes';
 import { deductOneCredit } from '../supabase';
+import { apiFetch } from '../apiClient';
 import ArenaProfilePage from './ArenaProfilePage';
 import ArenaProfileSettings from './ArenaProfileSettings';
 import ArenaUserModal from './ArenaUserModal';
@@ -671,7 +672,7 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
     if (!await deductOneCredit(supabaseUserId)) { alert('Crédits insuffisants.'); return; }
     setCheckingId(c.id);
     try {
-      const r = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sophism', content: c.content, context: selectedPost.title }) });
+      const r = await apiFetch('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'sophism', content: c.content, context: selectedPost.title }) });
       const data: SophismAlert = await r.json();
       await saveSophismAlert(selectedPost.id, c.id, c.authorId, data);
       setComments(cs => cs.map(x => x.id === c.id ? { ...x, sophismAlert: data } : x));
@@ -683,7 +684,7 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
     if (!await deductOneCredit(supabaseUserId)) { alert('Crédits insuffisants.'); return; }
     setSynthLoading(true);
     try {
-      const r = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'synthesis', title: selectedPost.title, preamble: selectedPost.preamble, comments: comments.map(c => ({ stance: c.stance, content: c.content })) }) });
+      const r = await apiFetch('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'synthesis', title: selectedPost.title, preamble: selectedPost.preamble, comments: comments.map(c => ({ stance: c.stance, content: c.content })) }) });
       setSynthesis((await r.json()).result ?? '');
     } finally { setSynthLoading(false); }
   };
@@ -693,7 +694,7 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
     if (!await deductOneCredit(supabaseUserId)) { alert('Crédits insuffisants.'); return; }
     setFcLoading(true);
     try {
-      const r = await fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'factcheck', claim: fcClaim, context: selectedPost.title }) });
+      const r = await apiFetch('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'factcheck', claim: fcClaim, context: selectedPost.title }) });
       setFcResult((await r.json()).result ?? ''); setShowFc(false); setFcClaim('');
     } finally { setFcLoading(false); }
   };

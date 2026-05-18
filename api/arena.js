@@ -2,7 +2,11 @@
  * Vercel serverless function — L'Arène AI Arbiter
  * Actions: sophism | synthesis | factcheck
  * Returns JSON (non-streaming)
+ *
+ * Protégé par auth Firebase + rate limit (cf. api/_lib/admin.js + quota.js).
  */
+import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
+import { checkAndConsumeQuota } from './_lib/quota.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -10,6 +14,18 @@ export default async function handler(req, res) {
   const { action, ...params } = req.body;
   const mistralKey = process.env.MISTRAL_API_KEY;
   if (!mistralKey) return res.status(500).json({ error: 'MISTRAL_API_KEY manquante' });
+
+  const { uid, error: authErr, skipped: authSkipped } = await verifyIdToken(req);
+  if (isAuthEnforced() && !uid) {
+    return res.status(401).json({ error: authErr === 'invalid_token' ? 'Token invalide' : 'Authentification requise' });
+  }
+  if (!authSkipped) {
+    // Coût 0 — on consomme uniquement contre le rate limit (pas de crédits déduits).
+    const quota = await checkAndConsumeQuota(uid, 0);
+    if (!quota.allowed && quota.reason === 'rate_limited') {
+      return res.status(429).json({ error: 'Trop de requêtes — réessaie dans une minute' });
+    }
+  }
 
   let messages;
 
