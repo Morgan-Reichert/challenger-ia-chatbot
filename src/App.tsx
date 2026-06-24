@@ -27,7 +27,8 @@ import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
 import { mirrorBaseChatConvs } from './outils/JournalismeApp';
-import { getPinnedTools, type OutilId } from './outils/useOutilSessions';
+import { getPinnedTools } from './outils/useOutilSessions';
+import type { OutilId } from './outils/outilsTypes';
 import { OUTILS_MAP } from './outils/outilsTypes';
 import { DEBATE_PERSONAS, type DebateDisplayData } from './debatePersonas';
 import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from './interviewTypes';
@@ -2601,7 +2602,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               : `Chat — ${PERSONAS[conv.persona]?.name ?? 'Challenger'}`;
 
           await generateSessionPDF(
-            stripViz(summary),
+            summary,
             sessionTypeLabel,
             new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
             userProfile.displayName || undefined

@@ -279,7 +279,7 @@ function PaywallModal({ outil, onDismiss }: { outil: { name: string; accentColor
               Abonnement — Bientôt disponible
             </div>
             <button
-              onClick={onBack}
+              onClick={onDismiss}
               className="w-full py-2 text-[9px] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/60 transition-colors font-medium"
             >
               ← Retourner à la bibliothèque

@@ -31,7 +31,7 @@ export async function createArenaUser(userId: string, arenaName: string): Promis
 
 export async function updateArenaUserProfile(userId: string, data: Partial<ArenaUser>): Promise<void> {
   if (!db) return;
-  await updateDoc(doc(db, 'arena_users', userId), data as Record<string, unknown>);
+  await updateDoc(doc(db, 'arena_users', userId), data as Record<string, any>);
 }
 
 export async function checkArenaNameAvailable(name: string): Promise<boolean> {
