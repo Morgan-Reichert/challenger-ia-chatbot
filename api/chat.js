@@ -235,7 +235,10 @@ IMPORTANT : Tu dois impérativement :
 2. Citer les sources fiables trouvées (avec leur niveau de fiabilité).
 3. Signaler toute divergence entre les sources.
 4. Ne jamais présenter une information comme vraie si les sources de premier rang (✅) sont absentes.
-5. Terminer par un verdict clair : ✅ CONFIRMÉ / ❌ RÉFUTÉ / ⚠️ NON VÉRIFIÉ / 🔄 PARTIEL`
+5. Terminer par un verdict clair : ✅ CONFIRMÉ / ❌ RÉFUTÉ / ⚠️ NON VÉRIFIÉ / 🔄 PARTIEL
+6. Terminer par un visuel de fiabilité reflétant FIDÈLEMENT les sources ci-dessus, sur sa propre ligne :
+[CIA_VIZ:{"kind":"confidence","level":"solide|etaye|a_confirmer|non_verifie","claim":"l'affirmation vérifiée","note":"ex: 3 sources fiables concordantes"}]
+Choisis le palier ainsi : "solide" = plusieurs sources ✅ fiables concordent ; "etaye" = une source ✅ fiable ; "a_confirmer" = uniquement des sources ⚠️ modérées ; "non_verifie" = aucune source fiable ou sources divergentes. N'invente aucun chiffre dans la note — décris seulement les sources réellement trouvées.`
             : '';
 
           finalMessages = finalMessages.map((m, i) =>

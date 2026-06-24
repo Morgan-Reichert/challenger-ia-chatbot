@@ -18,6 +18,7 @@ import ReactMarkdown from 'react-markdown';
 import ArenaPage from './arena/ArenaPage';
 import PropulseModal from './arena/PropulseModal';
 import remarkGfm from 'remark-gfm';
+import { RichContent, stripViz } from './viz/VizBlocks';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
 import { generateMarkdown, generateNotionMarkdown, generateObsidianMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
@@ -200,7 +201,18 @@ Choix multiple : [CIA_Q:{"type":"choice","q":"Ta question ?","options":["Option 
 Texte libre : [CIA_Q:{"type":"text","q":"Ta question ?","placeholder":"Ex: indice ou exemple de réponse..."}]
 
 Exemples pertinents : niveau de maîtrise du sujet, vocabulaire souhaité (technique/accessible/philosophique), secteur d'activité, objectif derrière la thèse, type d'interlocuteur visé.
-Règle : UNE seule question par message, placée en DERNIÈRE ligne, uniquement si vraiment nécessaire pour personnaliser ta réponse suivante. Ne pas abuser.`;
+Règle : UNE seule question par message, placée en DERNIÈRE ligne, uniquement si vraiment nécessaire pour personnaliser ta réponse suivante. Ne pas abuser.
+
+## Visuels (OPTIONNEL — avec parcimonie)
+RÈGLE ABSOLUE : tu n'inventes JAMAIS de chiffre, de pourcentage ou de statistique. Ces visuels représentent des RELATIONS (opposition, structure, niveau de fiabilité), jamais des mesures fabriquées. Insère un visuel UNIQUEMENT quand il clarifie réellement le propos, via un marqueur JSON valide sur sa propre ligne. Maximum 1 visuel par message, en complément du texte (jamais à sa place).
+
+Balance Pour/Contre — pour peser deux positions opposées :
+[CIA_VIZ:{"kind":"balance","basis":"qualitatif","title":"Sujet","pour":["argument 1","argument 2"],"contre":["argument 1","argument 2"]}]
+
+Structure d'argument — pour déconstruire un raisonnement (idéal pour analyser une thèse, montrer les prémisses et leurs failles) :
+[CIA_VIZ:{"kind":"argmap","basis":"qualitatif","premises":[{"text":"prémisse 1","flaw":"faille de cette prémisse, ou omets le champ si aucune"},{"text":"prémisse 2"}],"conclusion":"conclusion qui découle (ou non) des prémisses"}]
+
+Le visuel "confidence" (fiabilité) est réservé au contexte de vérification factuelle et n'est à utiliser que lorsque des sources te sont fournies.`;
 
   const map: Record<Persona, Record<FrictionLevel, string>> = {
     architect: {
@@ -2220,7 +2232,16 @@ RÈGLES ABSOLUES :
 - Ne dis JAMAIS que tu n'as pas accès à internet, que tes données s'arrêtent en 2023 ou que tu ne peux pas connaître l'actualité récente.
 - Si des résultats web sont présents dans ce contexte, utilise-les comme source primaire et cite-les.
 - Si aucune donnée web n'est injectée mais que la question porte sur l'actualité, indique que tu n'as pas trouvé de résultats récents pour CETTE requête spécifique — mais pas que tu manques d'accès au web en général.
-- Tu es un assistant connecté et à jour. Comporte-toi comme tel.`;
+- Tu es un assistant connecté et à jour. Comporte-toi comme tel.
+
+## Rigueur chiffrée (RÈGLE ABSOLUE — NON NÉGOCIABLE)
+Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présenté comme précis s'il n'est pas réellement sourçable ou vérifiable — MÊME si l'utilisateur insiste, te le réclame explicitement, te met la pression ou reformule pour l'obtenir. Inventer une fausse précision (« 73 % », « note 8/10 », « 2,4 millions ») serait une faute, car cela donne une illusion de rigueur trompeuse.
+
+À la place, tu fais ceci :
+- Exprime l'incertitude en langage probabiliste QUALITATIF et nuancé : « très probable », « probable », « plausible », « incertain », « peu probable », « très improbable » — et EXPLIQUE toujours le raisonnement et les facteurs qui penchent dans un sens ou l'autre.
+- Si un ordre de grandeur ou une fourchette est réellement justifiable, présente-le explicitement comme une estimation raisonnée (« estimation grossière, à confirmer ») en exposant les hypothèses qui la sous-tendent.
+- Si l'utilisateur force pour un chiffre exact que tu ne peux pas étayer, REFUSE poliment et explique en une phrase pourquoi un chiffre inventé l'induirait en erreur, puis propose immédiatement l'analyse qualitative détaillée à la place.
+- Un chiffre n'est acceptable que s'il provient d'une donnée fournie par l'utilisateur ou d'une source réelle que tu peux nommer.`;
 
         const memoryResetAt = activeConvNow?.memoryResetAt;
         const contextMessages = memoryResetAt
@@ -2575,7 +2596,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
               : `Chat — ${PERSONAS[conv.persona]?.name ?? 'Challenger'}`;
 
           await generateSessionPDF(
-            summary,
+            stripViz(summary),
             sessionTypeLabel,
             new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
             userProfile.displayName || undefined
@@ -2616,7 +2637,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       if (id === 'exportmd') {
         const conv = conversations.find((c) => c.id === activeId);
         if (conv && conv.messages.length > 0) {
-          const md = generateMarkdown(conv.title, conv.messages, PERSONAS[conv.persona]?.name);
+          const md = generateMarkdown(conv.title, conv.messages.map(m => ({ ...m, content: stripViz(m.content) })), PERSONAS[conv.persona]?.name);
           downloadTextFile(md, `${conv.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`);
           showSlashNotif('Export Markdown téléchargé !');
           addCommandMsg('📥 Export Markdown téléchargé !');
@@ -2629,7 +2650,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
       if (id === 'copiernotion') {
         const conv = conversations.find((c) => c.id === activeId);
         if (conv && conv.messages.length > 0) {
-          const md = generateNotionMarkdown(conv.title, conv.messages, PERSONAS[conv.persona]?.name);
+          const md = generateNotionMarkdown(conv.title, conv.messages.map(m => ({ ...m, content: stripViz(m.content) })), PERSONAS[conv.persona]?.name);
           copyToClipboard(md).then(success => {
             if (success) {
               showSlashNotif('Conversation copiée pour Notion !');
@@ -2653,7 +2674,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         const persona = getDP(conv)?.name
           ?? (conv.interviewType ? INTERVIEW_TYPES[conv.interviewType]?.interviewerRole : null)
           ?? PERSONAS[conv.persona]?.name;
-        const md = generateObsidianMarkdown(conv.title, conv.messages, persona ?? 'Challenger IA');
+        const md = generateObsidianMarkdown(conv.title, conv.messages.map(m => ({ ...m, content: stripViz(m.content) })), persona ?? 'Challenger IA');
         const safeName = conv.title.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 60);
         downloadTextFile(md, `${safeName || 'challenger-session'}.md`);
         showSlashNotif('Note Obsidian téléchargée !');
@@ -2976,22 +2997,20 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         {PERSONAS[sharedConvView.persona as Persona]?.shortName ?? 'Challenger'}
                       </p>
                     )}
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                    <RichContent
+                      text={msg.content}
                       components={{
-                        p: ({ children }) => <p className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                        h2: ({ children }) => <h2 className="text-sm font-black uppercase tracking-wide mt-3 mb-1">{children}</h2>,
-                        ul: ({ children }) => <ul className="list-disc list-inside text-sm space-y-1 mb-2">{children}</ul>,
-                        li: ({ children }) => <li className="text-sm">{children}</li>,
-                        table: ({ children }) => <div className="overflow-x-auto my-2"><table className="w-full text-xs border-collapse border border-white/20">{children}</table></div>,
-                        th: ({ children }) => <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-wide bg-white/10 border border-white/20">{children}</th>,
-                        td: ({ children }) => <td className="px-3 py-2 text-[11px] border border-white/10 align-top">{children}</td>,
-                        tr: ({ children }) => <tr className="hover:bg-white/5">{children}</tr>,
+                        p: ({ children }: { children?: React.ReactNode }) => <p className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>,
+                        strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold">{children}</strong>,
+                        h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-sm font-black uppercase tracking-wide mt-3 mb-1">{children}</h2>,
+                        ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside text-sm space-y-1 mb-2">{children}</ul>,
+                        li: ({ children }: { children?: React.ReactNode }) => <li className="text-sm">{children}</li>,
+                        table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto my-2"><table className="w-full text-xs border-collapse border border-white/20">{children}</table></div>,
+                        th: ({ children }: { children?: React.ReactNode }) => <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-wide bg-white/10 border border-white/20">{children}</th>,
+                        td: ({ children }: { children?: React.ReactNode }) => <td className="px-3 py-2 text-[11px] border border-white/10 align-top">{children}</td>,
+                        tr: ({ children }: { children?: React.ReactNode }) => <tr className="hover:bg-white/5">{children}</tr>,
                       }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
+                    />
                     <p className="text-[8px] opacity-30 mt-2 text-right">
                       {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
@@ -4664,7 +4683,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           const isCopied = copiedMsgId === msg.id;
                           return (
                             <>
-                              <ReactMarkdown components={mdWhite} remarkPlugins={[remarkGfm]}>{displayed}</ReactMarkdown>
+                              <RichContent text={displayed} components={mdWhite} />
                               <div className="flex items-center gap-2 mt-2">
                                 {isLong && (
                                   <button
@@ -4680,7 +4699,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                 )}
                                 <button
                                   onClick={async () => {
-                                    await navigator.clipboard.writeText(msg.content);
+                                    await navigator.clipboard.writeText(stripViz(msg.content));
                                     playCopy();
                                     setCopiedMsgId(msg.id);
                                     setTimeout(() => setCopiedMsgId(null), 2000);
