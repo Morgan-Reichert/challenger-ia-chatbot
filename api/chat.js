@@ -92,19 +92,26 @@ function detectSearchNeed(messages) {
   return null;
 }
 
+function safeDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
 // ─── Recherche Tavily + analyse des sources ───────────────────────────────────
+// Renvoie { context, sources } :
+//  - context : texte injecté dans le prompt (sources NUMÉROTÉES à citer en [n])
+//  - sources : liste structurée renvoyée au client pour l'affichage cliquable
 async function searchAndAnalyze(query, mode, tavilyKey) {
+  const isFactcheck = mode === 'factcheck';
   const tavilyRes = await fetch('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       api_key: tavilyKey,
       query,
-      search_depth: mode === 'factcheck' ? 'advanced' : 'basic',
-      max_results: mode === 'factcheck' ? 8 : 5,
-      include_answer: true,
+      search_depth: isFactcheck ? 'advanced' : 'basic',
+      max_results: isFactcheck ? 10 : 5,
+      include_answer: isFactcheck ? 'advanced' : true,
       include_raw_content: false,
-      include_domains: [],
       exclude_domains: SOURCE_TIERS.low,
     }),
   });
@@ -112,62 +119,48 @@ async function searchAndAnalyze(query, mode, tavilyKey) {
   if (!tavilyRes.ok) return null;
   const data = await tavilyRes.json();
 
-  // Analyser chaque source
-  const analyzedResults = (data.results ?? []).map(r => ({
-    title: r.title,
-    content: (r.content ?? '').slice(0, 300),
-    url: r.url,
-    publishedDate: r.published_date ?? null,
-    tier: getSourceTier(r.url),
-    tierLabel: tierLabel(getSourceTier(r.url)),
-  }));
+  const TIER_RANK = { high: 0, medium: 1, unknown: 2, low: 3 };
 
-  // Grouper par fiabilité
-  const highSources = analyzedResults.filter(r => r.tier === 'high');
-  const mediumSources = analyzedResults.filter(r => r.tier === 'medium');
-  const unknownSources = analyzedResults.filter(r => r.tier === 'unknown' || r.tier === 'low');
+  // Analyser + trier par fiabilité (sources de premier rang en tête)
+  const sources = (data.results ?? [])
+    .map(r => {
+      const tier = getSourceTier(r.url);
+      return {
+        title: r.title || safeDomain(r.url),
+        snippet: (r.content ?? '').slice(0, 280),
+        url: r.url,
+        domain: safeDomain(r.url),
+        date: r.published_date ?? null,
+        tier,
+        tierLabel: tierLabel(tier),
+      };
+    })
+    .sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier])
+    .slice(0, isFactcheck ? 8 : 5)
+    .map((s, i) => ({ ...s, n: i + 1 })); // numérotation après tri
 
-  // Détecter les divergences (fact-check seulement)
-  let divergenceNote = '';
-  if (mode === 'factcheck' && analyzedResults.length >= 3) {
-    const sourceDomains = analyzedResults.map(r => new URL(r.url).hostname.replace(/^www\./, '')).join(', ');
-    divergenceNote = `\n\n📊 Croisement de ${analyzedResults.length} sources (${sourceDomains}).`;
-    if (highSources.length === 0) {
-      divergenceNote += ' ⚠️ Aucune source de premier rang trouvée — information à vérifier avec prudence.';
+  if (sources.length === 0) return { context: '', sources: [] };
+
+  const highCount = sources.filter(s => s.tier === 'high').length;
+  const mediumCount = sources.filter(s => s.tier === 'medium').length;
+
+  // ── Contexte injecté dans le prompt : sources numérotées ──
+  let context = '';
+  if (data.answer) context += `**Synthèse web automatique :** ${data.answer}\n\n`;
+
+  context += `**Sources numérotées — cite-les dans ta réponse avec [n] (ex : [1], [2]) :**\n`;
+  sources.forEach(s => {
+    context += `[${s.n}] (${s.tierLabel}) ${s.title} — ${s.domain}${s.date ? `, ${s.date}` : ''}\n${s.snippet}\n${s.url}\n\n`;
+  });
+
+  if (isFactcheck) {
+    context += `\n📊 Croisement : ${sources.length} sources (${highCount} de premier rang ✅, ${mediumCount} modérées ⚠️).`;
+    if (highCount === 0) {
+      context += ` Aucune source de premier rang — reste prudent et signale-le explicitement.`;
     }
   }
 
-  // Construire le contexte enrichi
-  let context = '';
-
-  if (data.answer) {
-    context += `**Synthèse web :** ${data.answer}\n\n`;
-  }
-
-  if (highSources.length > 0) {
-    context += `**Sources fiables :**\n`;
-    highSources.slice(0, 3).forEach(r => {
-      context += `• [${tierLabel(r.tier)}] ${r.title}\n  ${r.content}\n  🔗 ${r.url}${r.publishedDate ? ` (${r.publishedDate})` : ''}\n\n`;
-    });
-  }
-
-  if (mediumSources.length > 0) {
-    context += `**Sources secondaires :**\n`;
-    mediumSources.slice(0, 2).forEach(r => {
-      context += `• [${tierLabel(r.tier)}] ${r.title}\n  ${r.content}\n  🔗 ${r.url}\n\n`;
-    });
-  }
-
-  if (unknownSources.length > 0 && mode === 'factcheck') {
-    context += `**Sources non vérifiées (à traiter avec prudence) :**\n`;
-    unknownSources.slice(0, 2).forEach(r => {
-      context += `• [${tierLabel(r.tier)}] ${r.title}\n  🔗 ${r.url}\n\n`;
-    });
-  }
-
-  context += divergenceNote;
-
-  return context.trim();
+  return { context: context.trim(), sources };
 }
 
 // ─── Handler principal ────────────────────────────────────────────────────────
@@ -214,6 +207,7 @@ export default async function handler(req, res) {
 
   // ── Recherche web (auto-détection + manuelle) ─────────────────────────────
   let finalMessages = messages;
+  let webSources = []; // sources structurées renvoyées au client
   const tavilyKey = process.env.TAVILY_API_KEY;
 
   if (tavilyKey) {
@@ -225,20 +219,24 @@ export default async function handler(req, res) {
 
     if (searchTarget) {
       try {
-        const webContext = await searchAndAnalyze(searchTarget.query, searchTarget.mode, tavilyKey);
+        const result = await searchAndAnalyze(searchTarget.query, searchTarget.mode, tavilyKey);
 
-        if (webContext) {
-          const factcheckInstruction = searchTarget.mode === 'factcheck'
+        if (result && result.context) {
+          webSources = result.sources;
+          const isFactcheck = searchTarget.mode === 'factcheck';
+          const citationRule = `\n\n## Citation des sources (OBLIGATOIRE)
+Chaque affirmation factuelle que tu tires des sources ci-dessus DOIT être suivie de sa référence entre crochets : [n] (le numéro de la source). Tu peux en cumuler plusieurs : [1][3]. N'invente JAMAIS de numéro qui n'existe pas dans la liste. Ne mets une affirmation sans [n] que si elle ne provient pas des sources.`;
+
+          const factcheckInstruction = isFactcheck
             ? `\n\n## Instructions vérification des faits
-IMPORTANT : Tu dois impérativement :
-1. Indiquer explicitement si l'information est CONFIRMÉE, INFIRMÉE ou INDÉTERMINÉE selon les sources.
-2. Citer les sources fiables trouvées (avec leur niveau de fiabilité).
-3. Signaler toute divergence entre les sources.
-4. Ne jamais présenter une information comme vraie si les sources de premier rang (✅) sont absentes.
-5. Terminer par un verdict clair : ✅ CONFIRMÉ / ❌ RÉFUTÉ / ⚠️ NON VÉRIFIÉ / 🔄 PARTIEL
-6. Terminer par un visuel de fiabilité reflétant FIDÈLEMENT les sources ci-dessus, sur sa propre ligne :
+1. Décompose l'affirmation à vérifier en faits distincts si nécessaire.
+2. Pour chaque fait : CONFIRMÉ / INFIRMÉ / INDÉTERMINÉ selon les sources, avec la référence [n].
+3. Privilégie les sources de premier rang (✅). Ne présente jamais une info comme vraie si seules des sources non vérifiées l'appuient — dis-le explicitement.
+4. Signale toute divergence entre les sources (et entre quelles sources).
+5. Termine par un verdict clair : ✅ CONFIRMÉ / ❌ RÉFUTÉ / ⚠️ NON VÉRIFIÉ / 🔄 PARTIEL.
+6. Termine par un visuel de fiabilité reflétant FIDÈLEMENT les sources, sur sa propre ligne :
 [CIA_VIZ:{"kind":"confidence","level":"solide|etaye|a_confirmer|non_verifie","claim":"l'affirmation vérifiée","note":"ex: 3 sources fiables concordantes"}]
-Choisis le palier ainsi : "solide" = plusieurs sources ✅ fiables concordent ; "etaye" = une source ✅ fiable ; "a_confirmer" = uniquement des sources ⚠️ modérées ; "non_verifie" = aucune source fiable ou sources divergentes. N'invente aucun chiffre dans la note — décris seulement les sources réellement trouvées.`
+Paliers : "solide" = plusieurs ✅ concordent ; "etaye" = une ✅ ; "a_confirmer" = seulement ⚠️ ; "non_verifie" = aucune fiable ou sources divergentes. N'invente aucun chiffre dans la note.`
             : '';
 
           finalMessages = finalMessages.map((m, i) =>
@@ -247,7 +245,8 @@ Choisis le palier ainsi : "solide" = plusieurs sources ✅ fiables concordent ; 
                   ...m,
                   content: m.content
                     + `\n\n## Données web en temps réel (${new Date().toLocaleDateString('fr-FR')})\n`
-                    + webContext
+                    + result.context
+                    + citationRule
                     + factcheckInstruction,
                 }
               : m
@@ -284,6 +283,12 @@ Choisis le palier ainsi : "solide" = plusieurs sources ✅ fiables concordent ; 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
+
+    // Événement méta : on transmet d'abord les sources structurées au client
+    // (format distinct du delta Mistral — le client le reconnaît via `cia_meta`).
+    if (webSources.length > 0) {
+      res.write(`data: ${JSON.stringify({ cia_meta: { sources: webSources } })}\n\n`);
+    }
 
     const reader = mistralRes.body.getReader();
     const decoder = new TextDecoder();

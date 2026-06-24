@@ -19,6 +19,8 @@ import ArenaPage from './arena/ArenaPage';
 import PropulseModal from './arena/PropulseModal';
 import remarkGfm from 'remark-gfm';
 import { RichContent, stripViz } from './viz/VizBlocks';
+import { SourcesPanel, CitationChip, linkifyCitations } from './factcheck/SourcesPanel';
+import type { SourceRef } from './factcheck/SourcesPanel';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
 import { generateMarkdown, generateNotionMarkdown, generateObsidianMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
@@ -78,6 +80,7 @@ interface Message {
   persona: Persona;
   level: FrictionLevel;
   attachments?: Attachment[];
+  sources?: SourceRef[]; // sources web (fact-check) — rendues en cartes cliquables
 }
 
 interface Conversation {
@@ -500,6 +503,7 @@ function serializeConv(conv: Conversation) {
         id: a.id, name: a.name, type: a.type, mimeType: a.mimeType, size: a.size,
         content: a.type === 'image' ? '' : a.content.slice(0, 8000),
       })),
+      sources: m.sources ?? null,
     })),
   };
 }
@@ -529,6 +533,7 @@ function deserializeConv(data: Record<string, unknown>): Conversation {
       persona: (m.persona as Persona) ?? 'architect',
       level: (m.level as FrictionLevel) ?? 'moyen',
       attachments: ((m.attachments as Attachment[]) ?? []),
+      sources: (m.sources as SourceRef[] | null) ?? undefined,
     })),
   };
 }
@@ -790,17 +795,20 @@ const mdWhite = {
   // Séparateur horizontal
   hr: () => <div className="border-t border-white/20 my-4" />,
 
-  // Liens
-  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-white underline decoration-white/40 hover:decoration-white font-medium transition-all"
-    >
-      {children}
-    </a>
-  ),
+  // Liens — citations [n] (#cia-src-n) → puce cliquable ; sinon lien externe
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) =>
+    href && href.startsWith('#cia-src-') ? (
+      <CitationChip targetId={href.slice(1)}>{children}</CitationChip>
+    ) : (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-white underline decoration-white/40 hover:decoration-white font-medium transition-all"
+      >
+        {children}
+      </a>
+    ),
 };
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -963,7 +971,8 @@ type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
 // ─── Appel API Chat avec streaming SSE ───────────────────────────────────────
 async function streamChat(
   payload: { messages: object[]; model: string; temperature: number; searchQuery?: string; attachmentCount?: number },
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  onMeta?: (meta: { sources?: SourceRef[] }) => void
 ): Promise<void> {
   const res = await apiFetch('/api/chat', {
     method: 'POST',
@@ -994,6 +1003,7 @@ async function streamChat(
       try {
         const json = JSON.parse(data);
         if (json.error) throw new Error(typeof json.error === 'string' ? json.error : JSON.stringify(json.error));
+        if (json.cia_meta) { onMeta?.(json.cia_meta); continue; } // sources web (fact-check)
         const content = json.choices?.[0]?.delta?.content;
         if (content) onChunk(content);
       } catch (e) {
@@ -2300,6 +2310,19 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 }
               )
             );
+          },
+          (meta) => {
+            // Sources web (fact-check) reçues avant le flux → on les attache au message
+            if (meta.sources?.length) {
+              setConversations((p) =>
+                p.map((c) =>
+                  c.id !== convId ? c : {
+                    ...c,
+                    messages: c.messages.map((m) => (m.id === asstId ? { ...m, sources: meta.sources } : m)),
+                  }
+                )
+              );
+            }
           }
         );
 
@@ -4685,11 +4708,14 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           const COLLAPSE_THRESHOLD = 500;
                           const isLong = msg.content.length > COLLAPSE_THRESHOLD;
                           const isCollapsed = collapsedMsgs.has(msg.id);
-                          const displayed = isLong && isCollapsed ? msg.content.slice(0, 300) + '…' : msg.content;
+                          const raw = isLong && isCollapsed ? msg.content.slice(0, 300) + '…' : msg.content;
+                          // Citations [n] cliquables uniquement si des sources sont présentes
+                          const displayed = msg.sources?.length ? linkifyCitations(raw, msg.sources.length) : raw;
                           const isCopied = copiedMsgId === msg.id;
                           return (
                             <>
                               <RichContent text={displayed} components={mdWhite} streaming={sending && msgIdx === activeConv.messages.length - 1} />
+                              {msg.sources?.length ? <SourcesPanel sources={msg.sources} /> : null}
                               <div className="flex items-center gap-2 mt-2">
                                 {isLong && (
                                   <button
