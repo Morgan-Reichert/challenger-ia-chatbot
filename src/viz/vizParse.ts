@@ -33,11 +33,31 @@ export type ConfidenceSpec = {
 
 export type VizSpec = BalanceSpec | ArgMapSpec | ConfidenceSpec;
 
-export type Segment = { type: 'text'; value: string } | { type: 'viz'; value: VizSpec };
+export type Segment =
+  | { type: 'text'; value: string }
+  | { type: 'viz'; value: VizSpec }
+  | { type: 'vizfail' }; // marqueur détecté mais JSON invalide → fallback visible
 
 const TAG = '[CIA_VIZ:';
 
-export function splitViz(text: string): Segment[] {
+/** Parse JSON en réparant les petites fautes fréquentes des LLM (virgules
+ *  traînantes, fences ```json, guillemets « » utilisés comme délimiteurs). */
+function tolerantParse(raw: string): VizSpec | null {
+  const attempts = [
+    raw,
+    raw.replace(/,\s*([}\]])/g, '$1'), // virgules traînantes
+    raw.replace(/,\s*([}\]])/g, '$1').replace(/[“”«»]/g, '"').replace(/[‘’]/g, "'"),
+  ];
+  for (const a of attempts) {
+    try {
+      const parsed = JSON.parse(a) as VizSpec;
+      if (parsed && (parsed as VizSpec).kind) return parsed;
+    } catch { /* tentative suivante */ }
+  }
+  return null;
+}
+
+export function splitViz(text: string, opts: { streaming?: boolean } = {}): Segment[] {
   const out: Segment[] = [];
   let i = 0;
   let textStart = 0;
@@ -69,9 +89,12 @@ export function splitViz(text: string): Segment[] {
       else if (ch === '}') { depth--; if (depth === 0) { end = k; break; } }
     }
 
-    // JSON incomplet (streaming) → on masque le fragment et on s'arrête
+    // Objet non terminé
     if (end === -1) {
       if (idx > textStart) out.push({ type: 'text', value: text.slice(textStart, idx) });
+      // En streaming → fragment partiel attendu : on masque et on s'arrête.
+      // En final → marqueur cassé : on signale au lieu de disparaître.
+      if (!opts.streaming) out.push({ type: 'vizfail' });
       return out;
     }
 
@@ -80,16 +103,17 @@ export function splitViz(text: string): Segment[] {
     while (close < text.length && /\s/.test(text[close])) close++;
     if (text[close] !== ']') {
       if (idx > textStart) out.push({ type: 'text', value: text.slice(textStart, idx) });
+      if (!opts.streaming) out.push({ type: 'vizfail' });
       i = end + 1;
       textStart = i;
       continue;
     }
 
-    let spec: VizSpec | null = null;
-    try { spec = JSON.parse(text.slice(j, end + 1)) as VizSpec; } catch { spec = null; }
+    const spec = tolerantParse(text.slice(j, end + 1));
 
     if (idx > textStart) out.push({ type: 'text', value: text.slice(textStart, idx) });
-    if (spec && (spec as VizSpec).kind) out.push({ type: 'viz', value: spec });
+    if (spec) out.push({ type: 'viz', value: spec });
+    else if (!opts.streaming) out.push({ type: 'vizfail' });
     i = close + 1;
     textStart = i;
   }

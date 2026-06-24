@@ -206,6 +206,11 @@ Règle : UNE seule question par message, placée en DERNIÈRE ligne, uniquement 
 ## Visuels (OPTIONNEL — avec parcimonie)
 RÈGLE ABSOLUE : tu n'inventes JAMAIS de chiffre, de pourcentage ou de statistique. Ces visuels représentent des RELATIONS (opposition, structure, niveau de fiabilité), jamais des mesures fabriquées. Insère un visuel UNIQUEMENT quand il clarifie réellement le propos, via un marqueur JSON valide sur sa propre ligne. Maximum 1 visuel par message, en complément du texte (jamais à sa place).
 
+CONTRAINTES DE FORMAT (impératives, sinon le visuel ne s'affiche pas) :
+- Le marqueur doit être un JSON STRICTEMENT VALIDE, sur UNE SEULE LIGNE, sans bloc de code (pas de \`\`\`), sans texte autour sur la même ligne.
+- À l'intérieur des valeurs textuelles, n'utilise JAMAIS de guillemets droits ". Si tu dois citer, utilise des guillemets français « » ou des apostrophes. Ex : écris «10 % du cerveau» et non "10 % du cerveau".
+- Pas de virgule traînante avant } ou ].
+
 Balance Pour/Contre — pour peser deux positions opposées :
 [CIA_VIZ:{"kind":"balance","basis":"qualitatif","title":"Sujet","pour":["argument 1","argument 2"],"contre":["argument 1","argument 2"]}]
 
@@ -4683,7 +4688,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           const isCopied = copiedMsgId === msg.id;
                           return (
                             <>
-                              <RichContent text={displayed} components={mdWhite} />
+                              <RichContent text={displayed} components={mdWhite} streaming={sending && msgIdx === activeConv.messages.length - 1} />
                               <div className="flex items-center gap-2 mt-2">
                                 {isLong && (
                                   <button

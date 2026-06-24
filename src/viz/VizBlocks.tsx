@@ -199,15 +199,29 @@ function VizRenderer({ spec }: { spec: VizSpec }) {
   }
 }
 
+// Avis discret quand un marqueur a été émis mais que son JSON est invalide —
+// évite que le visuel « disparaisse » silencieusement.
+function VizFail() {
+  return (
+    <div className="my-3 border border-[#FBBF24]/30 bg-[#FBBF24]/5 px-3 py-2">
+      <p className="text-[9px] text-[#FBBF24]/80 leading-snug">
+        ⚠️ Un visuel était prévu ici mais son format n'a pas pu être affiché.
+      </p>
+    </div>
+  );
+}
+
 // ─── Wrapper : remplace <ReactMarkdown> et intercale les visuels ────────────────
 export function RichContent({
   text,
   components,
+  streaming = false,
 }: {
   text: string;
   components: Record<string, unknown>;
+  streaming?: boolean;
 }) {
-  const segments = splitViz(text);
+  const segments = splitViz(text, { streaming });
   return (
     <>
       {segments.map((seg, i) =>
@@ -217,6 +231,8 @@ export function RichContent({
               {seg.value}
             </ReactMarkdown>
           ) : null
+        ) : seg.type === 'vizfail' ? (
+          <VizFail key={i} />
         ) : (
           <VizRenderer key={i} spec={seg.value} />
         )
