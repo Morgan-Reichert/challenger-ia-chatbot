@@ -211,11 +211,13 @@ export default async function handler(req, res) {
   const tavilyKey = process.env.TAVILY_API_KEY;
 
   if (tavilyKey) {
-    // Détection automatique si pas de searchQuery explicite
-    const autoSearch = searchQuery ? null : detectSearchNeed(messages);
+    // On choisit le MODE via la détection (vérification de faits vs actualité),
+    // même quand searchQuery est fourni → l'expérience fact-check vaut pour
+    // n'importe quel persona, pas seulement par auto-détection.
+    const detected = detectSearchNeed(messages);
     const searchTarget = searchQuery
-      ? { query: searchQuery, mode: 'news' }
-      : autoSearch;
+      ? { query: searchQuery, mode: detected?.mode === 'factcheck' ? 'factcheck' : 'news' }
+      : detected;
 
     if (searchTarget) {
       try {
