@@ -124,6 +124,7 @@ const PERSONAS = {
     shortName: 'Architecte',
     desc: 'Structure et cohérence argumentative',
     icon: Scale,
+    color: '#5D7BFF',
   },
   factchecker: {
     id: 'factchecker' as const,
@@ -131,6 +132,7 @@ const PERSONAS = {
     shortName: 'Fact-Checker',
     desc: 'Vérification des preuves et données',
     icon: Search,
+    color: '#10B981',
   },
   opponent: {
     id: 'opponent' as const,
@@ -138,6 +140,7 @@ const PERSONAS = {
     shortName: 'Opposant',
     desc: 'Test des valeurs par la contradiction',
     icon: Swords,
+    color: '#EF4444',
   },
 } as const;
 
@@ -712,25 +715,21 @@ const mdWhite = {
     <p className="text-sm text-white leading-relaxed mb-3 last:mb-0">{children}</p>
   ),
 
-  // Titres de sections — style badge brutal
+  // Titres de sections — épuré (plus de barres ni d'encadré)
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <div className="flex items-center gap-2 mt-4 mb-2 first:mt-0">
-      <div className="h-px flex-1 bg-white/20" />
-      <p className="text-[8px] font-black uppercase tracking-widest text-white/50 px-2 py-0.5 border border-white/20">
-        {children}
-      </p>
-      <div className="h-px flex-1 bg-white/20" />
-    </div>
+    <p className="text-[11px] font-black uppercase tracking-wide text-white/90 mt-4 mb-1.5 first:mt-0">
+      {children}
+    </p>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mt-3 mb-1.5">
+    <p className="text-[10px] font-black uppercase tracking-wide text-white/55 mt-3 mb-1">
       {children}
     </p>
   ),
 
-  // Gras — fond blanc léger pour ressortir
+  // Gras — emphase sobre, sans encadré
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-black text-white bg-white/15 px-1 rounded-sm">{children}</strong>
+    <strong className="font-bold text-white">{children}</strong>
   ),
 
   // Italique
@@ -4509,11 +4508,14 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   );
                 }
 
+                // Couleur du persona (chat normal) — accent visuel par message
+                const pColor = PERSONAS[msg.persona ?? persona].color;
+
                 // ── Styles selon mode
                 const bubbleBg = (isInterview || isDebate) ? 'border-2'
                   : isUser
                     ? 'bg-[var(--bg-chat)] border-[#5D7BFF]/25'
-                    : 'bg-[#5D7BFF] border-[#5D7BFF] text-white';
+                    : 'border-2 text-white';
 
                 const bubbleStyle = isInterview
                   ? isUser
@@ -4525,7 +4527,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
                     : isUser
                       ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
-                      : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
+                      // Réponse IA : carte navy lisible + liseré gauche à la couleur du persona
+                      : { background: '#1b1d2e', borderColor: `${pColor}33`, borderLeftWidth: '3px', borderLeftColor: pColor, boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
 
                 return (
                 <React.Fragment key={msg.id}>
@@ -4565,24 +4568,27 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         })()}
                         {!isUser && !isInterview && !isDebate && (() => {
                           const MsgIcon = PERSONAS[msg.persona ?? persona].icon;
-                          return <MsgIcon className="w-2.5 h-2.5 text-white/50" />;
+                          return <MsgIcon className="w-2.5 h-2.5" style={{ color: pColor }} />;
                         })()}
                         {!isUser && !isInterview && isDebate && dp && (
                           <span className="text-[10px]">{dp.flag}</span>
                         )}
-                        <p className={cx(
-                          'text-[7px] font-black uppercase tracking-widest',
-                          (isInterview || isDebate)
-                            ? isUser ? 'text-white/30' : 'text-white/50'
-                            : isUser ? 'text-[var(--text-primary)]/30' : 'text-white/60'
-                        )}>
+                        <p
+                          className={cx(
+                            'text-[8px] font-black uppercase tracking-widest',
+                            (isInterview || isDebate)
+                              ? isUser ? 'text-white/30' : 'text-white/50'
+                              : isUser ? 'text-[var(--text-primary)]/30' : ''
+                          )}
+                          style={!isUser && !isInterview && !isDebate ? { color: pColor } : undefined}
+                        >
                           {isUser ? 'Vous'
                             : isInterview && ic ? ic.interviewerRole
                             : isDebate && dp ? dp.shortName
                             : PERSONAS[msg.persona ?? persona].shortName}
                         </p>
                         {!isUser && !isInterview && !isDebate && msg.level && (
-                          <span className="text-[6px] font-black uppercase tracking-widest text-white/25 border border-white/15 px-1 py-px">
+                          <span className="text-[6px] font-black uppercase tracking-widest text-white/40 border border-white/15 px-1 py-px">
                             {FRICTION[msg.level ?? level].label}
                           </span>
                         )}
