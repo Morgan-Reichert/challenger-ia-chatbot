@@ -42,10 +42,15 @@ DROP POLICY IF EXISTS subscribers_insert ON subscribers;
 CREATE POLICY subscribers_insert ON subscribers FOR INSERT TO anon, authenticated WITH CHECK (true);
 
 -- ── 3. REVOKE : le client ne peut plus appeler les RPC sensibles ───────────────
-REVOKE EXECUTE ON FUNCTION add_credits(text, int)        FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION deduct_one_credit(text)       FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION claim_daily_reward(text)      FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION check_chat_quota(text, int, int, int, int) FROM anon, authenticated;
+-- On retire le droit hérité de PUBLIC (sinon anon/authenticated le gardent), puis
+-- on le redonne EXPLICITEMENT au service_role (utilisé uniquement côté serveur).
+REVOKE EXECUTE ON FUNCTION add_credits(text, int)        FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION deduct_one_credit(text)       FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION claim_daily_reward(text)      FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION check_chat_quota(text, int, int, int, int) FROM PUBLIC, anon, authenticated;
 
--- Note : le service_role conserve l'accès à tout ce qui précède.
+GRANT EXECUTE ON FUNCTION add_credits(text, int)        TO service_role;
+GRANT EXECUTE ON FUNCTION deduct_one_credit(text)       TO service_role;
+GRANT EXECUTE ON FUNCTION claim_daily_reward(text)      TO service_role;
+GRANT EXECUTE ON FUNCTION check_chat_quota(text, int, int, int, int) TO service_role;
 -- ─────────────────────────────────────────────────────────────────────────────
