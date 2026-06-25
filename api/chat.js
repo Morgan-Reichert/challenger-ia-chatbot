@@ -181,6 +181,11 @@ export default async function handler(req, res) {
   // ── Authentification + quota / rate limit ────────────────────────────────
   // Si FIREBASE_ADMIN_* est configuré, le token est obligatoire.
   // Sinon (dev local), on laisse passer en mode "skipped".
+  // FAIL-CLOSED : en PRODUCTION, on refuse si l'auth n'est pas configurée —
+  // sinon l'endpoint serait ouvert et le budget Mistral pillable.
+  if (process.env.VERCEL_ENV === 'production' && !isAuthEnforced()) {
+    return res.status(503).json({ error: 'Service indisponible : authentification serveur non configurée (FIREBASE_ADMIN_*).' });
+  }
   const { uid, error: authErr, skipped: authSkipped } = await verifyIdToken(req);
   if (isAuthEnforced() && !uid) {
     return res.status(401).json({ error: authErr === 'invalid_token' ? 'Token invalide' : 'Authentification requise' });

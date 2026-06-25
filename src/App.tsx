@@ -2290,7 +2290,8 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
           {
             model: debateModel,
             temperature,
-            searchQuery: text,
+            // Pas de recherche systématique : le serveur décide via détection
+            // (mots de vérification / actualité) → maîtrise des coûts Tavily.
             attachmentCount: attachments?.length ?? 0,
             messages: [
               { role: 'system', content: enrichedSystemPrompt },
