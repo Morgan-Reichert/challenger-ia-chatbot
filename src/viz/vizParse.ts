@@ -122,6 +122,25 @@ export function splitViz(text: string, opts: { streaming?: boolean } = {}): Segm
   return out;
 }
 
+/**
+ * Répare les titres Markdown mal formés par le LLM pour qu'ils s'affichent
+ * toujours comme de vrais titres (et jamais en "## …" littéral) :
+ *  - **## Titre**  → ## Titre   (titre encadré de gras)
+ *  - ##Titre       → ## Titre   (espace manquante après les dièses)
+ */
+export function normalizeMd(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      // Titre entouré de ** ** → on retire le gras
+      let l = line.replace(/^(\s*)\*\*\s*(#{1,6})\s*(.+?)\s*\*\*\s*$/, '$1$2 $3');
+      // Dièses collés au titre → on insère l'espace
+      l = l.replace(/^(\s*)(#{1,6})([^#\s])/, '$1$2 $3');
+      return l;
+    })
+    .join('\n');
+}
+
 /** Retire tous les marqueurs visuels — pour la copie et les exports texte. */
 export function stripViz(text: string): string {
   return splitViz(text)

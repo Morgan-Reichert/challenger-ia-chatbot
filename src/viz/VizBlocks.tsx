@@ -17,10 +17,10 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { splitViz } from './vizParse';
+import { splitViz, normalizeMd } from './vizParse';
 import type { VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel } from './vizParse';
 
-export { splitViz, stripViz } from './vizParse';
+export { splitViz, stripViz, normalizeMd } from './vizParse';
 export type { VizSpec } from './vizParse';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
@@ -228,7 +228,7 @@ export function RichContent({
         seg.type === 'text' ? (
           seg.value.trim() ? (
             <ReactMarkdown key={i} components={components} remarkPlugins={[remarkGfm]}>
-              {seg.value}
+              {normalizeMd(seg.value)}
             </ReactMarkdown>
           ) : null
         ) : seg.type === 'vizfail' ? (
