@@ -3679,7 +3679,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                             setPersona(p.id);
                           }}
                           className={cx(
-                            'w-full flex items-center gap-3 px-4 py-3 text-left border-2 transition-all',
+                            'w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl border transition-all',
                             active
                               ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
                               : 'bg-transparent border-white/10 text-white/50 hover:border-white/25 hover:text-white/80'
@@ -3717,7 +3717,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       key={key}
                       onClick={() => setLevel(key)}
                       className={cx(
-                        'py-2 px-1 text-center border-2 transition-all',
+                        'py-2 px-1 text-center rounded-lg border transition-all',
                         level === key
                           ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
                           : 'bg-transparent border-white/10 text-white/35 hover:border-white/25 hover:text-white/60'
@@ -4163,7 +4163,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           )}
         </AnimatePresence>
         {/* Top bar */}
-        <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
+        <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)] px-6 py-4 flex items-center gap-4">
           {(!sidebarOpen || isMobile) && (
             <button
               onClick={() => setSidebarOpen((v) => !v)}
@@ -4173,8 +4173,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             </button>
           )}
           <div
-            className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
-            style={{ boxShadow: '0 6px 16px rgba(20,20,20,0.15)' }}
+            className="w-8 h-8 rounded-xl bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
+            style={{ boxShadow: '0 4px 12px rgba(93,123,255,0.3)' }}
           >
             <CurrentIcon className="w-4 h-4 text-white" />
           </div>
@@ -4237,7 +4237,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     }
                   }}
                   disabled={shareLoading}
-                  className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF]/60 transition-all text-[var(--text-primary)]/40 hover:text-[#5D7BFF] disabled:opacity-40"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#5D7BFF]/20 hover:border-[#5D7BFF]/60 hover:bg-[#5D7BFF]/5 transition-all text-[var(--text-primary)]/40 hover:text-[#5D7BFF] disabled:opacity-40"
                   title="Partager cette conversation"
                 >
                   {shareLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
@@ -4246,7 +4246,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               )}
               <button
                 onClick={startNewConv}
-                className="flex items-center gap-2 px-3 py-2 border-2 border-[#5D7BFF]/20 hover:border-[#5D7BFF] transition-all text-[var(--text-primary)]/40 hover:text-[#5D7BFF]"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#5D7BFF]/20 hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/5 transition-all text-[var(--text-primary)]/40 hover:text-[#5D7BFF]"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span className="text-[8px] font-black uppercase tracking-widest">Nouvelle</span>
@@ -5071,10 +5071,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
         {/* Input */}
         <div
           className={cx(
-            'flex-shrink-0 border-t-4 px-6 py-4 transition-colors',
+            'flex-shrink-0 border-t px-6 py-4 transition-colors',
             (activeConv?.interviewType || activeConv?.debatePersonaId)
               ? 'bg-[#0d0f1a] border-t-2 border-t-0'
-              : 'bg-[var(--bg-chat)] border-[#5D7BFF]'
+              : 'bg-[var(--bg-chat)] border-[var(--border)]'
           )}
           style={activeConv?.interviewType
             ? { borderTop: `2px solid ${INTERVIEW_TYPES[activeConv.interviewType]?.accentColor ?? '#5D7BFF'}40` }
