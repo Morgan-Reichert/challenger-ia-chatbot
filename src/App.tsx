@@ -837,6 +837,78 @@ const mdWhite = {
     ),
 };
 
+// ─── Markdown thème CLAIR (texte foncé sur bulle gris très clair) ─────────────────
+// Même structure que mdWhite (titres majuscules, puces carrées) mais lisible sur fond clair.
+const mdLight = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-sm text-[#20242e] leading-relaxed mb-3 last:mb-0">{children}</p>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-[11px] font-black uppercase tracking-wide text-[#111827] mt-4 mb-1.5 first:mt-0">{children}</p>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-[10px] font-black uppercase tracking-wide text-[#6b7280] mt-3 mb-1">{children}</p>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-[#111827]">{children}</strong>
+  ),
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className="italic text-[#4b5563]">{children}</em>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="space-y-1.5 mb-3 mt-1">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="space-y-1.5 mb-3 mt-1">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="flex items-start gap-2.5 text-sm text-[#20242e] leading-relaxed">
+      <span className="w-1.5 h-1.5 bg-[#9ca3af] flex-shrink-0 mt-1.5 rounded-sm" />
+      <span>{children}</span>
+    </li>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <div className="my-3 border-l-2 border-[#c9cdd4] bg-[#eef0f3] pl-3 pr-3 py-2.5 rounded-r-lg">
+      <div className="text-[7px] font-black uppercase tracking-widest text-[#9ca3af] mb-1.5 flex items-center gap-1.5">
+        <span className="w-3 h-px bg-[#c9cdd4]" />
+        Référence
+      </div>
+      <div className="text-xs text-[#4b5563] italic leading-relaxed">{children}</div>
+    </div>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="font-mono text-xs bg-[#eceef1] border border-[#e0e2e7] px-1.5 py-0.5 text-[#111827] rounded-sm">{children}</code>
+  ),
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="overflow-x-auto my-3"><table className="w-full text-xs border-collapse">{children}</table></div>
+  ),
+  thead: ({ children }: { children?: React.ReactNode }) => (
+    <thead className="border-b-2 border-[#d7dae0]">{children}</thead>
+  ),
+  tbody: ({ children }: { children?: React.ReactNode }) => (
+    <tbody className="divide-y divide-[#e6e8ec]">{children}</tbody>
+  ),
+  tr: ({ children }: { children?: React.ReactNode }) => (
+    <tr className="transition-colors hover:bg-[#f0f1f4]">{children}</tr>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="px-3 py-2 text-left text-[9px] font-black uppercase tracking-widest text-[#6b7280] whitespace-nowrap">{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="px-3 py-2 text-[11px] text-[#374151] leading-relaxed align-top">{children}</td>
+  ),
+  hr: () => <div className="border-t border-[#e6e8ec] my-4" />,
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) =>
+    href && href.startsWith('#cia-src-') ? (
+      <CitationChip targetId={href.slice(1)}>{children}</CitationChip>
+    ) : (
+      <a href={href} target="_blank" rel="noopener noreferrer"
+        className="text-[#2563eb] underline decoration-[#2563eb]/40 hover:decoration-[#2563eb] font-medium transition-all break-words">
+        {children}
+      </a>
+    ),
+};
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 // ─── ConvItem — session draggable ────────────────────────────────────────────
@@ -4542,8 +4614,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 // ── Styles selon mode
                 const bubbleBg = (isInterview || isDebate) ? 'border-2'
                   : isUser
-                    ? 'bg-[var(--bg-chat)] border-[#5D7BFF]/25'
-                    : 'border-2 text-white';
+                    ? 'bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/25 rounded-2xl'
+                    : 'border rounded-2xl';
 
                 const bubbleStyle = isInterview
                   ? isUser
@@ -4555,8 +4627,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
                     : isUser
                       ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
-                      // Réponse IA : carte navy lisible + liseré gauche à la couleur du persona
-                      : { background: '#1b1d2e', borderColor: `${pColor}33`, borderLeftWidth: '3px', borderLeftColor: pColor, boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' };
+                      // Réponse IA : carte gris très clair, bordure teintée persona, ombre douce
+                      : { background: '#f5f6f8', borderColor: `${pColor}30`, boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 10px 24px rgba(16,24,40,0.06)' };
 
                 return (
                 <React.Fragment key={msg.id}>
@@ -4579,14 +4651,14 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   className={cx('flex', isUser ? 'justify-end' : 'justify-start')}
                 >
                   <div
-                    className={cx('max-w-[78%] border-2', bubbleBg)}
+                    className={cx('max-w-[78%]', bubbleBg)}
                     style={bubbleStyle}
                   >
                     <div
                       className={cx(
                         'px-3 py-1 border-b flex items-center justify-between gap-4',
                         (isInterview || isDebate) ? 'border-white/5'
-                          : isUser ? 'border-[#5D7BFF]/10' : 'border-white/20'
+                          : isUser ? 'border-[#5D7BFF]/10' : 'border-[#e6e8ec]'
                       )}
                     >
                       <div className="flex items-center gap-1.5">
@@ -4616,7 +4688,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                             : PERSONAS[msg.persona ?? persona].shortName}
                         </p>
                         {!isUser && !isInterview && !isDebate && msg.level && (
-                          <span className="text-[6px] font-black uppercase tracking-widest text-white/40 border border-white/15 px-1 py-px">
+                          <span className="text-[6px] font-black uppercase tracking-widest text-[#6b7280] border border-[#dcdfe4] px-1 py-px rounded-sm">
                             {FRICTION[msg.level ?? level].label}
                           </span>
                         )}
@@ -4629,7 +4701,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       </div>
                       <p className={cx(
                         'text-[7px] font-mono',
-                        (isInterview || isDebate) ? 'text-white/20' : isUser ? 'text-[var(--text-primary)]/25' : 'text-white/40'
+                        (isInterview || isDebate) ? 'text-white/20' : isUser ? 'text-[var(--text-primary)]/25' : 'text-[#9aa0ac]'
                       )}>
                         {fmtTime(msg.timestamp)}
                       </p>
@@ -4695,7 +4767,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           const isCopied = copiedMsgId === msg.id;
                           return (
                             <>
-                              <RichContent text={displayed} components={mdWhite} streaming={sending && msgIdx === activeConv.messages.length - 1} />
+                              <RichContent text={displayed} components={(isInterview || isDebate) ? mdWhite : mdLight} streaming={sending && msgIdx === activeConv.messages.length - 1} />
                               {msg.sources?.length ? <SourcesPanel sources={msg.sources} /> : null}
                               <div className="flex items-center gap-2 mt-2">
                                 {isLong && (
@@ -4705,7 +4777,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                       isCollapsed ? n.delete(msg.id) : n.add(msg.id);
                                       return n;
                                     })}
-                                    className="text-[8px] font-black uppercase tracking-widest text-white/35 hover:text-white/70 border border-white/15 hover:border-white/35 px-2 py-0.5 transition-all"
+                                    className={cx('text-[8px] font-black uppercase tracking-widest border px-2 py-0.5 transition-all rounded-sm',
+                                      (isInterview || isDebate)
+                                        ? 'text-white/35 hover:text-white/70 border-white/15 hover:border-white/35'
+                                        : 'text-[#9aa0ac] hover:text-[#374151] border-[#dcdfe4] hover:border-[#9ca3af]')}
                                   >
                                     {isCollapsed ? '▼ Voir tout' : '▲ Condenser'}
                                   </button>
@@ -4717,7 +4792,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                     setCopiedMsgId(msg.id);
                                     setTimeout(() => setCopiedMsgId(null), 2000);
                                   }}
-                                  className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest text-white/25 hover:text-white/60 border border-white/10 hover:border-white/30 px-2 py-0.5 transition-all"
+                                  className={cx('flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest border px-2 py-0.5 transition-all rounded-sm',
+                                    (isInterview || isDebate)
+                                      ? 'text-white/25 hover:text-white/60 border-white/10 hover:border-white/30'
+                                      : 'text-[#9aa0ac] hover:text-[#374151] border-[#e0e2e7] hover:border-[#9ca3af]')}
                                   title="Copier la réponse"
                                 >
                                   {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
@@ -4732,7 +4810,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                   return (
                                     <button
                                       onClick={() => setPropulseData({ question: prevUserMsg.content, aiResponse: msg.content, personaName: pName })}
-                                      className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest text-white/20 hover:text-[#FBBF24]/80 border border-white/8 hover:border-[#FBBF24]/30 px-2 py-0.5 transition-all ml-auto"
+                                      className={cx('flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest border px-2 py-0.5 transition-all ml-auto rounded-sm',
+                                        (isInterview || isDebate)
+                                          ? 'text-white/20 hover:text-[#FBBF24]/80 border-white/8 hover:border-[#FBBF24]/30'
+                                          : 'text-[#9aa0ac] hover:text-[#b8860b] border-[#e6e8ec] hover:border-[#FBBF24]/50')}
                                       title="Propulser dans l'Arène"
                                     >
                                       <Rocket className="w-2.5 h-2.5" />

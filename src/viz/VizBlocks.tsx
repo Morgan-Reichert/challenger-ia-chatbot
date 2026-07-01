@@ -45,7 +45,7 @@ function Balance({ spec }: { spec: BalanceSpec }) {
   const pourPct = Math.round((pour.length / total) * 100);
 
   return (
-    <div className="my-4 border border-white/15 bg-black/20">
+    <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
         <span className="text-sm">⚖️</span>
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
@@ -95,7 +95,7 @@ function ArgMap({ spec }: { spec: ArgMapSpec }) {
   const premises = (spec.premises ?? []).filter((p) => p && p.text);
 
   return (
-    <div className="my-4 border border-white/15 bg-black/20">
+    <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
         <span className="text-sm">🧩</span>
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
@@ -153,7 +153,7 @@ function Confidence({ spec }: { spec: ConfidenceSpec }) {
   const active = CONF_STEPS[activeIdx] ?? CONF_STEPS[0];
 
   return (
-    <div className="my-4 border border-white/15 bg-black/20 p-3">
+    <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">Fiabilité</span>
         <span className="ml-auto text-[10px] font-black" style={{ color: active.color }}>
@@ -247,7 +247,7 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
   const conf = CONF_BANDS[confIdx] ?? CONF_BANDS[2];
 
   return (
-    <div className="my-4 border-2 border-white/15 bg-black/25 p-3">
+    <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl p-3">
       <div className="flex items-center gap-2 mb-2.5">
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">Verdict</span>
         {spec.basis && (

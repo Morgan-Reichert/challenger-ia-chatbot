@@ -60,6 +60,30 @@ export type Segment =
 
 const TAG = '[CIA_VIZ:';
 
+/** Dernier recours pour un verdict : extraire les champs à énumération par regex,
+ *  même si le JSON est cassé (guillemets droits dans claim/note, etc.). Les
+ *  champs fact/risk/consensus/confidence sont des valeurs fixes → très fiables. */
+function extractVerdict(raw: string): VerdictSpec | null {
+  if (!/["']?kind["']?\s*:\s*["']?verdict/.test(raw)) return null;
+  const g = (k: string) => {
+    const m = raw.match(new RegExp(`["']?${k}["']?\\s*:\\s*["']([^"']+)["']`));
+    return m?.[1]?.trim();
+  };
+  const fact = g('fact'), risk = g('risk'), consensus = g('consensus'), confidence = g('confidence');
+  if (!fact || !risk || !consensus || !confidence) return null;
+  const basis = g('basis');
+  return {
+    kind: 'verdict',
+    basis: (basis === 'sources' || basis === 'donnees_utilisateur' || basis === 'qualitatif') ? basis : undefined,
+    claim: g('claim'),
+    fact: fact as VerdictSpec['fact'],
+    risk: risk as VerdictSpec['risk'],
+    consensus: consensus as VerdictSpec['consensus'],
+    confidence: confidence as VerdictSpec['confidence'],
+    note: g('note'),
+  };
+}
+
 /** Parse JSON en réparant les petites fautes fréquentes des LLM (virgules
  *  traînantes, fences ```json, guillemets « » utilisés comme délimiteurs). */
 function tolerantParse(raw: string): VizSpec | null {
@@ -74,7 +98,8 @@ function tolerantParse(raw: string): VizSpec | null {
       if (parsed && (parsed as VizSpec).kind) return parsed;
     } catch { /* tentative suivante */ }
   }
-  return null;
+  // Dernier recours ciblé pour le verdict (le plus fréquent en Fact-Check V2)
+  return extractVerdict(raw);
 }
 
 export function splitViz(text: string, opts: { streaming?: boolean } = {}): Segment[] {

@@ -69,7 +69,7 @@ export function SourcesPanel({ sources }: { sources: SourceRef[] }) {
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div className="mt-3 border border-white/15 bg-black/20">
+    <div className="mt-3 border border-white/10 bg-[#15171f] rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5 transition-colors"
