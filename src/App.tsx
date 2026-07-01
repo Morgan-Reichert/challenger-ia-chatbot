@@ -1174,7 +1174,7 @@ function OnboardingOverlay({
             <button
               onClick={() => onStepChange(1)}
               className="px-8 py-3 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
-              style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.3)' }}
+              style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.3)' }}
             >
               Commencer →
             </button>
@@ -3305,7 +3305,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     placeholder="votre@email.com"
-                    className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
+                    className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -3324,7 +3324,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
                     placeholder={authMode === 'signup' ? '6 caractères minimum' : '••••••••'}
-                    className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] pl-10 pr-10 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
+                    className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
                   />
                   <button
                     type="button"
@@ -3358,7 +3358,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         value={authConfirmPassword}
                         onChange={(e) => setAuthConfirmPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] pl-10 pr-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
+                        className="w-full bg-[var(--text-primary)]/[0.04] border-2 border-[var(--text-primary)]/15 focus:border-[#5D7BFF] rounded-xl pl-10 pr-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35 focus:outline-none transition-colors"
                       />
                     </div>
                   </motion.div>
@@ -3384,8 +3384,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <button
                 type="submit"
                 disabled={authFormLoading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] disabled:opacity-40 transition-all"
-                style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.18)' }}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] disabled:opacity-40 transition-all"
+                style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.18)' }}
               >
                 {authFormLoading
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Chargement…</>
@@ -3685,7 +3685,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                               : 'bg-transparent border-white/10 text-white/50 hover:border-white/25 hover:text-white/80'
                           )}
                           style={
-                            active ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.2)' } : {}
+                            active ? { boxShadow: '0 6px 16px rgba(93,123,255,0.2)' } : {}
                           }
                         >
                           <Icon className="w-4 h-4 flex-shrink-0" />
@@ -3740,7 +3740,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     if (link) window.open(`${link}?client_reference_id=${user?.uid ?? ''}`, '_blank');
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#5D7BFF]/15 border-2 border-[#5D7BFF]/40 text-[#5D7BFF] text-[11px] font-black uppercase tracking-widest hover:bg-[#5D7BFF]/25 hover:border-[#5D7BFF]/70 transition-all"
-                  style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.1)' }}
+                  style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.1)' }}
                 >
                   <Crown className="w-4 h-4" />
                   7 jours gratuits — Pro
@@ -4174,7 +4174,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           )}
           <div
             className="w-8 h-8 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
-            style={{ boxShadow: '3px 3px 0px 0px rgba(20,20,20,0.15)' }}
+            style={{ boxShadow: '0 6px 16px rgba(20,20,20,0.15)' }}
           >
             <CurrentIcon className="w-4 h-4 text-white" />
           </div>
@@ -4277,7 +4277,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 transition={{ type: 'spring', stiffness: 320, damping: 28 }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
               >
-                <div className="pointer-events-auto w-full max-w-xs bg-[#141414] border-2 border-[#5D7BFF]/30 p-6 flex flex-col items-center gap-5" style={{ boxShadow: '6px 6px 0px 0px rgba(93,123,255,0.25)' }}>
+                <div className="pointer-events-auto w-full max-w-xs bg-[#141414] border border-[#5D7BFF]/25 rounded-2xl p-6 flex flex-col items-center gap-5" style={{ boxShadow: '0 12px 32px rgba(93,123,255,0.25)' }}>
                   {/* Close */}
                   <div className="w-full flex items-center justify-between">
                     <p className="text-[9px] font-black uppercase tracking-widest text-white/40">Challenger IA</p>
@@ -4333,8 +4333,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 transition={{ type: 'spring', stiffness: 340, damping: 28 }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
               >
-                <div className="pointer-events-auto w-full max-w-sm bg-[#141414] border-2 border-[#5D7BFF]/40 p-6 space-y-5"
-                  style={{ boxShadow: '6px 6px 0px 0px rgba(93,123,255,0.2)' }}>
+                <div className="pointer-events-auto w-full max-w-sm bg-[#141414] border border-[#5D7BFF]/25 rounded-2xl p-6 space-y-5"
+                  style={{ boxShadow: '0 12px 32px rgba(93,123,255,0.2)' }}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Share2 className="w-4 h-4 text-[#5D7BFF]" />
@@ -4626,7 +4626,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       ? { background: 'rgba(34,197,94,0.1)', borderColor: 'rgba(74,222,128,0.25)', boxShadow: '0 0 20px rgba(34,197,94,0.08)' }
                       : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
                     : isUser
-                      ? { boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.15)' }
+                      ? { boxShadow: '0 6px 16px rgba(93,123,255,0.15)' }
                       // Réponse IA : carte gris très clair, bordure teintée persona, ombre douce
                       : { background: '#f5f6f8', borderColor: `${pColor}30`, boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 10px 24px rgba(16,24,40,0.06)' };
 
@@ -4859,7 +4859,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         ? { background: `${ic2.accentColor}08`, borderLeftColor: ic2.accentColor, borderTopColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'transparent' }
                         : dp
                           ? { background: '#12141f', borderLeftColor: dp.color, borderTopColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'transparent' }
-                          : { boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
+                          : { boxShadow: '0 6px 16px rgba(20,20,20,0.12)' }}
                     >
                       <div className="flex items-center gap-3">
                         <Loader2 className="w-4 h-4 animate-spin text-white/50" />
@@ -4883,7 +4883,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 >
                   <div
                     className="flex items-start gap-3 bg-red-50 border-2 border-red-400 px-4 py-3 max-w-md"
-                    style={{ boxShadow: '4px 4px 0px 0px rgba(239,68,68,0.2)' }}
+                    style={{ boxShadow: '0 6px 16px rgba(239,68,68,0.2)' }}
                   >
                     <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                     <div>
@@ -5051,7 +5051,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         send(t, a);
                       }}
                       className="px-4 py-1.5 bg-[#F59E0B] text-white text-[9px] font-black uppercase tracking-widest hover:bg-[#D97706] transition-colors"
-                      style={{ boxShadow: '3px 3px 0px 0px rgba(217,119,6,0.3)' }}
+                      style={{ boxShadow: '0 6px 16px rgba(217,119,6,0.3)' }}
                     >
                       Oui, utiliser mes crédits
                     </button>
@@ -5175,7 +5175,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       ? 'bg-[#0d0f1a] border-white/10'
                       : 'bg-[var(--bg-chat)] border-[#5D7BFF]/25'
                   )}
-                  style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.12)' }}
+                  style={{ boxShadow: '0 6px 16px rgba(20,20,20,0.12)' }}
                 >
                   <p className={cx(
                     'text-[8px] font-black uppercase tracking-widest px-3 pt-2.5 pb-1',
@@ -5544,7 +5544,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     animate={{ opacity: 1, scale: 1 }}
                     onClick={startListening}
                     className="flex items-center gap-2 px-6 py-3.5 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
-                    style={{ boxShadow: '4px 4px 0px 0px rgba(93,123,255,0.25)' }}
+                    style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.25)' }}
                   >
                     <Mic className="w-4 h-4" />
                     Parler
@@ -5649,15 +5649,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 20 }}
               transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              className="bg-[#141414] border-4 border-[#5D7BFF] w-full max-w-md"
-              style={{ boxShadow: '8px 8px 0px 0px rgba(93,123,255,0.3)' }}
+              className="bg-[#141414] border border-[#5D7BFF]/25 rounded-2xl w-full max-w-md overflow-hidden"
+              style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.3)' }}
             >
               {/* Header */}
               <div className="px-6 py-5 border-b-2 border-white/10">
                 <div className="flex items-center gap-3 mb-4">
                   <div
                     className="w-9 h-9 bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
-                    style={{ boxShadow: '3px 3px 0px 0px rgba(255,255,255,0.08)' }}
+                    style={{ boxShadow: '0 6px 16px rgba(255,255,255,0.08)' }}
                   >
                     <img
                       src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
@@ -5777,7 +5777,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   onClick={handleConsentAccept}
                   disabled={!consentCgu || consentLoading}
                   className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest transition-all hover:bg-[#4a68e8] disabled:opacity-30 disabled:cursor-not-allowed"
-                  style={{ boxShadow: consentCgu ? '4px 4px 0px 0px rgba(255,255,255,0.08)' : 'none' }}
+                  style={{ boxShadow: consentCgu ? '0 6px 16px rgba(255,255,255,0.08)' : 'none' }}
                 >
                   {consentLoading
                     ? <><Loader2 className="w-4 h-4 animate-spin" /> Enregistrement…</>
@@ -5816,8 +5816,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              className="bg-[#141414] border-4 border-[#5D7BFF] w-full max-w-sm"
-              style={{ boxShadow: '8px 8px 0px 0px rgba(93,123,255,0.25)' }}
+              className="bg-[#141414] border border-[#5D7BFF]/25 rounded-2xl w-full max-w-sm overflow-hidden"
+              style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.25)' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -5865,7 +5865,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <div className="px-6 pb-6 space-y-2">
                 <button
                   className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
-                  style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.08)' }}
+                  style={{ boxShadow: '0 6px 16px rgba(255,255,255,0.08)' }}
                   onClick={() => {
                     const link = import.meta.env.VITE_STRIPE_PAYMENT_LINK;
                     if (link) window.open(`${link}?client_reference_id=${user?.uid ?? ''}`, '_blank');
@@ -5909,8 +5909,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              className="bg-[#0e1018] border-4 border-[#5D7BFF] w-full max-w-2xl max-h-[88vh] overflow-y-auto"
-              style={{ boxShadow: '8px 8px 0px 0px rgba(93,123,255,0.25)' }}
+              className="bg-[#0e1018] border border-[#5D7BFF]/25 rounded-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto"
+              style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.25)' }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-6 py-5 border-b-2 border-white/10 flex items-center justify-between">
@@ -6082,8 +6082,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 16 }}
               transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-              className="bg-[#141414] border-4 border-red-500 w-full max-w-md"
-              style={{ boxShadow: '8px 8px 0px 0px rgba(239,68,68,0.35)' }}
+              className="bg-[#141414] border border-red-500/40 rounded-2xl w-full max-w-md overflow-hidden"
+              style={{ boxShadow: '0 6px 16px rgba(239,68,68,0.35)' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
