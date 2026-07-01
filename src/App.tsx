@@ -929,8 +929,8 @@ function ConvItem({
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
       onDragEnd={onDragEnd}
       className={cx(
-        'flex items-center gap-1 group border-l-2 transition-all cursor-grab active:cursor-grabbing',
-        isActive ? 'border-[#5D7BFF]' : 'border-transparent hover:border-white/15'
+        'flex items-center gap-1 group rounded-lg transition-all cursor-grab active:cursor-grabbing',
+        isActive ? 'bg-[#5D7BFF]/12' : 'hover:bg-white/5'
       )}
     >
       <GripVertical className="w-3 h-3 flex-shrink-0 text-white/10 group-hover:text-white/25 ml-1 transition-colors" />
@@ -938,7 +938,7 @@ function ConvItem({
         onClick={onSelect}
         className={cx(
           'flex-1 flex items-center gap-2 px-2 py-1.5 text-left transition-all min-w-0',
-          isActive ? 'bg-[#5D7BFF]/15 text-white' : 'text-white/35 hover:text-white/60 hover:bg-white/5'
+          isActive ? 'text-white' : 'text-white/40 group-hover:text-white/70'
         )}
       >
         <MessageSquare className="w-3 h-3 flex-shrink-0" />
@@ -3456,7 +3456,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             exit={isMobile ? { x: '-100%' } : { width: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             className={cx(
-              'flex flex-col bg-[#141414] text-white border-r-4 border-[#5D7BFF]',
+              'flex flex-col bg-[#141414] text-white border-r border-white/10',
               isMobile
                 ? 'fixed inset-y-0 left-0 z-50 w-[280px] h-full overflow-y-auto'
                 : 'flex-shrink-0 h-full overflow-hidden'
@@ -3464,7 +3464,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             style={isMobile ? undefined : { minWidth: 0 }}
           >
             {/* Logo */}
-            <div className="px-5 py-4 border-b-2 border-white/10 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowSharePopup(true)}
@@ -3487,11 +3487,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             </div>
 
             {/* New session */}
-            <div className="px-5 py-4 border-b-2 border-white/10 space-y-3">
+            <div className="px-5 py-4 border-b border-white/10 space-y-3">
               <button
                 onClick={() => { startNewConv(); setSidebarOpen(false); }}
-                className="w-full flex items-center justify-between px-4 py-3 bg-[#5D7BFF] text-white text-xs font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
-                style={{ boxShadow: '4px 4px 0px 0px rgba(255,255,255,0.06)' }}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-[#5D7BFF] text-white text-xs font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all active:scale-[0.98]"
+                style={{ boxShadow: '0 4px 14px rgba(93,123,255,0.3)' }}
               >
                 <span>Nouvelle Session</span>
                 <Plus className="w-4 h-4" />
@@ -3504,7 +3504,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   value={sidebarSearch}
                   onChange={(e) => setSidebarSearch(e.target.value)}
                   placeholder="Rechercher une session…"
-                  className="w-full bg-white/5 border border-white/10 pl-8 pr-3 py-2 text-[11px] text-white/60 placeholder-white/20 focus:outline-none focus:border-[#5D7BFF]/50 focus:text-white/80 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-[11px] text-white/60 placeholder-white/20 focus:outline-none focus:border-[#5D7BFF]/50 focus:text-white/80 transition-colors"
                 />
                 {sidebarSearch && (
                   <button
@@ -4481,8 +4481,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               {/* ── En-tête ── */}
               <div className="flex items-center gap-3 md:gap-5 mb-4 md:mb-8">
                 <div
-                  className="flex-shrink-0 w-9 h-9 md:w-14 md:h-14 bg-[#5D7BFF] flex items-center justify-center"
-                  style={{ boxShadow: '3px 3px 0px 0px rgba(20,20,20,0.8)' }}
+                  className="flex-shrink-0 w-9 h-9 md:w-14 md:h-14 rounded-2xl bg-[#5D7BFF] flex items-center justify-center"
+                  style={{ boxShadow: '0 6px 18px rgba(93,123,255,0.35)' }}
                 >
                   <CurrentIcon className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </div>
@@ -4510,7 +4510,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     setInput(dailyChallenge.prompt);
                     taRef.current?.focus();
                   }}
-                  className="w-full text-left p-3 md:p-5 mb-3 md:mb-6 border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
+                  className="w-full text-left p-3 md:p-5 mb-3 md:mb-6 rounded-2xl border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
                 >
                   <div className="flex items-center gap-2.5 md:gap-4">
                     <span className="text-base md:text-2xl flex-shrink-0">🎯</span>
@@ -5295,7 +5295,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   disabled={sending}
                   title="Commandes slash"
                   className={cx(
-                    'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all font-black text-sm flex',
+                    'flex-shrink-0 p-3 border-2 rounded-xl disabled:opacity-40 transition-all font-black text-sm flex',
                     slashOpen
                       ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/8'
                       : (activeConv?.interviewType || activeConv?.debatePersonaId)
@@ -5346,9 +5346,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   rows={isMobile && inputFocused ? 4 : 1}
                   disabled={sending}
                   className={cx(
-                    'w-full border-2 px-4 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-normal',
-                    isMobile && !inputFocused ? 'py-2.5 rounded-xl' : 'py-3',
-                    isMobile && inputFocused ? 'rounded-xl' : '',
+                    'w-full border-2 rounded-xl px-4 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-normal',
+                    isMobile && !inputFocused ? 'py-2.5' : 'py-3',
                     (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
                       : 'bg-[var(--bg-chat)] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/30'
@@ -5379,11 +5378,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <button
                 type="submit"
                 disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
-                className={cx(
-                  'flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:translate-x-0.5 active:translate-y-0.5',
-                  isMobile ? 'rounded-xl' : ''
-                )}
-                style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.2)' }}
+                className="flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 rounded-xl hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:scale-95"
+                style={{ boxShadow: '0 4px 14px rgba(93,123,255,0.35)' }}
               >
                 {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </button>
