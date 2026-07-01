@@ -31,7 +31,27 @@ export type ConfidenceSpec = {
   note?: string;
 };
 
-export type VizSpec = BalanceSpec | ArgMapSpec | ConfidenceSpec;
+// ─── Verdict (Fact-Checker V2) — analyse multi-dimensionnelle ────────────────────
+export type FactVerdict =
+  | 'vrai' | 'probable_vrai' | 'inconnu' | 'non_verifie'
+  | 'inconcluant' | 'probable_faux' | 'faux';
+export type RiskLevel = 'safe' | 'faible' | 'modere' | 'dangereux' | 'critique';
+export type ConsensusLevel = 'fort' | 'modere' | 'debattu' | 'controverse' | 'marginal';
+// Bandes qualitatives (jamais un décimal fabriqué) : robustesse des preuves.
+export type ConfidenceBand = 'speculatif' | 'faible' | 'plausible' | 'eleve' | 'quasi_certain';
+
+export type VerdictSpec = {
+  kind: 'verdict';
+  basis?: VizBasis;
+  claim?: string;
+  fact: FactVerdict;
+  risk: RiskLevel;
+  consensus: ConsensusLevel;
+  confidence: ConfidenceBand;
+  note?: string;
+};
+
+export type VizSpec = BalanceSpec | ArgMapSpec | ConfidenceSpec | VerdictSpec;
 
 export type Segment =
   | { type: 'text'; value: string }

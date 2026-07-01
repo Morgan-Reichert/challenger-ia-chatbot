@@ -18,7 +18,10 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { splitViz, normalizeMd } from './vizParse';
-import type { VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel } from './vizParse';
+import type {
+  VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel,
+  VerdictSpec, FactVerdict, RiskLevel, ConsensusLevel, ConfidenceBand,
+} from './vizParse';
 
 export { splitViz, stripViz, normalizeMd } from './vizParse';
 export type { VizSpec } from './vizParse';
@@ -189,12 +192,106 @@ function Confidence({ spec }: { spec: ConfidenceSpec }) {
   );
 }
 
+// ─── Verdict (Fact-Checker V2) ───────────────────────────────────────────────────
+const FACT_META: Record<FactVerdict, { label: string; color: string }> = {
+  vrai:          { label: 'Vrai',              color: '#10B981' },
+  probable_vrai: { label: 'Probablement vrai', color: '#34D399' },
+  inconnu:       { label: 'Inconnu',           color: '#9CA3AF' },
+  non_verifie:   { label: 'Non vérifié',       color: '#6B7280' },
+  inconcluant:   { label: 'Inconcluant',       color: '#FBBF24' },
+  probable_faux: { label: 'Probablement faux', color: '#F97316' },
+  faux:          { label: 'Faux',              color: '#EF4444' },
+};
+const RISK_META: Record<RiskLevel, { label: string; color: string }> = {
+  safe:      { label: 'Safe',      color: '#10B981' },
+  faible:    { label: 'Faible',    color: '#84CC16' },
+  modere:    { label: 'Modéré',    color: '#FBBF24' },
+  dangereux: { label: 'Dangereux', color: '#F97316' },
+  critique:  { label: 'Critique',  color: '#EF4444' },
+};
+const CONSENSUS_META: Record<ConsensusLevel, { label: string; color: string }> = {
+  fort:        { label: 'Consensus fort',     color: '#10B981' },
+  modere:      { label: 'Consensus modéré',   color: '#2DD4BF' },
+  debattu:     { label: 'Sujet débattu',      color: '#FBBF24' },
+  controverse: { label: 'Controversé',        color: '#F97316' },
+  marginal:    { label: 'Position marginale', color: '#9CA3AF' },
+};
+const CONF_BANDS: { band: ConfidenceBand; label: string; color: string }[] = [
+  { band: 'speculatif',    label: 'Spéculatif',    color: '#EF4444' },
+  { band: 'faible',        label: 'Faible',        color: '#F97316' },
+  { band: 'plausible',     label: 'Plausible',     color: '#FBBF24' },
+  { band: 'eleve',         label: 'Élevé',         color: '#84CC16' },
+  { band: 'quasi_certain', label: 'Quasi-certain', color: '#10B981' },
+];
+
+function VerdictRow({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[8px] font-black uppercase tracking-widest text-white/40 w-[68px] shrink-0">{label}</span>
+      <span
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide"
+        style={{ color, background: `${color}1A`, border: `1px solid ${color}55` }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function Verdict({ spec }: { spec: VerdictSpec }) {
+  const f = FACT_META[spec.fact] ?? FACT_META.non_verifie;
+  const r = RISK_META[spec.risk] ?? RISK_META.safe;
+  const c = CONSENSUS_META[spec.consensus] ?? CONSENSUS_META.debattu;
+  const confIdx = CONF_BANDS.findIndex((b) => b.band === spec.confidence);
+  const conf = CONF_BANDS[confIdx] ?? CONF_BANDS[2];
+
+  return (
+    <div className="my-4 border-2 border-white/15 bg-black/25 p-3">
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-[9px] font-black uppercase tracking-widest text-white/60">Verdict</span>
+        {spec.basis && (
+          <span className="ml-auto text-[7px] font-black uppercase tracking-widest text-white/30 border border-white/15 px-1 py-px">
+            {spec.basis === 'sources' ? 'sources' : spec.basis === 'donnees_utilisateur' ? 'tes données' : 'qualitatif'}
+          </span>
+        )}
+      </div>
+
+      {spec.claim && (
+        <p className="text-[11px] text-white/80 italic leading-snug mb-3">« {spec.claim} »</p>
+      )}
+
+      <div className="space-y-1.5">
+        <VerdictRow label="Fact" value={f.label} color={f.color} />
+        <VerdictRow label="Risque" value={r.label} color={r.color} />
+        <VerdictRow label="Consensus" value={c.label} color={c.color} />
+      </div>
+
+      {/* Confiance — bande qualitative (jamais un décimal fabriqué) */}
+      <div className="mt-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[8px] font-black uppercase tracking-widest text-white/40 w-[68px] shrink-0">Confiance</span>
+          <span className="text-[10px] font-black" style={{ color: conf.color }}>{conf.label}</span>
+        </div>
+        <div className="flex gap-1">
+          {CONF_BANDS.map((b, i) => (
+            <div key={b.band} className="h-1.5 flex-1" style={{ background: i <= confIdx ? conf.color : 'rgba(255,255,255,0.1)' }} />
+          ))}
+        </div>
+      </div>
+
+      {spec.note && <p className="text-[9px] text-white/45 mt-2.5 leading-snug">{spec.note}</p>}
+    </div>
+  );
+}
+
 // ─── Aiguilleur ─────────────────────────────────────────────────────────────────
 function VizRenderer({ spec }: { spec: VizSpec }) {
   switch (spec.kind) {
     case 'balance':    return <Balance spec={spec} />;
     case 'argmap':     return <ArgMap spec={spec} />;
     case 'confidence': return <Confidence spec={spec} />;
+    case 'verdict':    return <Verdict spec={spec} />;
     default:           return null;
   }
 }
