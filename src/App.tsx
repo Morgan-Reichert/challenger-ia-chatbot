@@ -38,7 +38,7 @@ import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type Us
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
@@ -1521,6 +1521,7 @@ export default function App() {
   const [authConfirmPassword, setAuthConfirmPassword] = useState('');
   const [authShowPassword, setAuthShowPassword] = useState(false);
   const [authFormError, setAuthFormError] = useState<string | null>(null);
+  const [authFormNotice, setAuthFormNotice] = useState<string | null>(null);
   const [authFormLoading, setAuthFormLoading] = useState(false);
 
   // ── Projects state
@@ -1998,9 +1999,35 @@ export default function App() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!auth || authFormLoading) return;
+    setAuthFormError(null);
+    setAuthFormNotice(null);
+    const email = authEmail.trim();
+    if (!email) {
+      setAuthFormError('Entrez d\'abord votre adresse email ci-dessus, puis cliquez à nouveau.');
+      return;
+    }
+    setAuthFormLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setAuthFormNotice(`Si un compte existe pour ${email}, un email de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.`);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? '';
+      // On ne révèle pas si l'email existe (sécurité) : message neutre sauf cas techniques
+      if (code === 'auth/invalid-email') setAuthFormError('Adresse email invalide.');
+      else if (code === 'auth/too-many-requests') setAuthFormError('Trop de tentatives. Réessayez dans quelques minutes.');
+      else if (code === 'auth/network-request-failed') setAuthFormError('Erreur réseau. Vérifiez votre connexion.');
+      else setAuthFormNotice(`Si un compte existe pour ${email}, un email de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.`);
+    } finally {
+      setAuthFormLoading(false);
+    }
+  };
+
   const switchAuthMode = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
     setAuthFormError(null);
+    setAuthFormNotice(null);
     setAuthPassword('');
     setAuthConfirmPassword('');
   };
@@ -3365,6 +3392,35 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 )}
               </AnimatePresence>
 
+              {/* Mot de passe oublié — connexion uniquement */}
+              {authMode === 'login' && (
+                <div className="flex justify-end -mt-1.5">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={authFormLoading}
+                    className="text-[10px] font-bold text-[#5D7BFF] hover:text-[#4a68e8] disabled:opacity-40 transition-colors"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                </div>
+              )}
+
+              {/* Confirmation (email de réinitialisation envoyé) */}
+              <AnimatePresence>
+                {authFormNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-start gap-2 bg-[#5D7BFF]/10 border border-[#5D7BFF]/40 rounded-lg px-3 py-2.5"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-[#5D7BFF] flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-[#5D7BFF] leading-relaxed">{authFormNotice}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Erreur formulaire */}
               <AnimatePresence>
                 {authFormError && (
@@ -3372,7 +3428,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="flex items-start gap-2 bg-red-500/10 border border-red-500/40 px-3 py-2.5"
+                    className="flex items-start gap-2 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2.5"
                   >
                     <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
                     <p className="text-[10px] text-red-500 leading-relaxed">{authFormError}</p>
