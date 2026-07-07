@@ -3129,7 +3129,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             {/* Header */}
             <div className="flex-shrink-0 bg-[#141414] border-b-2 border-[#5D7BFF]/40 px-6 py-4 flex items-center gap-4">
               <img
-                src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                src="/logocompletblanc.png"
                 alt="Challenger IA"
                 className="h-8 w-auto object-contain flex-shrink-0"
               />
@@ -3272,7 +3272,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           {/* ── Contenu ── */}
           <div className="relative flex flex-col items-center gap-6 z-10">
             <img
-              src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+              src="/logocompletblanc.png"
               alt="Challenger IA"
               className="h-14 w-auto object-contain"
               style={{ filter: 'drop-shadow(0 0 12px rgba(93,123,255,0.4))', animation: 'cr-breathe 3s ease-in-out infinite' }}
@@ -3303,7 +3303,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             {/* Logo */}
             <div className="text-center mb-8">
               <img
-                src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                src="/logocompletbleu.png"
                 alt="Challenger IA"
                 className="h-14 w-auto mx-auto mb-3 object-contain"
               />
@@ -3545,7 +3545,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   title="Partager Challenger IA"
                 >
                   <img
-                    src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                    src="/logocompletblanc.png"
                     alt="Challenger IA"
                     className="h-10 w-auto flex-shrink-0 object-contain"
                   />
@@ -5733,7 +5733,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     style={{ boxShadow: '0 6px 16px rgba(255,255,255,0.08)' }}
                   >
                     <img
-                      src="https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png"
+                      src="/logocompletblanc.png"
                       alt="Challenger IA"
                       className="h-6 w-auto object-contain"
                     />
