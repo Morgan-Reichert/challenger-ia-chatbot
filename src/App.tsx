@@ -2009,16 +2009,33 @@ export default function App() {
       return;
     }
     setAuthFormLoading(true);
+    const neutral = `Si un compte existe pour ${email}, un email de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.`;
     try {
-      await sendPasswordResetEmail(auth, email);
-      setAuthFormNotice(`Si un compte existe pour ${email}, un email de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.`);
+      // 1) On tente l'email personnalisé (Resend). 2) Sinon repli Firebase.
+      let sentByResend = false;
+      try {
+        const r = await fetch('/api/send-reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d.ok) sentByResend = true; // email pro envoyé (ou compte inexistant → neutre)
+        }
+      } catch { /* endpoint indisponible → repli Firebase ci-dessous */ }
+
+      if (!sentByResend) {
+        await sendPasswordResetEmail(auth, email);
+      }
+      setAuthFormNotice(neutral);
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code ?? '';
       // On ne révèle pas si l'email existe (sécurité) : message neutre sauf cas techniques
       if (code === 'auth/invalid-email') setAuthFormError('Adresse email invalide.');
       else if (code === 'auth/too-many-requests') setAuthFormError('Trop de tentatives. Réessayez dans quelques minutes.');
       else if (code === 'auth/network-request-failed') setAuthFormError('Erreur réseau. Vérifiez votre connexion.');
-      else setAuthFormNotice(`Si un compte existe pour ${email}, un email de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.`);
+      else setAuthFormNotice(neutral);
     } finally {
       setAuthFormLoading(false);
     }

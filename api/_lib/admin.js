@@ -61,3 +61,12 @@ export function getAdminFirestore() {
   if (!ensureInit()) return null;
   return admin.firestore();
 }
+
+/**
+ * Retourne l'instance Auth admin (génération de liens de réinitialisation, etc.)
+ * ou null si Admin SDK non configuré.
+ */
+export function getAdminAuth() {
+  if (!ensureInit()) return null;
+  return admin.auth();
+}
