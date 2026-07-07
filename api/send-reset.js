@@ -13,8 +13,9 @@
  */
 import { getAdminAuth } from './_lib/admin.js';
 
-const LOGO_URL = 'https://i.postimg.cc/L4WsWhk9/Design-sans-titre-%2812%29.png';
 const BRAND = '#5D7BFF';
+// Logo servi depuis public/ (racine de l'app). Version blanche car header sombre.
+const LOGO_FILE = 'logocompletblanc.png';
 
 // Normalise une URL de lien : accepte "contact@x.com", "[contact@x.com]",
 // "x.com" ou une URL complète, et renvoie toujours un href valide.
@@ -28,7 +29,7 @@ function normalizeUrl(v, fallback) {
 const SUPPORT_URL = normalizeUrl(process.env.SUPPORT_URL, 'mailto:support@stariax.tech');
 const SITE_URL = normalizeUrl(process.env.APP_URL, 'https://stariax.tech');
 
-function emailHtml(link) {
+function emailHtml(link, logoUrl) {
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:#eef1fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
@@ -38,7 +39,7 @@ function emailHtml(link) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 40px rgba(20,24,60,.10);">
 
         <tr><td style="background:#0e0e0e;padding:26px 32px;text-align:center;">
-          <img src="${LOGO_URL}" alt="Challenger IA" height="42" style="height:42px;width:auto;display:inline-block;">
+          <img src="${logoUrl}" alt="Challenger IA" height="42" style="height:42px;width:auto;display:inline-block;">
         </td></tr>
         <tr><td style="height:4px;background:${BRAND};line-height:4px;font-size:0;">&nbsp;</td></tr>
 
@@ -106,6 +107,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ fallback: true });
   }
 
+  // URL absolue du logo, servi depuis public/ à la racine de l'app.
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  const logoUrl = process.env.LOGO_URL || (host ? `${proto}://${host}/${LOGO_FILE}` : `${SITE_URL}/${LOGO_FILE}`);
+
   try {
     let link;
     try {
@@ -126,7 +132,7 @@ export default async function handler(req, res) {
         from,
         to: email,
         subject: 'Votre lien de réinitialisation — Challenger IA',
-        html: emailHtml(link),
+        html: emailHtml(link, logoUrl),
       }),
     });
 
