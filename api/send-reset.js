@@ -115,7 +115,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from,
         to: email,
-        subject: 'Réinitialisation de votre mot de passe Challenger IA',
+        subject: 'Votre lien de réinitialisation — Challenger IA',
         html: emailHtml(link),
       }),
     });
