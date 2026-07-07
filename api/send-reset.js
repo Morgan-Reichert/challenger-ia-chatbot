@@ -13,10 +13,20 @@
  */
 import { getAdminAuth } from './_lib/admin.js';
 
-const LOGO_URL = 'https://i.postimg.cc/L4WsWhk9/Design-sans-titre-(12).png';
+const LOGO_URL = 'https://i.postimg.cc/L4WsWhk9/Design-sans-titre-%2812%29.png';
 const BRAND = '#5D7BFF';
-const SUPPORT_URL = process.env.SUPPORT_URL || 'mailto:support@stariax.tech';
-const SITE_URL = process.env.APP_URL || 'https://stariax.tech';
+
+// Normalise une URL de lien : accepte "contact@x.com", "[contact@x.com]",
+// "x.com" ou une URL complète, et renvoie toujours un href valide.
+function normalizeUrl(v, fallback) {
+  if (!v || !v.trim()) return fallback;
+  const s = v.trim().replace(/^[[<]+|[\]>]+$/g, '');
+  if (/^(https?:|mailto:)/i.test(s)) return s;
+  if (s.includes('@')) return 'mailto:' + s;
+  return 'https://' + s;
+}
+const SUPPORT_URL = normalizeUrl(process.env.SUPPORT_URL, 'mailto:support@stariax.tech');
+const SITE_URL = normalizeUrl(process.env.APP_URL, 'https://stariax.tech');
 
 function emailHtml(link) {
   return `<!doctype html>
