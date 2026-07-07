@@ -1167,7 +1167,7 @@ function OnboardingOverlay({
           >
             <div className="relative inline-flex mb-6">
               <div className="absolute inset-[-10px] rounded-full bg-[#5D7BFF]/10 animate-ping" style={{ animationDuration: '2.5s' }} />
-              <img src="https://i.postimg.cc/50kqszGt/Design-sans-titre.png" alt="CR" className="w-20 h-20 object-contain relative" style={{ animation: 'cr-breathe 2s ease-in-out infinite' }} />
+              <img src="/icon-192.png" alt="Challenger IA" className="w-20 h-20 object-contain relative" style={{ animation: 'cr-breathe 2s ease-in-out infinite' }} />
             </div>
             <h1 className="text-3xl font-black uppercase tracking-tighter text-[var(--text-primary)] mb-2">Challenger IA</h1>
             <p className="text-sm text-[var(--text-primary)]/50 mb-8 font-medium">Ton adversaire intellectuel. Challengé pour progresser.</p>
@@ -1299,7 +1299,7 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
           style={{ width: 26, height: 26 }}
         >
           <img
-            src="https://i.postimg.cc/50kqszGt/Design-sans-titre.png"
+            src="/icon-192.png"
             alt="Challenger IA"
             style={{
               width: 26,
