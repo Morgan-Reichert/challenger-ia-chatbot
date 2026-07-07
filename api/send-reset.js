@@ -110,7 +110,8 @@ export default async function handler(req, res) {
   // URL absolue du logo, servi depuis public/ à la racine de l'app.
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   const proto = req.headers['x-forwarded-proto'] || 'https';
-  const logoUrl = process.env.LOGO_URL || (host ? `${proto}://${host}/${LOGO_FILE}` : `${SITE_URL}/${LOGO_FILE}`);
+  // ?v= : cache-busting pour forcer les proxys d'images (Gmail) à re-télécharger.
+  const logoUrl = process.env.LOGO_URL || (host ? `${proto}://${host}/${LOGO_FILE}?v=2` : `${SITE_URL}/${LOGO_FILE}?v=2`);
 
   try {
     let link;
