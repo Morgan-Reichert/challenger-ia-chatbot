@@ -54,6 +54,11 @@ html.dark {
   0%   { opacity: 0.04; }
   100% { opacity: 0.12; }
 }
+/* Barre de progression indéterminée du splash de chargement */
+@keyframes splash-progress {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(285%); }
+}
 
 /* ── Drag & drop — bordure pointillée animée ────────────────────────────────── */
 @keyframes dash-border {
@@ -69,6 +74,8 @@ html.dark {
   html, body, #root {
     height: 100%;
     overflow: hidden;
+    /* Empêche le "tirer pour rafraîchir" et le rebond de scroll (ressenti app native) */
+    overscroll-behavior: none;
   }
 
   body {
@@ -76,6 +83,8 @@ html.dark {
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Évite le surlignage bleu au tap sur mobile */
+    -webkit-tap-highlight-color: transparent;
   }
 
   * {

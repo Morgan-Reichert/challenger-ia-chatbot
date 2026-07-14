@@ -2511,6 +2511,8 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Retour haptique léger sur mobile (ressenti app native)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(8);
     send(input, pendingAttachments);
   };
 
@@ -3207,91 +3209,19 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Chargement initial Firebase ───────────────────────────────────── */}
       {FIREBASE_ENABLED && authLoading && !consentPending && (
-        <div className="flex-1 bg-[#0e0e0e] flex flex-col items-center justify-center relative overflow-hidden">
-
-          {/* ── Grille de fond ── */}
-          <div className="absolute inset-0 opacity-[0.04]"
-            style={{
-              backgroundImage: 'linear-gradient(#5D7BFF 1px, transparent 1px), linear-gradient(90deg, #5D7BFF 1px, transparent 1px)',
-              backgroundSize: '40px 40px',
-            }}
+        <div className="flex-1 flex flex-col items-center justify-center gap-7 px-6" style={{ background: 'var(--bg-app)' }}>
+          <img
+            src="/logocompletbleu.png"
+            alt="Challenger IA"
+            className="h-12 w-auto object-contain"
+            style={{ animation: 'cr-breathe 2.4s ease-in-out infinite' }}
           />
-
-          {/* ── Lignes diagonales d'accent ── */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {[...Array(5)].map((_, i) => (
-              <div key={i}
-                className="absolute h-px opacity-[0.07]"
-                style={{
-                  background: 'linear-gradient(90deg, transparent, #5D7BFF, transparent)',
-                  top: `${15 + i * 18}%`,
-                  left: '-20%',
-                  right: '-20%',
-                  transform: `rotate(-8deg)`,
-                  animation: `splash-line ${2.4 + i * 0.4}s ease-in-out infinite alternate`,
-                  animationDelay: `${i * 0.3}s`,
-                }}
-              />
-            ))}
+          <div className="w-44 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(93,123,255,0.15)' }}>
+            <div className="h-full w-[35%] rounded-full" style={{ background: '#5D7BFF', animation: 'splash-progress 1.1s ease-in-out infinite' }} />
           </div>
-
-          {/* ── Scan line animée ── */}
-          <div className="absolute left-0 right-0 h-px pointer-events-none"
-            style={{
-              background: 'linear-gradient(90deg, transparent 0%, #5D7BFF44 30%, #5D7BFF 50%, #5D7BFF44 70%, transparent 100%)',
-              animation: 'splash-scan 3s ease-in-out infinite',
-              boxShadow: '0 0 12px 2px rgba(93,123,255,0.3)',
-            }}
-          />
-
-          {/* ── Coins de cadrage (brackets) ── */}
-          {[
-            { top: '50%', left: '50%', mt: '-90px', ml: '-90px', br: 'borderTop borderLeft' },
-          ].map((_, idx) => (
-            <div key={idx} className="absolute" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: 180 }}>
-              {/* Coin TL */}
-              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-[#5D7BFF] opacity-50" />
-              {/* Coin TR */}
-              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-[#5D7BFF] opacity-50" />
-              {/* Coin BL */}
-              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-[#5D7BFF] opacity-50" />
-              {/* Coin BR */}
-              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-[#5D7BFF] opacity-50" />
-            </div>
-          ))}
-
-          {/* ── Halo central ── */}
-          <div className="absolute rounded-full pointer-events-none"
-            style={{
-              width: 280, height: 280,
-              background: 'radial-gradient(circle, rgba(93,123,255,0.07) 0%, transparent 70%)',
-              animation: 'cr-halo 3s ease-in-out infinite',
-            }}
-          />
-
-          {/* ── Contenu ── */}
-          <div className="relative flex flex-col items-center gap-6 z-10">
-            <img
-              src="/logocompletblanc.png"
-              alt="Challenger IA"
-              className="h-14 w-auto object-contain"
-              style={{ filter: 'drop-shadow(0 0 12px rgba(93,123,255,0.4))', animation: 'cr-breathe 3s ease-in-out infinite' }}
-            />
-
-            {/* Ligne décorative sous le logo */}
-            <div className="flex items-center gap-3 w-48">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent to-[#5D7BFF]/40" />
-              <div className="w-1 h-1 bg-[#5D7BFF] opacity-60" style={{ transform: 'rotate(45deg)' }} />
-              <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[#5D7BFF]/40" />
-            </div>
-
-            <Loader2 className="w-4 h-4 animate-spin text-[#5D7BFF]" style={{ filter: 'drop-shadow(0 0 4px rgba(93,123,255,0.6))' }} />
-
-            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-white/25">
-              Vérification du compte…
-            </p>
-          </div>
-
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-primary)]/40">
+            Chargement…
+          </p>
         </div>
       )}
 
@@ -5416,7 +5346,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         ? (isMobile ? 'Répondre…' : `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`)
                         : (isMobile ? 'Écrire…' : `Soumettez une thèse… (@arch @fact @opp · !doux !moyen !extreme)`)
                   }
-                  rows={isMobile && inputFocused ? 4 : 1}
+                  rows={isMobile && inputFocused ? 2 : 1}
                   disabled={sending}
                   className={cx(
                     'w-full border-2 rounded-xl px-4 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-normal',
@@ -5469,7 +5399,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Bottom Navigation (mobile only) ─────────────────────────────── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 md:hidden flex bg-[#141414] border-t-2 border-[#5D7BFF]"
+        className={cx(
+          'fixed bottom-0 left-0 right-0 z-30 md:hidden bg-[#141414] border-t border-white/10',
+          inputFocused ? 'hidden' : 'flex'
+        )}
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         {([
