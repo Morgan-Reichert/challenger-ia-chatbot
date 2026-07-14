@@ -1440,6 +1440,24 @@ export default function App() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // ── Swipe mobile : depuis le bord gauche pour ouvrir, vers la gauche pour fermer la sidebar
+  useEffect(() => {
+    if (!isMobile) return;
+    let sx = 0, sy = 0, st = 0;
+    const onStart = (e: TouchEvent) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); };
+    const onEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Date.now() - st > 500) return;
+      if (Math.abs(dx) < 60 || Math.abs(dy) > 45) return;
+      if (dx > 0 && sx < 32 && !sidebarOpen) setSidebarOpen(true);
+      else if (dx < 0 && sidebarOpen) setSidebarOpen(false);
+    };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: true });
+    return () => { document.removeEventListener('touchstart', onStart); document.removeEventListener('touchend', onEnd); };
+  }, [isMobile, sidebarOpen]);
   const slashNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inputFocused, setInputFocused] = useState(false);
   // noProfileMode : actif globalement si aucune conv active, sinon stocké sur la conv
@@ -3121,7 +3139,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
   return (
     <div
-      className="flex h-screen overflow-hidden bg-[var(--bg-app)]"
+      className="flex h-full overflow-hidden bg-[var(--bg-app)]"
       style={{ fontFamily: '"Inter", ui-sans-serif, system-ui, sans-serif' }}
     >
 
@@ -4109,7 +4127,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Main area ───────────────────────────────────────────────────────── */}
       <div
-        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', 'max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]')}
+        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', !inputFocused && 'max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]')}
         onDragEnter={(e) => {
           if (!e.dataTransfer.types.includes('Files')) return;
           dragCounterRef.current += 1;
