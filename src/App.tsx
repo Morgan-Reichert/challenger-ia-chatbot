@@ -4170,7 +4170,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           )}
         </AnimatePresence>
         {/* Top bar */}
-        <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)] px-6 py-4 flex items-center gap-4">
+        <div
+          className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)] px-6 py-4 flex items-center gap-4"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+        >
           {(!sidebarOpen || isMobile) && (
             <button
               onClick={() => setSidebarOpen((v) => !v)}
