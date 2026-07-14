@@ -610,7 +610,10 @@ export default function OutilsPage({ onBack, user, openToolId }: Props) {
     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg-app)] overflow-hidden">
 
       {/* Top bar */}
-      <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b-4 border-[#5D7BFF] px-6 py-4 flex items-center gap-4">
+      <div
+        className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)] px-6 py-4 flex items-center gap-4"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+      >
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0"

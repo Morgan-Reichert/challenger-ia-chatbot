@@ -411,7 +411,10 @@ export default function SettingsPage({
     <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
       {/* Header */}
-      <div className="flex-shrink-0 bg-white border-b-4 border-[#5D7BFF] px-6 py-4">
+      <div
+        className="flex-shrink-0 bg-white border-b border-[var(--border)] px-6 py-4"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+      >
         <div className="flex items-center gap-4 mb-4">
           <button onClick={onBack} className="text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />

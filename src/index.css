@@ -73,10 +73,16 @@ html.dark {
 @layer base {
   html, body, #root {
     height: 100%;
+    /* Hauteur réelle du viewport (gère la barre dynamique du navigateur mobile) */
+    height: 100dvh;
     overflow: hidden;
     /* Empêche le "tirer pour rafraîchir" et le rebond de scroll (ressenti app native) */
     overscroll-behavior: none;
   }
+
+  /* Helpers safe-area (notch / barre d'état / home indicator) */
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
   body {
     background-color: var(--bg-app);

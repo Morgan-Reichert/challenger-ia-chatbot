@@ -789,7 +789,7 @@ export default function ArenaPage({ user, supabaseUserId, onBack, onGoToXpose }:
       </AnimatePresence>
 
       {/* ── Top bar éditoriale ───────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)]">
+      <div className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)]" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="flex items-center gap-4 px-6 py-4 max-w-3xl mx-auto w-full">
           <button
             onClick={view === 'post' ? () => { setView('feed'); setSelectedPost(null); setSynthesis(null); } : onBack}

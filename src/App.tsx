@@ -4047,7 +4047,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Arène ─────────────────────────────────────────────────────────── */}
       {currentPage === 'arene' && (
-        <div className="flex-1 min-w-0 h-full max-md:pb-16">
+        <div className="flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]">
           <ArenaPage
             user={user}
             supabaseUserId={null}
@@ -4067,7 +4067,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           updatedAt: c.updatedAt.toISOString(),
         })));
         return (
-          <div className="flex-1 min-w-0 h-full max-md:pb-16">
+          <div className="flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]">
             <OutilsPage
               onBack={() => { setCurrentPage('chat'); setOpenToolId(undefined); }}
               user={user}
@@ -4079,7 +4079,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (
-        <div className={cx('flex-1 min-w-0 h-full max-md:pb-16', currentPage !== 'library' && 'hidden')}>
+        <div className={cx('flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]', currentPage !== 'library' && 'hidden')}>
           <LibraryPage
             onBack={() => setCurrentPage('chat')}
             onStartInterview={startInterview}
@@ -4090,7 +4090,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Réglages / Profil IA ─────────────────────────────────────────────── */}
       {currentPage === 'settings' && (
-        <div className={cx('flex-1 min-w-0 h-full max-md:pb-16', currentPage !== 'settings' && 'hidden')}>
+        <div className={cx('flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]', currentPage !== 'settings' && 'hidden')}>
           <SettingsPage
             onBack={() => setCurrentPage('chat')}
             profile={userProfile}
@@ -4109,7 +4109,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Main area ───────────────────────────────────────────────────────── */}
       <div
-        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', 'max-md:pb-16')}
+        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', 'max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]')}
         onDragEnter={(e) => {
           if (!e.dataTransfer.types.includes('Files')) return;
           dragCounterRef.current += 1;
