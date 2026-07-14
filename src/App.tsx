@@ -1511,7 +1511,7 @@ export default function App() {
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
   const [consentCgu, setConsentCgu] = useState(false);
-  const [consentNewsletter, setConsentNewsletter] = useState(true); // pré-coché
+  const [consentNewsletter, setConsentNewsletter] = useState(false); // RGPD : décoché par défaut
   const [consentLoading, setConsentLoading] = useState(false);
 
   // ── Formulaire d'authentification email/password
@@ -1780,7 +1780,7 @@ export default function App() {
         } else {
           // Première connexion → modal de consentement
           setConsentCgu(false);
-          setConsentNewsletter(true);
+          setConsentNewsletter(false);
           setConsentPending(firebaseUser);
         }
       } finally {
@@ -1921,6 +1921,10 @@ export default function App() {
     setConsentLoading(true);
     try {
       await fsSaveConsent(consentPending.uid);
+      // Consentement marketing → enregistré côté serveur pour les relances email
+      try {
+        await apiFetch('/api/marketing-consent', { method: 'POST', body: JSON.stringify({ optIn: consentNewsletter }) });
+      } catch { /* non bloquant */ }
       if (consentNewsletter && consentPending.email) {
         await subscribeToNewsletter(consentPending.email);
       }
@@ -5743,7 +5747,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   </div>
                 </label>
 
-                {/* Newsletter — optionnel, pré-coché */}
+                {/* Consentement marketing — optionnel, décoché par défaut (RGPD) */}
                 <label className={cx(
                   'flex items-start gap-3 px-4 py-3.5 border-2 cursor-pointer transition-all group',
                   consentNewsletter
@@ -5764,10 +5768,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   />
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-wider text-white leading-snug">
-                      Je m'inscris à la newsletter Challenger IA
+                      J'accepte de recevoir l'actualité Challenger IA et Stariax
                     </p>
                     <p className="text-[8px] text-white/35 mt-1 leading-relaxed">
-                      Nouveautés, mises à jour et contenus exclusifs. Désinscription possible à tout moment.
+                      Nouveautés, conseils et rappels par email. Désinscription possible à tout moment.
                     </p>
                   </div>
                 </label>
