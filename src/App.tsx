@@ -43,6 +43,7 @@ import {
 } from './firebase';
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 import { apiFetch } from './apiClient';
+import { notifyLocal } from './push';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -2782,6 +2783,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
           showSlashNotif('PDF téléchargé avec succès !');
           addCommandMsg('Résumé PDF généré et téléchargé.');
+          notifyLocal('PDF prêt ✅', 'Ton résumé de conversation a été généré et téléchargé.');
         } catch (err) {
           console.error('PDF error:', err);
           showSlashNotif('Erreur lors de la génération du PDF.', false);

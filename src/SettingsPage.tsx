@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import PushToggle from './PushToggle';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
@@ -463,6 +464,9 @@ export default function SettingsPage({
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto bg-[#F8F9FF]">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+
+        {/* Notifications push (mobile surtout) */}
+        <PushToggle />
 
         {/* ═══════════════ ONGLET ABONNEMENT ═══════════════ */}
         {activeTab === 'abonnement' && (<>
