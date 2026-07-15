@@ -42,7 +42,7 @@ import {
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
-import { apiFetch } from './apiClient';
+import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
@@ -2037,7 +2037,7 @@ export default function App() {
       // 1) On tente l'email personnalisé (Resend). 2) Sinon repli Firebase.
       let sentByResend = false;
       try {
-        const r = await fetch('/api/send-reset', {
+        const r = await fetch(apiUrl('/api/send-reset'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
