@@ -7,8 +7,10 @@
  */
 import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
 import { checkAndConsumeQuota } from './_lib/quota.js';
+import { cors } from './_lib/cors.js';
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const { action, ...params } = req.body;

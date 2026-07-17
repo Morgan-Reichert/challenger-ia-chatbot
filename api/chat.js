@@ -16,6 +16,7 @@
  */
 import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
 import { checkAndConsumeQuota } from './_lib/quota.js';
+import { cors } from './_lib/cors.js';
 
 // ─── Sources connues et leur niveau de fiabilité ─────────────────────────────
 const SOURCE_TIERS = {
@@ -165,6 +166,7 @@ async function searchAndAnalyze(query, mode, tavilyKey) {
 
 // ─── Handler principal ────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const { messages, model, temperature, searchQuery, stream = true, attachmentCount = 0 } = req.body;

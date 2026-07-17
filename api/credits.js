@@ -12,6 +12,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
+import { cors } from './_lib/cors.js';
 
 let _client = null;
 function getSupabase() {
@@ -24,6 +25,7 @@ function getSupabase() {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   // ── Authentification : on n'accepte que l'uid issu du token vérifié ──
   const { uid, skipped } = await verifyIdToken(req);
   if (isAuthEnforced() && !uid) {

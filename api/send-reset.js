@@ -12,6 +12,7 @@
  *  - RESET_CONTINUE_URL    (optionnel : URL de retour vers l'app après reset)
  */
 import { getAdminAuth } from './_lib/admin.js';
+import { cors } from './_lib/cors.js';
 
 const BRAND = '#5D7BFF';
 // Logo servi depuis public/ (racine de l'app). Version blanche car header sombre.
@@ -93,6 +94,7 @@ function emailHtml(link, logoUrl) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
 
   const email = (req.body?.email || '').trim();

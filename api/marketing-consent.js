@@ -8,6 +8,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { verifyIdToken, isAuthEnforced, getAdminAuth } from './_lib/admin.js';
+import { cors } from './_lib/cors.js';
 
 let _c = null;
 function getSupabase() {
@@ -19,6 +20,7 @@ function getSupabase() {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
 
   const { uid, skipped } = await verifyIdToken(req);
