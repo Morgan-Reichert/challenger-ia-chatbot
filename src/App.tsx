@@ -10,13 +10,11 @@ import {
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
-  Moon, Sun, Copy, Share2, Link, Trophy, Rocket, Wrench,
+  Moon, Sun, Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
   HelpCircle,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import ArenaPage from './arena/ArenaPage';
-import PropulseModal from './arena/PropulseModal';
 import remarkGfm from 'remark-gfm';
 import { RichContent, stripViz } from './viz/VizBlocks';
 import { SourcesPanel, CitationChip, linkifyCitations } from './factcheck/SourcesPanel';
@@ -1398,10 +1396,10 @@ export default function App() {
   const [chatNotif, setChatNotif] = useState<{ type: 'warning' | 'info' | 'error'; msg: string; action?: { label: string; page: 'settings' } } | null>(null);
 
   // ── Navigation
-  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'arene' | 'outils'>(
+  const [currentPage, setCurrentPage] = useState<'chat' | 'library' | 'settings' | 'outils'>(
     () => {
       const saved = localStorage.getItem('cia_current_page');
-      return (['chat', 'library', 'settings', 'arene', 'outils'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'arene' | 'outils';
+      return (['chat', 'library', 'settings', 'outils'].includes(saved ?? '') ? saved : 'chat') as 'chat' | 'library' | 'settings' | 'outils';
     }
   );
 
@@ -1422,7 +1420,6 @@ export default function App() {
     return () => window.removeEventListener('cr-pinned-changed', handler);
   }, []);
 
-  const [propulseData, setPropulseData] = useState<{ question: string; aiResponse: string; personaName: string } | null>(null);
 
   // ── User profile (local only)
   const [userProfile, setUserProfile] = useState<UserProfile>(loadProfile);
@@ -3574,18 +3571,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       style={{ overflow: 'hidden' }}
                     >
                       <div className="border-t border-white/10 divide-y divide-white/5">
-                        {/* Arène */}
-                        <button
-                          onClick={() => { setCurrentPage('arene'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Swords className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Arène</span>
-                          </div>
-                          <ChevronRight className="w-3 h-3 opacity-50" />
-                        </button>
-
                         {/* Bibliothèque */}
                         <button
                           onClick={() => { setCurrentPage('outils'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
@@ -4068,17 +4053,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           />
         )}
       </AnimatePresence>
-
-      {/* ── Arène ─────────────────────────────────────────────────────────── */}
-      {currentPage === 'arene' && (
-        <div className="flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]">
-          <ArenaPage
-            user={user}
-            supabaseUserId={null}
-            onBack={() => setCurrentPage('chat')}
-          />
-        </div>
-      )}
 
       {/* ── Nos Outils Partenaires ──────────────────────────────────────────── */}
       {currentPage === 'outils' && (() => {
@@ -4837,26 +4811,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                   {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
                                   {isCopied ? 'Copié !' : 'Copier'}
                                 </button>
-                                {FIREBASE_ENABLED && user && (() => {
-                                  const prevUserMsg = activeConv.messages.slice(0, msgIdx).reverse().find(m => m.role === 'user');
-                                  if (!prevUserMsg) return null;
-                                  const pName = activeConv.debatePersonaId
-                                    ? (getDP(activeConv)?.shortName ?? PERSONAS[msg.persona ?? persona].shortName)
-                                    : PERSONAS[msg.persona ?? persona].shortName;
-                                  return (
-                                    <button
-                                      onClick={() => setPropulseData({ question: prevUserMsg.content, aiResponse: msg.content, personaName: pName })}
-                                      className={cx('flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest border px-2 py-0.5 transition-all ml-auto rounded-sm',
-                                        (isInterview || isDebate)
-                                          ? 'text-white/20 hover:text-[#FBBF24]/80 border-white/8 hover:border-[#FBBF24]/30'
-                                          : 'text-[#9aa0ac] hover:text-[#b8860b] border-[#e6e8ec] hover:border-[#FBBF24]/50')}
-                                      title="Propulser dans l'Arène"
-                                    >
-                                      <Rocket className="w-2.5 h-2.5" />
-                                      Arène
-                                    </button>
-                                  );
-                                })()}
                               </div>
                             </>
                           );
@@ -5440,7 +5394,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
       >
         {([
           { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
-          { icon: Swords, label: 'Arène', action: () => { setCurrentPage('arene'); setSidebarOpen(false); }, active: currentPage === 'arene' },
           { icon: BookOpen, label: 'Bibliothèque', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
           { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
           { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
@@ -5461,20 +5414,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
       </nav>
 
       </>)}
-
-      {/* ── Propulsion modale ────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {propulseData && user && (
-          <PropulseModal
-            user={user}
-            question={propulseData.question}
-            aiResponse={propulseData.aiResponse}
-            personaName={propulseData.personaName}
-            onClose={() => setPropulseData(null)}
-            onSuccess={() => { setPropulseData(null); setCurrentPage('arene'); }}
-          />
-        )}
-      </AnimatePresence>
 
       {/* ── Interface vocale plein écran ────────────────────────────────── */}
       <AnimatePresence>
