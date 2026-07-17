@@ -36,7 +36,7 @@ import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type Us
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInAnonymously,
   collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
 } from './firebase';
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
@@ -1794,6 +1794,11 @@ export default function App() {
       // (évite le flash de l'écran de connexion entre la création de compte et le modal CGU)
       setAuthLoading(true);
       try {
+        // Mode invité (anonyme) : pas de modal de consentement, accès direct
+        if (firebaseUser.isAnonymous) {
+          await loadUserData(firebaseUser);
+          return;
+        }
         const hasConsent = await fsGetConsent(firebaseUser.uid);
         if (hasConsent) {
           await loadUserData(firebaseUser);
@@ -2060,6 +2065,20 @@ export default function App() {
       else if (code === 'auth/too-many-requests') setAuthFormError('Trop de tentatives. Réessayez dans quelques minutes.');
       else if (code === 'auth/network-request-failed') setAuthFormError('Erreur réseau. Vérifiez votre connexion.');
       else setAuthFormNotice(neutral);
+    } finally {
+      setAuthFormLoading(false);
+    }
+  };
+
+  // ── Mode invité : connexion anonyme (essayer sans créer de compte)
+  const handleGuest = async () => {
+    if (!auth || authFormLoading) return;
+    setAuthFormError(null);
+    setAuthFormLoading(true);
+    try {
+      await signInAnonymously(auth);
+    } catch {
+      setAuthFormError("Le mode invité n'est pas disponible pour le moment.");
     } finally {
       setAuthFormLoading(false);
     }
@@ -3454,6 +3473,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <p className="mt-3 text-center text-[8px] text-red-500">{authError}</p>
             )}
 
+            {/* Mode invité — essayer sans créer de compte */}
+            <button
+              onClick={handleGuest}
+              disabled={authFormLoading}
+              className="w-full mt-3 text-center text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 hover:text-[#5D7BFF] disabled:opacity-40 transition-colors py-2"
+            >
+              Essayer sans compte →
+            </button>
+
           </div>
         </div>
       )}
@@ -3999,7 +4027,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <p className="text-[11px] font-black text-white/70 truncate">
-                          {user.displayName ?? user.email}
+                          {user.isAnonymous ? 'Mode invité' : (user.displayName ?? user.email)}
                         </p>
                         {subscription === 'pro' && (
                           <span className="flex-shrink-0 flex items-center gap-0.5 bg-[#5D7BFF] px-1 py-px">
@@ -4009,7 +4037,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         )}
                       </div>
                       <p className="text-[9px] text-white/25 uppercase tracking-widest truncate">
-                        {user.email}
+                        {user.isAnonymous ? 'Compte non enregistré' : user.email}
                       </p>
                     </div>
                   </div>
@@ -4019,7 +4047,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   >
                     <LogOut className="w-3 h-3" />
                     <span className="text-[11px] font-black uppercase tracking-widest">
-                      Déconnexion
+                      {user.isAnonymous ? 'Créer un compte' : 'Déconnexion'}
                     </span>
                   </button>
                 </div>

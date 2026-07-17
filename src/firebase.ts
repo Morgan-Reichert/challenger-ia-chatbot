@@ -11,6 +11,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  signInAnonymously,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -68,6 +69,7 @@ export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  signInAnonymously,
   collection,
   doc,
   setDoc,
