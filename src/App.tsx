@@ -3488,7 +3488,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 ? 'fixed inset-y-0 left-0 z-50 w-[280px] h-full overflow-y-auto'
                 : 'flex-shrink-0 h-full overflow-hidden'
             )}
-            style={isMobile ? undefined : { minWidth: 0 }}
+            style={isMobile
+              ? { paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }
+              : { minWidth: 0 }}
           >
             {/* Logo */}
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
