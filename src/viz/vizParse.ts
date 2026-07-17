@@ -174,6 +174,8 @@ export function splitViz(text: string, opts: { streaming?: boolean } = {}): Segm
  *  - ##Titre       → ## Titre   (espace manquante après les dièses)
  */
 export function normalizeMd(text: string): string {
+  // Marqueur caché de profil cognitif : masqué à l'affichage (même partiel en streaming, il est toujours en fin)
+  text = text.replace(/\[CIA_BIAS:[\s\S]*$/, '').trimEnd();
   return text
     .split('\n')
     .map((line) => {
@@ -188,6 +190,7 @@ export function normalizeMd(text: string): string {
 
 /** Retire tous les marqueurs visuels — pour la copie et les exports texte. */
 export function stripViz(text: string): string {
+  text = text.replace(/\[CIA_BIAS:[\s\S]*$/, '');
   return splitViz(text)
     .map((s) => (s.type === 'text' ? s.value : ''))
     .join('')

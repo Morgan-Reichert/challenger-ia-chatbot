@@ -42,6 +42,7 @@ import {
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
+import { parseCiaBias, stripCiaBias, recordCognitive } from './cognitive';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -250,7 +251,13 @@ STRUCTURE DE SORTIE — adapte la longueur à la complexité (une affirmation si
 ## Consensus-check — état du consensus actuel
 ## Confiance — pourquoi ce niveau (qualité et convergence des preuves)
 ## Limites & incertitudes — ce qui manque pour conclure
-## Challenger Analysis — hypothèses alternatives, biais possibles, points faibles du raisonnement`;
+## Challenger Analysis — hypothèses alternatives, biais possibles, points faibles du raisonnement
+
+## Profil cognitif (marqueur caché — à la TOUTE fin, OBLIGATOIRE)
+En toute dernière ligne, après ta réponse, ajoute un marqueur caché listant les faiblesses de raisonnement RÉELLEMENT présentes dans le DERNIER message de l'utilisateur (0 à 3 max, uniquement si avérées — jamais forcé). Format EXACT, rien après :
+[CIA_BIAS:{"tags":["tag1","tag2"]}]
+Clés autorisées (EXACTEMENT celles-ci) : generalisation_abusive, correlation_causalite, appel_autorite, biais_confirmation, homme_de_paille, faux_dilemme, pente_glissante, ad_hominem, appel_emotion, cherry_picking, anecdote, petition_principe.
+Ne mentionne JAMAIS ce marqueur dans le texte visible. Si aucune faiblesse : [CIA_BIAS:{"tags":[]}].`;
 
   const map: Record<Persona, Record<FrictionLevel, string>> = {
     architect: {
@@ -2515,13 +2522,22 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         // Streaming terminé
         playDone();
 
+        // Profil cognitif : enregistrer les faiblesses de raisonnement détectées
+        if (/\[CIA_BIAS:/.test(accumulated) && user) {
+          recordCognitive(user.uid, parseCiaBias(accumulated));
+        }
+
         // Détecter une question interactive dans la réponse
         const question = parseCiaQuestion(accumulated);
         if (question) {
           setActiveQuestion(question);
           setQuestionTextInput('');
-          // Retirer le tag CIA_Q du message affiché
-          const cleaned = stripCiaQuestion(accumulated);
+        }
+
+        // Nettoyer le message affiché (marqueurs cachés : biais + question)
+        let cleaned = stripCiaBias(accumulated);
+        if (question) cleaned = stripCiaQuestion(cleaned);
+        if (cleaned !== accumulated) {
           setConversations((p) =>
             p.map((c) =>
               c.id !== convId ? c : {
