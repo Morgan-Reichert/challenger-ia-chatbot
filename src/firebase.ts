@@ -1,6 +1,9 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
@@ -43,7 +46,17 @@ const app = FIREBASE_ENABLED
     : initializeApp(firebaseConfig)
   : null;
 
-export const auth = app ? getAuth(app) : null;
+// Persistance explicite (IndexedDB puis localStorage) : indispensable dans la
+// WebView Capacitor (origine capacitor://localhost) où l'auto-détection échoue
+// et bloque onAuthStateChanged. Fallback getAuth si déjà initialisé (HMR).
+function makeAuth(a: NonNullable<typeof app>) {
+  try {
+    return initializeAuth(a, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
+  } catch {
+    return getAuth(a);
+  }
+}
+export const auth = app ? makeAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
 export const googleProvider = new GoogleAuthProvider();

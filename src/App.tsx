@@ -1777,7 +1777,11 @@ export default function App() {
   // ── Firebase Auth listener
   useEffect(() => {
     if (!auth || !FIREBASE_ENABLED) return;
+    // Sécurité : si l'auth ne répond pas (ex. WebView), on ne reste pas bloqué
+    // sur le splash — on affiche l'écran de connexion au bout de 4 s.
+    const safety = setTimeout(() => setAuthLoading(false), 4000);
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      clearTimeout(safety);
       // Pas d'utilisateur → écran de connexion immédiat
       if (!firebaseUser) {
         setUser(null);
@@ -1806,7 +1810,7 @@ export default function App() {
         setAuthLoading(false);
       }
     });
-    return () => unsub();
+    return () => { clearTimeout(safety); unsub(); };
   }, []);
 
   // ── Retour depuis Stripe : re-vérification du plan + crédits + visibilitychange
