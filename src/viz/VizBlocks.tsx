@@ -18,6 +18,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { splitViz, normalizeMd } from './vizParse';
+import { shareVerdict } from '../verdictShare';
 import type {
   VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel,
   VerdictSpec, FactVerdict, RiskLevel, ConsensusLevel, ConfidenceBand,
@@ -250,11 +251,20 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
     <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl p-3">
       <div className="flex items-center gap-2 mb-2.5">
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">Verdict</span>
-        {spec.basis && (
-          <span className="ml-auto text-[7px] font-black uppercase tracking-widest text-white/30 border border-white/15 px-1 py-px">
-            {spec.basis === 'sources' ? 'sources' : spec.basis === 'donnees_utilisateur' ? 'tes données' : 'qualitatif'}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {spec.basis && (
+            <span className="text-[7px] font-black uppercase tracking-widest text-white/30 border border-white/15 px-1 py-px">
+              {spec.basis === 'sources' ? 'sources' : spec.basis === 'donnees_utilisateur' ? 'tes données' : 'qualitatif'}
+            </span>
+          )}
+          <button
+            onClick={() => { shareVerdict(spec).catch(() => {}); }}
+            className="text-[7px] font-black uppercase tracking-widest text-white/40 hover:text-white border border-white/15 hover:border-white/40 px-1.5 py-px rounded-sm transition-colors"
+            title="Partager ce verdict en image"
+          >
+            ↗ Partager
+          </button>
+        </div>
       </div>
 
       {spec.claim && (
