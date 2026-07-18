@@ -1677,6 +1677,10 @@ export default function App() {
   const [deleteProjectModal, setDeleteProjectModal] = useState<{ projectId: string; projectName: string; convCount: number } | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Conteneur défilant du chat + « on suit le flux ». Un ref (et non un state)
+  // pour ne pas re-rendre à chaque pixel de scroll.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -2033,10 +2037,38 @@ export default function App() {
     };
   }, []);
 
-  // ── Auto-scroll
+  // ── Suivi automatique du flux de réponse ────────────────────────────────────
+  // L'écran colle au bas pendant que l'IA écrit, MAIS lâche dès que
+  // l'utilisateur remonte (il lit quelque chose : on ne lui arrache pas la vue),
+  // et se ré-accroche s'il revient de lui-même en bas.
+  const lastMsg = activeConv?.messages[activeConv.messages.length - 1];
+  const lastLen = lastMsg?.content.length ?? 0;
+  const msgCount = activeConv?.messages.length ?? 0;
+
+  /** L'utilisateur a-t-il fait défiler loin du bas ? (marge de tolérance : 80px) */
+  const handleChatScroll = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const distanceDuBas = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceDuBas <= 80;
+  }, []);
+
+  // Nouveau message : on se ré-accroche uniquement si c'est l'utilisateur qui
+  // vient d'envoyer. Une réponse qui arrive alors qu'il relit l'historique ne
+  // doit pas lui voler l'écran.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeConv?.messages.length]);
+    if (lastMsg?.role === 'user') stickToBottomRef.current = true;
+  }, [msgCount, lastMsg?.role]);
+
+  // Pendant le streaming : on suit la croissance du texte. Défilement immédiat
+  // (et non 'smooth') — en smooth, chaque salve relance une animation et le
+  // défilement prend du retard sur le texte.
+  useEffect(() => {
+    if (!stickToBottomRef.current) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [lastLen, msgCount]);
 
   // ── Auto-resize textarea
   useEffect(() => {
@@ -4646,6 +4678,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           const interviewCfg = activeConv?.interviewType ? INTERVIEW_TYPES[activeConv.interviewType] : null;
           return (
         <div
+          ref={scrollerRef}
+          onScroll={handleChatScroll}
           className={cx('flex-1 overflow-y-auto overflow-x-hidden px-6 py-8 transition-colors', (activeConv?.debatePersonaId || interviewCfg) ? '' : '')}
           style={interviewCfg ? { background: interviewCfg.bgColor } : activeConv?.debatePersonaId ? { background: '#0a0c14' } : undefined}
         >
