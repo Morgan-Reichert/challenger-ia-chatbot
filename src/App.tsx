@@ -5324,12 +5324,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 disabled={sending}
                 title={subscription === 'pro' ? 'Joindre un fichier' : 'Fonctionnalité Pro'}
                 className={cx(
-                  'flex-shrink-0 p-3 border-2 disabled:opacity-40 transition-all relative',
-                  isMobile && inputFocused ? 'hidden' : 'flex',
-                  isMobile ? 'rounded-xl' : '',
-                  subscription === 'pro'
-                    ? 'border-[#5D7BFF]/20 text-[var(--text-primary)]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
-                    : 'border-[var(--border)] text-[var(--text-primary)]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60'
+                  'flex-shrink-0 disabled:opacity-40 transition-all relative',
+                  isMobile && inputFocused ? 'hidden' : 'flex items-center justify-center',
+                  isMobile
+                    ? cx('w-11 h-11 rounded-full active:scale-90', subscription === 'pro' ? 'bg-[#5D7BFF]/10 text-[#5D7BFF]' : 'bg-[var(--text-primary)]/[0.05] text-[var(--text-primary)]/35')
+                    : cx('p-3 border-2', subscription === 'pro' ? 'border-[#5D7BFF]/20 text-[var(--text-primary)]/40 hover:border-[#5D7BFF] hover:text-[#5D7BFF]' : 'border-[var(--border)] text-[var(--text-primary)]/25 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]/60')
                 )}
               >
                 <Paperclip className="w-5 h-5" />
@@ -5345,9 +5344,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 disabled={sending}
                 title="Discussion orale"
                 className={cx(
-                  'flex-shrink-0 p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-40 transition-all',
-                  isMobile && inputFocused ? 'hidden' : 'flex',
-                  isMobile ? 'rounded-xl' : ''
+                  'flex-shrink-0 disabled:opacity-40 transition-all',
+                  isMobile && inputFocused ? 'hidden' : 'flex items-center justify-center',
+                  isMobile
+                    ? 'w-11 h-11 rounded-full bg-[#5D7BFF]/10 text-[#5D7BFF] active:scale-90'
+                    : 'p-3 border-2 border-[#5D7BFF]/20 text-[#5D7BFF]/50 hover:border-[#5D7BFF] hover:text-[#5D7BFF]'
                 )}
               >
                 <Mic className="w-5 h-5" />
@@ -5412,11 +5413,14 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   rows={isMobile && inputFocused ? 2 : 1}
                   disabled={sending}
                   className={cx(
-                    'w-full border-2 rounded-xl px-4 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-normal',
+                    'w-full px-4 text-[16px] md:text-sm font-medium focus:outline-none resize-none transition-all leading-normal',
+                    isMobile ? 'rounded-3xl border' : 'rounded-xl border-2',
                     isMobile && !inputFocused ? 'py-2.5' : 'py-3',
                     (activeConv?.interviewType || activeConv?.debatePersonaId)
                       ? 'bg-[#1a1d2e] border-white/10 focus:border-white/25 text-white placeholder:text-white/25'
-                      : 'bg-[var(--bg-chat)] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/30'
+                      : isMobile
+                        ? 'bg-[var(--text-primary)]/[0.04] border-[var(--border)] focus:border-[#5D7BFF]/50 text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/35'
+                        : 'bg-[var(--bg-chat)] border-[#5D7BFF]/20 focus:border-[#5D7BFF] text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/30'
                   )}
                 />
                 {subscription === 'free' && FIREBASE_ENABLED && (() => {
@@ -5444,7 +5448,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <button
                 type="submit"
                 disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
-                className="flex-shrink-0 bg-[#5D7BFF] text-white px-5 py-3 rounded-xl hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:scale-95"
+                className={cx(
+                  'flex-shrink-0 bg-[#5D7BFF] text-white hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:scale-90 flex items-center justify-center',
+                  isMobile ? 'w-11 h-11 rounded-full' : 'px-5 py-3 rounded-xl'
+                )}
                 style={{ boxShadow: '0 4px 14px rgba(93,123,255,0.35)' }}
               >
                 {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
