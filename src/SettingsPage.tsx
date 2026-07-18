@@ -866,7 +866,7 @@ export default function SettingsPage({
                 },
                 {
                   titre: 'Afficher le défi du jour',
-                  desc: 'Le défi quotidien et son crédit offert.',
+                  desc: "Le défi quotidien et son crédit offert. Dans le chat, la croix au survol le replie dans la barre latérale.",
                   valeur: showDailyChallenge,
                   onChange: onShowDailyChallengeChange,
                 },

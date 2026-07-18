@@ -1554,6 +1554,11 @@ export default function App() {
   const [showDailyChallenge, setShowDailyChallenge] = useState<boolean>(() => {
     try { return localStorage.getItem('cia_show_challenge') !== 'false'; } catch { return true; }
   });
+  // Emplacement du défi : dans le chat par défaut, ou replié dans la barre
+  // latérale via la croix au survol.
+  const [challengeInSidebar, setChallengeInSidebar] = useState<boolean>(() => {
+    try { return localStorage.getItem('cia_challenge_sidebar') === 'true'; } catch { return false; }
+  });
 
   const [autoUseCredits, setAutoUseCredits] = useState<boolean>(() => {
     try { return localStorage.getItem('autoUseCredits') !== 'false'; } catch { return true; }
@@ -2037,8 +2042,9 @@ export default function App() {
     try {
       localStorage.setItem('cia_show_suggestions', String(showSuggestions));
       localStorage.setItem('cia_show_challenge', String(showDailyChallenge));
+      localStorage.setItem('cia_challenge_sidebar', String(challengeInSidebar));
     } catch { /* stockage indisponible : la préférence vaut pour la session */ }
-  }, [showSuggestions, showDailyChallenge]);
+  }, [showSuggestions, showDailyChallenge, challengeInSidebar]);
 
   // ── Détection lien de partage ?share=ID
   useEffect(() => {
@@ -3837,87 +3843,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
-              {/* ── Menu dépliable ── */}
-              <div className="border-2 border-white/10 overflow-hidden">
-                <button
-                  onClick={() => setSidebarExtrasOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
-                >
-                  <span className="text-[11px] font-black uppercase tracking-widest">Navigation</span>
-                  <motion.div animate={{ rotate: sidebarExtrasOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
-                    <Plus className="w-4 h-4" />
-                  </motion.div>
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {sidebarExtrasOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      style={{ overflow: 'hidden' }}
-                    >
-                      <div className="border-t border-white/10 divide-y divide-white/5">
-                        {/* Bibliothèque */}
-                        <button
-                          onClick={() => { setCurrentPage('outils'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <BookOpen className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
-                          </div>
-                          <ChevronRight className="w-3 h-3 opacity-50" />
-                        </button>
-
-                        {/* Profil IA */}
-                        <button
-                          onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Settings className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Profil IA</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {isProfileFilled(userProfile) && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                            )}
-                            <ChevronRight className="w-3 h-3 opacity-50" />
-                          </div>
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* ── Outils épinglés ─────────────────────────────────────── */}
-              {pinnedTools.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-white/25 px-1 mb-2">Outils épinglés</p>
-                  {pinnedTools.map(toolId => {
-                    const outil = OUTILS_MAP[toolId];
-                    if (!outil) return null;
-                    return (
-                      <button
-                        key={toolId}
-                        onClick={() => { setOpenToolId(toolId); setCurrentPage('outils'); setSidebarOpen(false); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 transition-all hover:bg-white/5"
-                        style={{ borderLeft: `2px solid ${outil.accentColor}` }}
-                      >
-                        <img src={outil.logoSrc} alt={outil.name} className="w-6 h-6 object-contain flex-shrink-0" />
-                        <div className="flex-1 min-w-0 text-left">
-                          <p className="text-[10px] font-black uppercase tracking-wide text-white/70 truncate">{outil.name}</p>
-                          <p className="text-[8px] text-white/30 truncate">{outil.tagline}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
+              {/* Persona + friction en TÊTE : ce sont les réglages les plus
+                  utilisés, ils doivent rester atteignables sans défiler, y
+                  compris sur un écran court. */}
               {/* Persona selector — masqué en mode débat / interview */}
               {activeConv?.interviewType ? (
                 <div className="px-4 py-3 border-2 border-white/5 bg-white/[0.02]">
@@ -4034,6 +3962,127 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </div>
                 <p className="mt-2 text-center text-[10px] text-white/20">{FRICTION[level].hint}</p>
               </div>
+
+              {/* ── Menu dépliable ── */}
+              <div className="border-2 border-white/10 overflow-hidden">
+                <button
+                  onClick={() => setSidebarExtrasOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
+                >
+                  <span className="text-[11px] font-black uppercase tracking-widest">Navigation</span>
+                  <motion.div animate={{ rotate: sidebarExtrasOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
+                    <Plus className="w-4 h-4" />
+                  </motion.div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {sidebarExtrasOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <div className="border-t border-white/10 divide-y divide-white/5">
+                        {/* Bibliothèque */}
+                        <button
+                          onClick={() => { setCurrentPage('outils'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <BookOpen className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
+                          </div>
+                          <ChevronRight className="w-3 h-3 opacity-50" />
+                        </button>
+
+                        {/* Profil IA */}
+                        <button
+                          onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
+                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Settings className="w-4 h-4" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Profil IA</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isProfileFilled(userProfile) && (
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                            )}
+                            <ChevronRight className="w-3 h-3 opacity-50" />
+                          </div>
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* ── Outils épinglés ─────────────────────────────────────── */}
+              {pinnedTools.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-white/25 px-1 mb-2">Outils épinglés</p>
+                  {pinnedTools.map(toolId => {
+                    const outil = OUTILS_MAP[toolId];
+                    if (!outil) return null;
+                    return (
+                      <button
+                        key={toolId}
+                        onClick={() => { setOpenToolId(toolId); setCurrentPage('outils'); setSidebarOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 transition-all hover:bg-white/5"
+                        style={{ borderLeft: `2px solid ${outil.accentColor}` }}
+                      >
+                        <img src={outil.logoSrc} alt={outil.name} className="w-6 h-6 object-contain flex-shrink-0" />
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-white/70 truncate">{outil.name}</p>
+                          <p className="text-[8px] text-white/30 truncate">{outil.tagline}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+
+              {/* ── Défi replié — APRÈS persona et friction, pour ne jamais les
+                     repousser hors de l'écran : ce sont eux l'essentiel ici. ── */}
+              {showDailyChallenge && challengeInSidebar && !challengeRewarded && (
+                <div className="relative group">
+                  <button
+                    onClick={() => {
+                      setInput(dailyChallenge.prompt);
+                      setCurrentPage('chat');
+                      setSidebarOpen(false);
+                      taRef.current?.focus();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#5D7BFF]/25 bg-[#5D7BFF]/10 hover:bg-[#5D7BFF]/20 transition-all text-left"
+                  >
+                    <span className="text-sm flex-shrink-0">🎯</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] leading-none">
+                        Défi du jour
+                      </p>
+                      <p className="text-[10px] text-white/45 truncate mt-0.5">{dailyChallenge.title}</p>
+                    </div>
+                    <span className="text-[9px] text-white/25 flex-shrink-0">{challengeProgress}/3</span>
+                  </button>
+
+                  {/* Renvoie le défi dans le chat */}
+                  <button
+                    type="button"
+                    onClick={() => setChallengeInSidebar(false)}
+                    title="Remettre le défi dans le chat"
+                    aria-label="Remettre le défi dans le chat"
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#141414] border border-[#5D7BFF]/40
+                               text-white/50 hover:text-[#5D7BFF] hover:border-[#5D7BFF]
+                               flex items-center justify-center transition-opacity
+                               opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                  >
+                    <ChevronRight className="w-2.5 h-2.5 rotate-180" />
+                  </button>
+                </div>
+              )}
 
               {/* ── Upgrade CTA (free users only) ── */}
               {subscription === 'free' && (
@@ -4810,14 +4859,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 )}
               </div>
 
-              {/* ── Défi quotidien (masquable depuis les Réglages) ── */}
-              {!showDailyChallenge ? null : !challengeRewarded ? (
+              {/* ── Défi quotidien — repliable dans la barre latérale via la croix ── */}
+              {(!showDailyChallenge || challengeInSidebar) ? null : !challengeRewarded ? (
+                <div className="relative group mb-3 md:mb-6">
                 <button
                   onClick={() => {
                     setInput(dailyChallenge.prompt);
                     taRef.current?.focus();
                   }}
-                  className="w-full text-left p-3 md:p-5 mb-3 md:mb-6 rounded-2xl border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all group"
+                  className="w-full text-left p-3 md:p-5 rounded-2xl border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all"
                 >
                   <div className="flex items-center gap-2.5 md:gap-4">
                     <span className="text-base md:text-2xl flex-shrink-0">🎯</span>
@@ -4836,6 +4886,22 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       style={{ width: `${Math.min(100, (challengeProgress / 3) * 100)}%` }} />
                   </div>
                 </button>
+
+                {/* Croix — replie le défi dans la barre latérale.
+                    Toujours visible au toucher : sur mobile il n'y a pas de survol. */}
+                <button
+                  type="button"
+                  onClick={() => setChallengeInSidebar(true)}
+                  title="Déplacer le défi dans la barre latérale"
+                  aria-label="Déplacer le défi dans la barre latérale"
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--bg-chat)] border border-[#5D7BFF]/30
+                             text-[var(--text-primary)]/50 hover:text-[#5D7BFF] hover:border-[#5D7BFF]
+                             flex items-center justify-center transition-opacity shadow-sm
+                             opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                </div>
               ) : (
                 <div className="mb-3 md:mb-6 p-2.5 md:p-4 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-2.5">
                   <span className="text-sm md:text-xl">🏆</span>
