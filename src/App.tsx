@@ -4664,12 +4664,14 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
                 // Couleur du persona (chat normal) — accent visuel par message
                 const pColor = PERSONAS[msg.persona ?? persona].color;
+                // Réponse IA en chat normal → pleine largeur, teintée de la couleur du mode
+                const aiFull = !isUser && !isInterview && !isDebate;
 
                 // ── Styles selon mode
                 const bubbleBg = (isInterview || isDebate) ? 'border-2'
                   : isUser
                     ? 'bg-[var(--bg-chat)] border-2 border-[#5D7BFF]/25 rounded-2xl'
-                    : 'border rounded-2xl';
+                    : 'border-l-[3px] rounded-r-2xl'; // IA : accent gauche + pleine largeur
 
                 const bubbleStyle = isInterview
                   ? isUser
@@ -4681,8 +4683,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       : { background: 'rgba(20,12,12,0.8)', borderColor: `${dp?.color ?? '#EF4444'}40`, borderLeftWidth: '3px', borderLeftColor: dp?.color ?? '#EF4444', boxShadow: `0 0 20px ${dp?.color ?? '#EF4444'}15` }
                     : isUser
                       ? { boxShadow: '0 6px 16px rgba(93,123,255,0.15)' }
-                      // Réponse IA : carte gris très clair, bordure teintée persona, ombre douce
-                      : { background: '#f5f6f8', borderColor: `${pColor}30`, boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 10px 24px rgba(16,24,40,0.06)' };
+                      // Réponse IA : pleine largeur, fond teinté de la couleur du persona, accent gauche
+                      : { background: `${pColor}12`, borderLeftColor: pColor };
 
                 return (
                 <React.Fragment key={msg.id}>
@@ -4705,7 +4707,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   className={cx('flex', isUser ? 'justify-end' : 'justify-start')}
                 >
                   <div
-                    className={cx('max-w-[78%]', bubbleBg)}
+                    className={cx(aiFull ? 'w-full' : 'max-w-[82%]', bubbleBg)}
                     style={bubbleStyle}
                   >
                     <div
