@@ -3624,7 +3624,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
       {(!FIREBASE_ENABLED || user) && !authLoading && (<>
 
       {/* Badge beta discret — ne s'affiche que si l'utilisateur est inscrit */}
-      <BetaBadge />
+      <BetaBadge uid={user?.uid} />
 
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       {/* Mobile sidebar backdrop */}
@@ -3855,14 +3855,20 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           className={cx(
                             'w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl border transition-all',
                             active
-                              ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
-                              : 'bg-transparent border-white/10 text-white/50 hover:border-white/25 hover:text-white/80'
+                              ? 'text-white'
+                              : 'bg-transparent border-white/10 text-white/50 hover:text-white/80'
                           )}
+                          // Chaque persona porte SA couleur, sélectionné ou non.
                           style={
-                            active ? { boxShadow: '0 6px 16px rgba(93,123,255,0.2)' } : {}
+                            active
+                              ? { background: p.color, borderColor: p.color, boxShadow: `0 6px 16px ${p.color}33` }
+                              : { borderColor: `${p.color}30` }
                           }
                         >
-                          <Icon className="w-4 h-4 flex-shrink-0" />
+                          <Icon
+                            className="w-4 h-4 flex-shrink-0"
+                            style={{ color: active ? '#fff' : p.color }}
+                          />
                           <div className="min-w-0">
                             <p className="text-[11px] font-black uppercase tracking-wider">
                               {p.shortName}
@@ -4339,8 +4345,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             </button>
           )}
           <div
-            className="w-8 h-8 rounded-xl bg-[#5D7BFF] flex items-center justify-center flex-shrink-0"
-            style={{ boxShadow: '0 4px 12px rgba(93,123,255,0.3)' }}
+            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{
+              background: PERSONAS[persona].color,
+              boxShadow: `0 4px 12px ${PERSONAS[persona].color}4D`,
+            }}
           >
             <CurrentIcon className="w-4 h-4 text-white" />
           </div>
@@ -4647,8 +4656,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               {/* ── En-tête ── */}
               <div className="flex items-center gap-3 md:gap-5 mb-4 md:mb-8">
                 <div
-                  className="flex-shrink-0 w-9 h-9 md:w-14 md:h-14 rounded-2xl bg-[#5D7BFF] flex items-center justify-center"
-                  style={{ boxShadow: '0 6px 18px rgba(93,123,255,0.35)' }}
+                  className="flex-shrink-0 w-9 h-9 md:w-14 md:h-14 rounded-2xl flex items-center justify-center"
+                  style={{
+                    background: PERSONAS[persona].color,
+                    boxShadow: `0 6px 18px ${PERSONAS[persona].color}59`,
+                  }}
                 >
                   <CurrentIcon className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </div>
@@ -4657,7 +4669,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     {PERSONAS[persona].name}
                   </h1>
                   <p className="text-[10px] md:text-[12px] text-[var(--text-primary)]/45 mt-0.5 md:mt-1.5">
-                    <span className="font-bold text-[#5D7BFF]">{PERSONAS[persona].shortName}</span>
+                    <span className="font-bold" style={{ color: PERSONAS[persona].color }}>{PERSONAS[persona].shortName}</span>
                     {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
                     {' '}— {FRICTION[level].hint}
                   </p>
@@ -5593,7 +5605,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             {/* Header */}
             <div className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-white/5">
               <div className="flex items-center gap-3">
-                {(() => { const Icon = PERSONAS[persona].icon; return <Icon className="w-4 h-4 text-[#5D7BFF]" />; })()}
+                {(() => { const Icon = PERSONAS[persona].icon; return <Icon className="w-4 h-4" style={{ color: PERSONAS[persona].color }} />; })()}
                 <span className="text-[11px] font-black uppercase tracking-widest text-white/40">
                   {PERSONAS[persona].shortName} · Mode vocal
                 </span>
@@ -5669,7 +5681,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 return (
                   <div className="w-full max-w-lg bg-white/[0.04] border border-white/10 p-5">
                     <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-3 flex items-center gap-2">
-                      {(() => { const Icon = PERSONAS[persona].icon; return <Icon className="w-3 h-3 text-[#5D7BFF]" />; })()}
+                      {(() => { const Icon = PERSONAS[persona].icon; return <Icon className="w-3 h-3" style={{ color: PERSONAS[persona].color }} />; })()}
                       {PERSONAS[persona].shortName}
                     </p>
                     <p className="text-white/55 text-sm leading-relaxed line-clamp-6">
@@ -5732,12 +5744,16 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         }}
                         className={cx(
                           'flex items-center gap-1.5 px-3 py-1.5 border text-[10px] font-black uppercase tracking-wider transition-all',
-                          active
-                            ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
-                            : 'border-white/10 text-white/30 hover:border-white/30 hover:text-white/60'
+                          active ? 'text-white' : 'text-white/30 hover:text-white/60'
                         )}
+                        // Chaque persona porte SA couleur, sélectionné ou non.
+                        style={
+                          active
+                            ? { background: p.color, borderColor: p.color }
+                            : { borderColor: `${p.color}35` }
+                        }
                       >
-                        <Icon className="w-3 h-3" />
+                        <Icon className="w-3 h-3" style={{ color: active ? '#fff' : p.color }} />
                         {p.shortName}
                       </button>
                     );

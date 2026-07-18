@@ -25,50 +25,69 @@ export type BetaAssignment = {
 
 const NOT_ENROLLED: BetaAssignment = { enrolled: false, version: null, features: [] };
 
-let cached: BetaAssignment | null = null;
-let inflight: Promise<BetaAssignment> | null = null;
+// Cache par utilisateur : un résultat obtenu pour un compte ne doit jamais
+// être servi à un autre (ni survivre à une déconnexion).
+const cache = new Map<string, BetaAssignment>();
 
-export async function getBeta(): Promise<BetaAssignment> {
-  if (cached) return cached;
-  if (inflight) return inflight;
+/**
+ * Résout l'affectation beta. Renvoie `null` en cas d'échec (réseau, 401 parce
+ * que le token n'est pas encore prêt…) — et surtout NE MET PAS l'échec en
+ * cache, sinon un appel trop précoce condamnerait le badge pour toute la
+ * session. Seule une réponse valide du serveur est mémorisée.
+ */
+export async function getBeta(uid: string): Promise<BetaAssignment | null> {
+  const hit = cache.get(uid);
+  if (hit) return hit;
 
-  inflight = (async () => {
-    try {
-      const res = await apiFetch('/api/beta');
-      if (!res.ok) return NOT_ENROLLED;
-      const d = await res.json();
-      return {
-        enrolled: Boolean(d?.enrolled),
-        version: d?.version ?? null,
-        features: Array.isArray(d?.features) ? d.features : [],
-      } as BetaAssignment;
-    } catch {
-      return NOT_ENROLLED;
-    } finally {
-      inflight = null;
-    }
-  })();
-
-  cached = await inflight;
-  return cached;
+  try {
+    const res = await apiFetch('/api/beta');
+    if (!res.ok) return null;
+    const d = await res.json();
+    const value: BetaAssignment = {
+      enrolled: Boolean(d?.enrolled),
+      version: d?.version ?? null,
+      features: Array.isArray(d?.features) ? d.features : [],
+    };
+    cache.set(uid, value);
+    return value;
+  } catch {
+    return null;
+  }
 }
 
-/** Affectation beta de l'utilisateur courant (null tant que non résolue). */
-export function useBeta(enabled = true): BetaAssignment | null {
+/**
+ * Affectation beta de l'utilisateur courant (null tant que non résolue).
+ * Se relance quand l'utilisateur change — c'est ce qui permet au badge
+ * d'apparaître après la connexion, et de disparaître à la déconnexion.
+ */
+export function useBeta(uid: string | null | undefined): BetaAssignment | null {
   const [b, setB] = useState<BetaAssignment | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!uid) { setB(null); return; }
     let on = true;
-    void getBeta().then((v) => { if (on) setB(v); });
-    return () => { on = false; };
-  }, [enabled]);
+    let cancelled = false;
+
+    // Le token Firebase peut ne pas être prêt au tout premier rendu : on
+    // retente brièvement plutôt que de conclure « non inscrit » à tort.
+    const attempt = async (tries: number) => {
+      for (let i = 0; i < tries && !cancelled; i++) {
+        const v = await getBeta(uid);
+        if (!on) return;
+        if (v) { setB(v); return; }
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+      }
+    };
+    void attempt(3);
+
+    return () => { on = false; cancelled = true; };
+  }, [uid]);
 
   return b;
 }
 
 /** Un drapeau fonctionnel est-il actif pour cet utilisateur ? */
-export function useBetaFeature(flag: string, enabled = true): boolean {
-  const b = useBeta(enabled);
+export function useBetaFeature(flag: string, uid: string | null | undefined): boolean {
+  const b = useBeta(uid);
   return Boolean(b?.enrolled && b.features.includes(flag));
 }

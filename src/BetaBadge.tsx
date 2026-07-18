@@ -10,8 +10,8 @@ import { useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import { useBeta } from './beta';
 
-export default function BetaBadge({ enabled = true }: { enabled?: boolean }) {
-  const beta = useBeta(enabled);
+export default function BetaBadge({ uid }: { uid: string | null | undefined }) {
+  const beta = useBeta(uid);
   const [open, setOpen] = useState(false);
 
   if (!beta?.enrolled || !beta.version) return null;
