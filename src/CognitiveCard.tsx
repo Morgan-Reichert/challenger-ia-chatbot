@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Brain, TrendingDown, TrendingUp, Minus } from 'lucide-react';
-import { loadCognitive, summarize, rank, type Cognitive } from './cognitive';
+import { loadCognitive, summarize, rank, progression, type Cognitive } from './cognitive';
 
 /** Carte "Profil cognitif" : faiblesses de raisonnement récurrentes + progression. */
 export default function CognitiveCard({ userId }: { userId: string | null }) {
@@ -18,6 +18,7 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
   const maxCount = s ? Math.max(...s.top.map((t) => t.count), 1) : 1;
   const maxStrength = s ? Math.max(...s.strengths.map((t) => t.count), 1) : 1;
   const r = rank(data?.totalMessages ?? 0);
+  const prog = progression(data);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white p-5">
@@ -55,6 +56,39 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
         </p>
       ) : (
         <div className="mt-5 border-t border-[var(--border)] pt-4 space-y-4">
+          {/* Trajectoire chiffrée — ce que l'utilisateur perdrait en repartant de zéro */}
+          {prog && (
+            <div className="rounded-xl bg-[var(--text-primary)]/[0.03] p-3">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]/40 mb-2">
+                Ta trajectoire · {prog.semaines} semaines
+              </p>
+              <div className="flex items-end gap-3">
+                <div>
+                  <p className="text-[9px] text-[var(--text-primary)]/35">Au départ</p>
+                  <p className="text-base font-black text-[var(--text-primary)]/50">{prog.debut.toFixed(1)}</p>
+                </div>
+                <div className="flex-1 border-b border-dashed border-[var(--text-primary)]/15 mb-2" />
+                <div className="text-right">
+                  <p className="text-[9px] text-[var(--text-primary)]/35">Aujourd'hui</p>
+                  <p
+                    className="text-base font-black"
+                    style={{ color: prog.variationPct < 0 ? '#10B981' : prog.variationPct > 0 ? '#F59E0B' : undefined }}
+                  >
+                    {prog.actuel.toFixed(1)}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[10px] text-[var(--text-primary)]/45 mt-2 leading-relaxed">
+                failles par message ·{' '}
+                {prog.variationPct < 0
+                  ? <span className="font-semibold text-emerald-600">{Math.abs(prog.variationPct)} % de moins qu'à tes débuts</span>
+                  : prog.variationPct > 0
+                    ? <span className="font-semibold text-orange-600">{prog.variationPct} % de plus qu'à tes débuts</span>
+                    : <span>stable depuis tes débuts</span>}
+              </p>
+            </div>
+          )}
+
           {s.trend && (
             <div className="flex items-center gap-2 text-xs">
               {s.trend === 'down' ? (

@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   // un accès qu'on vient de lui retirer.
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
-  const { uid, skipped } = await verifyIdToken(req);
+  const { uid, email, skipped } = await verifyIdToken(req);
   if (isAuthEnforced() && !uid) {
     return res.status(401).json({ error: 'Authentification requise' });
   }
@@ -44,9 +44,13 @@ export default async function handler(req, res) {
         'content-type': 'application/json',
         authorization: `Bearer ${secret}`,
       },
+      // On envoie l'UID **et** l'email, tous deux issus du token VÉRIFIÉ :
+      // côté STARIAX les testeurs sont souvent inscrits par email, alors que
+      // nous identifions nos utilisateurs par UID. Sans l'email, une
+      // attribution manuelle par adresse ne prend jamais.
       // Attributs de ciblage poussés par le produit : STARIAX ne réplique pas
       // notre base utilisateurs. (Enrichir ici quand le ciblage l'exigera.)
-      body: JSON.stringify({ userId: uid, attributes: {} }),
+      body: JSON.stringify({ userId: uid, email: email || undefined, attributes: {} }),
     });
     if (!r.ok) return res.status(200).json(NOT_ENROLLED);
 

@@ -42,7 +42,7 @@ import {
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
-import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive } from './cognitive';
+import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive, loadCognitive, cognitiveContext, type Cognitive } from './cognitive';
 import { useMaintenance, isBlocked, useProductLogo, StariaxMaintenanceScreen, StariaxSectionGate } from './StariaxGate';
 import BetaBadge from './BetaBadge';
 import { useBeta } from './beta';
@@ -1681,6 +1681,19 @@ export default function App() {
 
   // ── UX features
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('cia_onboarding_done'));
+
+  // ─── Mémoire cognitive : l'IA doit ouvrir en connaissant les angles morts
+  // déjà observés, au lieu de repartir de zéro à chaque conversation.
+  // Rechargé au changement d'utilisateur et de session : le profil évolue
+  // lentement, inutile de relire à chaque message.
+  const [cognitiveProfile, setCognitiveProfile] = useState<Cognitive | null>(null);
+  useEffect(() => {
+    if (!user?.uid) { setCognitiveProfile(null); return; }
+    let on = true;
+    void loadCognitive(user.uid).then((c) => { if (on) setCognitiveProfile(c); });
+    return () => { on = false; };
+  }, [user?.uid, activeId]);
+
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingPersona, setOnboardingPersona] = useState<Persona>('architect');
   const [collapsedMsgs, setCollapsedMsgs] = useState<Set<string>>(new Set());
@@ -2623,10 +2636,11 @@ export default function App() {
 
         const activeConvNow = conversations.find((c) => c.id === convId);
         const basePrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
-        const profileCtx = (!activeConvNow?.debatePrompt && !activeConvNow?.noProfile && !noProfileMode)
-          ? buildProfileContext(userProfile)
-          : '';
-        const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
+        const profilAutorise = !activeConvNow?.debatePrompt && !activeConvNow?.noProfile && !noProfileMode;
+        const profileCtx = profilAutorise ? buildProfileContext(userProfile) : '';
+        // Mémoire cognitive : soumise au même consentement que le profil.
+        const cogCtx = profilAutorise ? cognitiveContext(cognitiveProfile) : '';
+        const systemPrompt = [basePrompt, profileCtx, cogCtx].filter(Boolean).join('\n\n');
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
 
         // Inject real-time date (côté client — non sensible)
@@ -2791,7 +2805,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         sendingRef.current = false;
       }
     },
-    [activeId, conversations, sending, persona, level, user, subscription, dailyUsage, challengeRewarded]
+    [activeId, conversations, sending, persona, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile]
   );
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
@@ -2842,10 +2856,10 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
 
     // Construire le system prompt comme send() le fait
     const basePrompt = conv.debatePrompt ?? buildSystemPrompt(persona, level);
-    const profileCtx = (!conv.debatePrompt && !conv.noProfile && !noProfileMode)
-      ? buildProfileContext(userProfile)
-      : '';
-    const systemPrompt = profileCtx ? basePrompt + '\n\n' + profileCtx : basePrompt;
+    const profilAutorise = !conv.debatePrompt && !conv.noProfile && !noProfileMode;
+    const profileCtx = profilAutorise ? buildProfileContext(userProfile) : '';
+    const cogCtx = profilAutorise ? cognitiveContext(cognitiveProfile) : '';
+    const systemPrompt = [basePrompt, profileCtx, cogCtx].filter(Boolean).join('\n\n');
 
     // Historique respectant /oublier
     const memoryResetAt = conv.memoryResetAt;

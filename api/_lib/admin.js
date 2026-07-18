@@ -43,7 +43,10 @@ export async function verifyIdToken(req) {
   if (!match) return { uid: null, error: 'missing_token' };
   try {
     const decoded = await admin.auth().verifyIdToken(match[1]);
-    return { uid: decoded.uid };
+    // `email` est ajouté en plus de `uid` (ajout rétro-compatible) : STARIAX
+    // rapproche ses bêta-testeurs sur l'UID **ou** l'email, car côté admin on
+    // les inscrit naturellement par email.
+    return { uid: decoded.uid, email: decoded.email ?? null };
   } catch {
     return { uid: null, error: 'invalid_token' };
   }

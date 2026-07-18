@@ -108,6 +108,73 @@ export async function loadCognitive(userId: string): Promise<Cognitive | null> {
   } catch { return null; }
 }
 
+/**
+ * Fragment de system prompt décrivant les angles morts récurrents de
+ * l'utilisateur — l'IA cesse ainsi de repartir de zéro à chaque conversation.
+ *
+ * Deux garde-fous, sans quoi la mémoire devient une arme contre l'utilisateur :
+ *  - l'IA ne cite JAMAIS le profil à voix haute (« tu fais toujours… ») ;
+ *  - elle s'en sert pour AFFÛTER son attention, pas pour accuser d'avance.
+ * Renvoie '' tant qu'il n'y a pas assez de matière (profil non significatif).
+ */
+export function cognitiveContext(c: Cognitive | null): string {
+  if (!c || (c.totalMessages ?? 0) < 5) return '';
+
+  const top = Object.entries(c.counts || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([tag]) => BIAS_TAGS[tag]?.label ?? tag);
+
+  const forces = Object.entries(c.strengths || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([tag]) => STRENGTH_TAGS[tag]?.label ?? tag);
+
+  if (!top.length && !forces.length) return '';
+
+  const lignes = [
+    '## Historique cognitif de cet utilisateur (CONFIDENTIEL — ne jamais citer)',
+    "Tu as déjà débattu avec lui. Voici ce que ses échanges passés ont révélé :",
+  ];
+  if (top.length) lignes.push(`- Angles morts récurrents : ${top.join(', ')}.`);
+  if (forces.length) lignes.push(`- Réflexes solides déjà acquis : ${forces.join(', ')}.`);
+  lignes.push(
+    '',
+    "USAGE STRICT :",
+    "- Ne mentionne JAMAIS ce profil explicitement — pas de « tu fais toujours… », pas de « comme d'habitude ». Il t'aide à mieux voir, il ne se récite pas.",
+    "- Sers-t'en pour ANTICIPER : surveille ces angles morts en priorité, et signale-les seulement s'ils sont RÉELLEMENT présents dans le message courant. Un angle mort passé n'est jamais une preuve pour le message présent.",
+    "- Ne redemande pas ce qui est déjà acquis : sur ses réflexes solides, monte d'un cran plutôt que de réexpliquer les bases.",
+    "- S'il n'y a rien à redire aujourd'hui, ne fabrique pas un reproche pour coller à l'historique.",
+  );
+  return lignes.join('\n');
+}
+
+/** Progression mesurée : taux de failles par message, du début à aujourd'hui. */
+export function progression(c: Cognitive | null): {
+  debut: number; actuel: number; variationPct: number; semaines: number;
+} | null {
+  if (!c?.weeks) return null;
+  const cles = Object.keys(c.weeks).sort();
+  if (cles.length < 3) return null;
+
+  const taux = (ks: string[]) => {
+    let f = 0, m = 0;
+    for (const k of ks) { f += c.weeks[k].flags; m += c.weeks[k].messages; }
+    return m ? f / m : 0;
+  };
+  const debut = taux(cles.slice(0, 2));
+  const actuel = taux(cles.slice(-2));
+  if (debut === 0) return null;
+
+  return {
+    debut, actuel,
+    variationPct: Math.round(((actuel - debut) / debut) * 100),
+    semaines: cles.length,
+  };
+}
+
 // ─── Rangs / titres (fierté + appartenance) ─────────────────────────────────────
 export const RANKS: { min: number; title: string; emoji: string }[] = [
   { min: 0,   title: 'Apprenti du doute',    emoji: '🌱' },
