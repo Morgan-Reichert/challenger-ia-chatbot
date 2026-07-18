@@ -804,17 +804,17 @@ async function fsGetSharedConversation(shareId: string): Promise<{ title: string
 const mdWhite = {
   // Paragraphe normal
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-sm text-white leading-relaxed mb-3 last:mb-0">{children}</p>
+    <p className="text-sm text-white leading-relaxed mb-3 last:mb-0 break-words">{children}</p>
   ),
 
   // Titres de sections — épuré (plus de barres ni d'encadré)
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-[11px] font-black uppercase tracking-wide text-white/90 mt-4 mb-1.5 first:mt-0">
+    <p className="text-[11px] font-black uppercase tracking-wide text-white/90 mt-4 mb-1.5 first:mt-0 break-words">
       {children}
     </p>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-[10px] font-black uppercase tracking-wide text-white/55 mt-3 mb-1">
+    <p className="text-[10px] font-black uppercase tracking-wide text-white/55 mt-3 mb-1 break-words">
       {children}
     </p>
   ),
@@ -839,7 +839,9 @@ const mdWhite = {
   li: ({ children }: { children?: React.ReactNode }) => (
     <li className="flex items-start gap-2.5 text-sm text-white leading-relaxed">
       <span className="w-1.5 h-1.5 bg-white/50 flex-shrink-0 mt-1.5" />
-      <span>{children}</span>
+      {/* min-w-0 : sans lui, un enfant flex refuse de rétrécir sous la largeur
+          de son contenu — un mot long élargit alors toute la page. */}
+      <span className="min-w-0 break-words">{children}</span>
     </li>
   ),
 
@@ -856,9 +858,17 @@ const mdWhite = {
 
   // Code inline
   code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="font-mono text-xs bg-white/20 border border-white/20 px-1.5 py-0.5 text-white rounded-sm">
+    <code className="font-mono text-xs bg-white/20 border border-white/20 px-1.5 py-0.5 text-white rounded-sm break-all">
       {children}
     </code>
+  ),
+
+  // Bloc de code — sans ce renderer, <pre> hérite de white-space:pre, ne revient
+  // jamais à la ligne et fait déborder toute la page horizontalement.
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="my-3 max-w-full overflow-x-auto rounded-lg bg-black/30 border border-white/15 p-3 text-xs font-mono text-white/90">
+      {children}
+    </pre>
   ),
 
   // Tableaux GFM
@@ -906,13 +916,13 @@ const mdWhite = {
 // Même structure que mdWhite (titres majuscules, puces carrées) mais lisible sur fond clair.
 const mdLight = {
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-sm text-[#20242e] leading-relaxed mb-3 last:mb-0">{children}</p>
+    <p className="text-sm text-[#20242e] leading-relaxed mb-3 last:mb-0 break-words">{children}</p>
   ),
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-[11px] font-black uppercase tracking-wide text-[#111827] mt-4 mb-1.5 first:mt-0">{children}</p>
+    <p className="text-[11px] font-black uppercase tracking-wide text-[#111827] mt-4 mb-1.5 first:mt-0 break-words">{children}</p>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-[10px] font-black uppercase tracking-wide text-[#6b7280] mt-3 mb-1">{children}</p>
+    <p className="text-[10px] font-black uppercase tracking-wide text-[#6b7280] mt-3 mb-1 break-words">{children}</p>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className="font-semibold text-[#111827]">{children}</strong>
@@ -929,7 +939,9 @@ const mdLight = {
   li: ({ children }: { children?: React.ReactNode }) => (
     <li className="flex items-start gap-2.5 text-sm text-[#20242e] leading-relaxed">
       <span className="w-1.5 h-1.5 bg-[#9ca3af] flex-shrink-0 mt-1.5 rounded-sm" />
-      <span>{children}</span>
+      {/* min-w-0 : sans lui, un enfant flex refuse de rétrécir sous la largeur
+          de son contenu — un mot long élargit alors toute la page. */}
+      <span className="min-w-0 break-words">{children}</span>
     </li>
   ),
   blockquote: ({ children }: { children?: React.ReactNode }) => (
@@ -942,7 +954,12 @@ const mdLight = {
     </div>
   ),
   code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="font-mono text-xs bg-[#eceef1] border border-[#e0e2e7] px-1.5 py-0.5 text-[#111827] rounded-sm">{children}</code>
+    <code className="font-mono text-xs bg-[#eceef1] border border-[#e0e2e7] px-1.5 py-0.5 text-[#111827] rounded-sm break-all">{children}</code>
+  ),
+  // Bloc de code — sans ce renderer, <pre> hérite de white-space:pre, ne revient
+  // jamais à la ligne et fait déborder toute la page horizontalement.
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="my-3 max-w-full overflow-x-auto rounded-lg bg-[#f3f4f6] border border-[#e0e2e7] p-3 text-xs font-mono text-[#111827]">{children}</pre>
   ),
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="overflow-x-auto my-3"><table className="w-full text-xs border-collapse">{children}</table></div>
@@ -4629,7 +4646,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           const interviewCfg = activeConv?.interviewType ? INTERVIEW_TYPES[activeConv.interviewType] : null;
           return (
         <div
-          className={cx('flex-1 overflow-y-auto px-6 py-8 transition-colors', (activeConv?.debatePersonaId || interviewCfg) ? '' : '')}
+          className={cx('flex-1 overflow-y-auto overflow-x-hidden px-6 py-8 transition-colors', (activeConv?.debatePersonaId || interviewCfg) ? '' : '')}
           style={interviewCfg ? { background: interviewCfg.bgColor } : activeConv?.debatePersonaId ? { background: '#0a0c14' } : undefined}
         >
           {!activeConv || activeConv.messages.length === 0 ? (
