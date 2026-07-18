@@ -16,6 +16,7 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
 
   const s = summarize(data);
   const maxCount = s ? Math.max(...s.top.map((t) => t.count), 1) : 1;
+  const maxStrength = s ? Math.max(...s.strengths.map((t) => t.count), 1) : 1;
   const r = rank(data?.totalMessages ?? 0);
 
   return (
@@ -26,7 +27,7 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
         </div>
         <div>
           <p className="text-sm font-bold text-[var(--text-primary)]">Profil cognitif</p>
-          <p className="text-xs text-[var(--text-primary)]/50">Ton rang & tes faiblesses récurrentes</p>
+          <p className="text-xs text-[var(--text-primary)]/50">Ton rang, tes forces & ce qui reste à travailler</p>
         </div>
       </div>
 
@@ -50,7 +51,7 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
         <p className="text-xs text-[var(--text-primary)]/40 mt-4">Chargement…</p>
       ) : !s ? (
         <p className="text-xs text-[var(--text-primary)]/50 mt-5 leading-relaxed border-t border-[var(--border)] pt-4">
-          Débats avec Challenger : l'IA repère tes biais récurrents (généralisations, corrélation/causalité, appels à l'autorité…) et tu montes en grade à mesure que ton esprit s'affûte.
+          Débats avec Challenger : l'IA repère tes <span className="font-semibold text-emerald-600">points forts</span> (nuance, exigence de preuve, contre-exemples anticipés…) autant que tes biais récurrents — et tu montes en grade à mesure que ton esprit s'affûte.
         </p>
       ) : (
         <div className="mt-5 border-t border-[var(--border)] pt-4 space-y-4">
@@ -66,19 +67,44 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
             </div>
           )}
 
-          <div className="space-y-2.5">
-            {s.top.map((t) => (
-              <div key={t.tag}>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[var(--text-primary)]/80 font-medium">{t.label}</span>
-                  <span className="text-[var(--text-primary)]/40">{t.count}×</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-[var(--text-primary)]/[0.08] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#5D7BFF]" style={{ width: `${Math.round((t.count / maxCount) * 100)}%` }} />
-                </div>
+          {/* Points forts — reconnus seulement quand ils sont substantiels */}
+          {s.strengths.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600/70 mb-2">Tes points forts</p>
+              <div className="space-y-2.5">
+                {s.strengths.map((t) => (
+                  <div key={t.tag}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-[var(--text-primary)]/80 font-medium">{t.label}</span>
+                      <span className="text-[var(--text-primary)]/40">{t.count}×</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-[var(--text-primary)]/[0.08] overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((t.count / maxStrength) * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {s.top.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#5D7BFF]/70 mb-2">À travailler</p>
+              <div className="space-y-2.5">
+                {s.top.map((t) => (
+                  <div key={t.tag}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-[var(--text-primary)]/80 font-medium">{t.label}</span>
+                      <span className="text-[var(--text-primary)]/40">{t.count}×</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-[var(--text-primary)]/[0.08] overflow-hidden">
+                      <div className="h-full rounded-full bg-[#5D7BFF]" style={{ width: `${Math.round((t.count / maxCount) * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <p className="text-[10px] text-[var(--text-primary)]/35">
             {s.totalMessages} message{s.totalMessages > 1 ? 's' : ''} analysé{s.totalMessages > 1 ? 's' : ''} · mis à jour en continu

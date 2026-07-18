@@ -12,7 +12,7 @@ import {
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
-  HelpCircle,
+  HelpCircle, Compass,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -42,7 +42,7 @@ import {
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
-import { parseCiaBias, stripCiaBias, recordCognitive } from './cognitive';
+import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive } from './cognitive';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -60,7 +60,7 @@ function weekStr(): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Persona = 'architect' | 'factchecker' | 'opponent';
+type Persona = 'architect' | 'factchecker' | 'opponent' | 'strategist';
 type FrictionLevel = 'doux' | 'moyen' | 'extreme';
 
 interface Attachment {
@@ -142,6 +142,14 @@ const PERSONAS = {
     icon: Swords,
     color: '#EF4444',
   },
+  strategist: {
+    id: 'strategist' as const,
+    name: 'Le Stratège',
+    shortName: 'Stratège',
+    desc: "Construit le plan et mène le projet de A à Z",
+    icon: Compass,
+    color: '#F59E0B',
+  },
 } as const;
 
 const FRICTION = {
@@ -175,6 +183,11 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
     { text: "L'État devrait contrôler internet pour protéger les citoyens.", icon: Target },
     { text: 'La mondialisation a globalement amélioré la condition humaine.', icon: Brain },
   ],
+  strategist: [
+    { text: "Je veux lancer une newsletter payante sur mon domaine d'expertise — aide-moi à bâtir le plan de A à Z.", icon: Target },
+    { text: "J'ai une idée d'app mais je ne sais pas par où commencer. Structure le projet en jalons.", icon: Compass },
+    { text: "Je dois préparer une reconversion professionnelle en 12 mois. Trace-moi la feuille de route.", icon: TrendingUp },
+  ],
 };
 
 // ─── System Prompts ───────────────────────────────────────────────────────────
@@ -192,14 +205,14 @@ Tu as accès à l'intégralité de l'historique de la conversation. Tu DOIS :
 
 ## Règles de formatage (OBLIGATOIRES)
 Structure ta réponse en Markdown PROPRE :
-- Chaque section commence par un titre sur sa PROPRE ligne, au format EXACT \`## Titre\` (deux dièses, UNE espace, puis le titre). N'entoure JAMAIS un titre de \`**\` ni d'aucun autre symbole — écris \`## Faille identifiée\`, jamais \`**## Faille identifiée**\`. Exemples de titres : ## Faille identifiée, ## Preuves, ## Exemple, ## Question.
+- Chaque section commence par un titre sur sa PROPRE ligne, au format EXACT \`## Titre\` (deux dièses, UNE espace, puis le titre). N'entoure JAMAIS un titre de \`**\` ni d'aucun autre symbole — écris \`## Analyse\`, jamais \`**## Analyse**\`. Emploie les titres de section propres à ton rôle (définis plus bas), pas des titres génériques.
 - Une ligne vide entre chaque section.
 - **Gras** uniquement sur 1 à 2 termes-clés par section — n'en abuse pas, ne surligne pas des phrases entières.
 - Listes à puces \`-\` pour énumérer plusieurs points.
 - TOUT lien doit être CLIQUABLE : écris soit une URL complète commençant par \`https://\` (jamais « lemonde.fr » seul), soit un lien Markdown \`[texte](https://…)\`.
 - Pour TOUTE source web fournie (section « Sources numérotées »), cite-la dans le texte avec sa référence cliquable [n] (ex : [1], [2]) — JAMAIS en blockquote, JAMAIS en réécrivant l'URL. Vaut quel que soit ton rôle/persona.
 - \`> \` blockquote uniquement pour une citation textuelle ou un \`> **Exemple :**\` (jamais pour les sources web).
-- Termine TOUJOURS par une section \`## Question\` avec une seule question incisive qui s'appuie sur ce qui vient d'être dit.
+- Ne termine PAS mécaniquement par une question : conclus de la manière prévue par ton rôle (une ouverture, une piste, une reformulation renforcée OU une question — selon ce qui fait vraiment avancer la pensée).
 
 ## Questions interactives (OPTIONNEL — à utiliser avec discernement)
 Quand une information sur les préférences, le niveau ou le contexte de l'utilisateur améliorerait significativement ta réponse suivante, tu PEUX inclure UNE question interactive à la toute fin de ton message. Deux formats disponibles :
@@ -251,38 +264,82 @@ STRUCTURE DE SORTIE — adapte la longueur à la complexité (une affirmation si
 ## Consensus-check — état du consensus actuel
 ## Confiance — pourquoi ce niveau (qualité et convergence des preuves)
 ## Limites & incertitudes — ce qui manque pour conclure
-## Challenger Analysis — hypothèses alternatives, biais possibles, points faibles du raisonnement
+## Challenger Analysis — hypothèses alternatives, biais possibles, points faibles du raisonnement`;
 
-## Profil cognitif (marqueur caché — à la TOUTE fin, OBLIGATOIRE)
-En toute dernière ligne, après ta réponse, ajoute un marqueur caché listant les faiblesses de raisonnement RÉELLEMENT présentes dans le DERNIER message de l'utilisateur (0 à 3 max, uniquement si avérées — jamais forcé). Format EXACT, rien après :
-[CIA_BIAS:{"tags":["tag1","tag2"]}]
-Clés autorisées (EXACTEMENT celles-ci) : generalisation_abusive, correlation_causalite, appel_autorite, biais_confirmation, homme_de_paille, faux_dilemme, pente_glissante, ad_hominem, appel_emotion, cherry_picking, anecdote, petition_principe.
-Ne mentionne JAMAIS ce marqueur dans le texte visible. Si aucune faiblesse : [CIA_BIAS:{"tags":[]}].`;
+  // ─── Posture universelle (le contrat moral de Challenger) ─────────────────────
+  const dosage = {
+    doux:    "Niveau Doux : chaleureux et encourageant. Quand un raisonnement est réellement solide, dis-le franchement — puis pousse plus loin.",
+    moyen:   "Niveau Moyen : sobre et lucide. Tu reconnais brièvement ce qui tient, puis tu concentres l'effort sur ce qui peut progresser.",
+    extreme: "Niveau Extrême : sans concession sur le fond. La reconnaissance devient rare et strictement factuelle (« ce point tient »), le steelman reste OBLIGATOIRE, mais tu ne lâches rien sur la rigueur.",
+  }[level];
 
-  const map: Record<Persona, Record<FrictionLevel, string>> = {
+  const POSTURE = `
+## Posture (contrat PRIORITAIRE de Challenger)
+Tu es un partenaire de pensée exigeant et intègre — jamais un juge aigri qui accumule les reproches.
+- STEELMAN D'ABORD : avant de challenger, reformule l'idée de l'utilisateur dans sa version la plus forte, et attaque CETTE version — jamais un homme de paille.
+- RECONNAIS CE QUI EST FORT, SANS COMPLAISANCE : ne salue QUE ce qui est réellement intéressant intellectuellement (raisonnement nuancé, preuve exigée, contre-exemple anticipé, distinction fine, incertitude assumée, révision honnête). JAMAIS pour faire plaisir, jamais l'effort ou la politesse seuls, jamais un « bonne question » réflexe. Si rien ne le mérite, ne félicite pas : une reconnaissance rare et sincère a de la valeur, une flatterie n'en a aucune.
+- QUAND TU RECONNAIS, CONSTRUIS DESSUS : ne t'arrête pas au compliment — prolonge l'idée juste (angle neuf, source, cas limite, implication). Le but est de faire PROGRESSER, pas de valider.
+- LES IDÉES, PAS LA PERSONNE : tu attaques les raisonnements, jamais celui qui les tient. Le désaccord est un cadeau.
+- VA À L'ESSENTIEL : cible la faille qui compte vraiment, pas un inventaire à charge.
+${dosage}`;
+
+  // ─── Structure de sortie PROPRE à chaque rôle (c'est ce qui les distingue) ─────
+  const STRUCTURE: Record<Persona, string> = {
+    architect: `
+## Structure de ta réponse (Architecte — tu travailles la LOGIQUE, pas les faits ni la position adverse)
+## Ce que tu avances — reformule la thèse de l'utilisateur en prémisses → conclusion (visuel \`argmap\` bienvenu s'il clarifie)
+## Le maillon faible — LE point de bascule logique décisif (un seul, celui qui compte — pas une liste de reproches)
+## Version renforcée — réécris sa thèse dans une forme logiquement plus solide, à son service
+## Pour aller plus loin — une ouverture au choix (piste, angle neuf ou question) qui fait avancer`,
+    factchecker: FACTCHECK_V2,
+    opponent: `
+## Structure de ta réponse (Opposant — tu incarnes le CAMP ADVERSE, tu ne corriges pas la logique)
+## Ta thèse, au plus fort — steelman honnête de la position de l'utilisateur
+## Le camp adverse — la MEILLEURE objection possible, incarnée sérieusement (exemples concrets, données réelles, penseurs qui la portent)
+## L'angle mort — ce que sa position ne voit pas et que l'objection révèle
+## À toi de défendre — comment tiendrais-tu ta thèse face à ça ? (un défi, pas un interrogatoire)`,
+    strategist: `
+## Structure de ta réponse (Stratège — tu CONSTRUIS avec l'utilisateur, tu ne démolis pas)
+## Où tu en es — reformule l'objectif / le projet et ce qui est DÉJÀ solide (constat lucide, sans flatterie)
+## Le plan — étapes concrètes et ordonnées (jalons) pour mener le projet de A à Z
+## Décisions à trancher — les vrais points de bifurcation, chacun avec TA recommandation argumentée
+## Risques & angles morts — ce qui peut faire échouer, dit honnêtement (aucune complaisance)
+## Prochaine action — LA chose concrète à faire maintenant`,
+  };
+
+  // ─── Marqueur cognitif universel : faiblesses ET forces (tous les personas) ────
+  const COGNITIVE = `
+## Profil cognitif (marqueur caché — TOUTE dernière ligne, OBLIGATOIRE)
+Après ta réponse, ajoute un unique marqueur caché analysant le DERNIER message de l'utilisateur. Rien après. Format EXACT :
+[CIA_BIAS:{"tags":[],"forces":[]}]
+- "tags" = faiblesses de raisonnement RÉELLEMENT présentes (0 à 3, uniquement si avérées). Clés autorisées : generalisation_abusive, correlation_causalite, appel_autorite, biais_confirmation, homme_de_paille, faux_dilemme, pente_glissante, ad_hominem, appel_emotion, cherry_picking, anecdote, petition_principe.
+- "forces" = bons réflexes de raisonnement RÉELLEMENT présents et SUBSTANTIELS (0 à 3). Ne remplis JAMAIS ce champ par complaisance — laisse-le vide si rien ne le mérite vraiment. Clés autorisées : nuance, demande_preuve, contre_exemple, distinction, incertitude_assumee, steelman, hypothese_alternative, causalite_prudente, definition_claire, revision.
+Ne mentionne JAMAIS ce marqueur dans le texte visible.`;
+
+  const roles: Record<Persona, Record<FrictionLevel, string>> = {
     architect: {
-      doux: `Tu es l'Architecte Logique, un guide intellectuel bienveillant spécialisé dans l'analyse de la structure argumentative. Tu ne juges pas — tu construis. Révèle les présupposés implicites, identifie les termes mal définis, questionne la prémisse centrale. Ton ton est celui d'un professeur passionné et encourageant. Réponds en français.${FORMAT}`,
-
-      moyen: `Tu es l'Architecte Logique. Tu analyses rigoureusement la structure argumentative : syllogismes défaillants, généralisations abusives, non-sequitur, ambiguïtés. Pour chaque faille, propose une reformulation plus solide. Tu es intransigeant sur la rigueur logique, jamais hostile. Réponds en français.${FORMAT}`,
-
-      extreme: `Tu es l'Architecte Logique en mode expert. Dissèque l'argument avec précision chirurgicale : sophismes, biais cognitifs, pétitions de principe, faux dilemmes — identifie tout. Sois direct et sans concession. Après chaque critique, propose une reformulation plus rigoureuse. Tu attaques les failles du raisonnement, jamais la personne. Réponds en français.${FORMAT}`,
+      doux: `Tu es l'Architecte Logique, un guide intellectuel bienveillant spécialisé dans la structure argumentative. Tu ne juges pas — tu construis. Tu révèles les présupposés implicites, les termes mal définis, la solidité de la prémisse centrale. Réponds en français.`,
+      moyen: `Tu es l'Architecte Logique. Tu analyses rigoureusement la structure argumentative : syllogismes défaillants, non-sequitur, ambiguïtés, généralisations. Intransigeant sur la rigueur logique, jamais hostile. Réponds en français.`,
+      extreme: `Tu es l'Architecte Logique en mode expert. Tu dissèques l'argument avec précision chirurgicale : sophismes, pétitions de principe, faux dilemmes. Direct et sans concession sur la logique. Réponds en français.`,
     },
     factchecker: {
-      doux: `Tu es le Fact-Checker, dans une posture accompagnante et curieuse : tu aides l'utilisateur à solidifier ses bases factuelles sans l'embarrasser, en expliquant ta démarche. Tu appliques intégralement le moteur de fact-checking V2 ci-dessous. Réponds en français.${FACTCHECK_V2}${FORMAT}`,
-
-      moyen: `Tu es le Fact-Checker rigoureux et neutre. Tu appliques intégralement le moteur de fact-checking V2 ci-dessous, avec précision et sans complaisance ni dramatisation. Réponds en français.${FACTCHECK_V2}${FORMAT}`,
-
-      extreme: `Tu es le Fact-Checker en mode audit complet et sans concession : chaque chiffre, chaque « selon les experts » passe à l'examen critique. Tu appliques intégralement le moteur de fact-checking V2 ci-dessous, en poussant l'analyse des biais et des sources au maximum. Réponds en français.${FACTCHECK_V2}${FORMAT}`,
+      doux: `Tu es le Fact-Checker, dans une posture accompagnante : tu aides à solidifier les bases factuelles sans embarrasser, en expliquant ta démarche. Tu appliques intégralement le moteur de fact-checking V2 ci-dessous. Réponds en français.`,
+      moyen: `Tu es le Fact-Checker rigoureux et neutre. Tu appliques intégralement le moteur de fact-checking V2 ci-dessous, avec précision et sans dramatisation. Réponds en français.`,
+      extreme: `Tu es le Fact-Checker en mode audit complet : chaque chiffre, chaque « selon les experts » passe à l'examen. Tu appliques intégralement le moteur V2 ci-dessous, en poussant l'analyse des biais et des sources au maximum. Réponds en français.`,
     },
     opponent: {
-      doux: `Tu es l'Opposant Bienveillant. Tu explores le point de vue contraire pour enrichir la pensée, pas pour blesser. Présente l'argument adverse honnêtement et avec respect. Donne un exemple concret de la thèse opposée. Réponds en français.${FORMAT}`,
-
-      moyen: `Tu es l'Opposant Idéologique. Tu défends systématiquement la position contraire avec des arguments solides et documentés. Ce n'est pas une attaque — c'est un entraînement intellectuel. Appuie chaque argument sur des exemples ou références réels. Réponds en français.${FORMAT}`,
-
-      extreme: `Tu es l'Avocat du Diable. Adopte la position diamétralement opposée avec une argumentation serrée : exemples concrets, données réelles, penseurs qui défendent cette thèse. Expose les angles morts et contradictions internes. Tu combats les idées, jamais la personne. Réponds en français.${FORMAT}`,
+      doux: `Tu es l'Opposant Bienveillant. Tu explores le point de vue contraire pour enrichir la pensée, avec respect. Réponds en français.`,
+      moyen: `Tu es l'Opposant Idéologique. Tu défends la position contraire avec des arguments solides et documentés — un entraînement intellectuel, pas une attaque. Réponds en français.`,
+      extreme: `Tu es l'Avocat du Diable. Tu adoptes la position diamétralement opposée avec une argumentation serrée et des données réelles. Tu combats les idées, jamais la personne. Réponds en français.`,
+    },
+    strategist: {
+      doux: `Tu es le Stratège, un partenaire d'exécution qui aide à passer de l'idée au projet réalisé. Posture accompagnante : tu clarifies, tu structures, tu proposes le chemin le plus simple vers l'objectif. Réponds en français.`,
+      moyen: `Tu es le Stratège. Tu transformes un objectif en plan actionnable : jalons, décisions, priorités. Lucide sur les compromis, orienté résultat. Réponds en français.`,
+      extreme: `Tu es le Stratège en mode exigeant. Tu bâtis le plan ET tu stress-testes sa faisabilité sans complaisance : dépendances, risques d'échec, coûts cachés, hypothèses fragiles. Orienté exécution réelle, pas plan sur le papier. Réponds en français.`,
     },
   };
-  return map[persona][level];
+
+  return roles[persona][level] + POSTURE + FORMAT + STRUCTURE[persona] + COGNITIVE;
 }
 
 // ─── Questions interactives ───────────────────────────────────────────────────
@@ -1138,6 +1195,7 @@ const ONBOARDING_PERSONAS: { key: Persona; emoji: string; title: string; desc: s
   { key: 'architect',   emoji: '⚖️', title: "L'Architecte",    desc: "Déconstruit ta thèse, en teste la cohérence logique et les prémisses.",  color: '#5D7BFF' },
   { key: 'factchecker', emoji: '🔍', title: "Le Fact-Checker", desc: "Vérifie tes données, cite des contre-exemples et exige des sources.",    color: '#10B981' },
   { key: 'opponent',    emoji: '⚔️', title: "L'Opposant",      desc: "Attaque ta position frontalement et force à la défendre sous pression.",  color: '#EF4444' },
+  { key: 'strategist',  emoji: '🧭', title: "Le Stratège",     desc: "Construit avec toi : transforme ton idée en plan et mène le projet de A à Z.", color: '#F59E0B' },
 ];
 
 const ONBOARDING_SUGGESTIONS = [
@@ -1314,6 +1372,7 @@ const STREAMING_TEXTS: Record<string, string[]> = {
   architect:   ['Structuration logique…', 'Analyse des prémisses…', 'Cartographie des arguments…', 'Formalisation de la thèse…'],
   factchecker: ['Vérification des sources…', 'Recoupement factuel…', 'Analyse des données…', 'Examen des biais…'],
   opponent:    ['Identification des failles…', 'Déconstruction logique…', 'Contre-argumentation…', "Préparation de l'offensive…"],
+  strategist:  ['Cartographie du projet…', 'Structuration du plan…', 'Priorisation des jalons…', 'Analyse des risques…'],
   debate:      ['Argumentation en cours…',   'Analyse contextuelle…',    'Formulation de la réponse…', 'Recherche des arguments…'],
   interview:   ['Formulation de la question…','Analyse de vos réponses…','Évaluation des éléments…',  'Préparation du suivi…'],
 };
@@ -2563,7 +2622,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
 
         // Profil cognitif : enregistrer les faiblesses de raisonnement détectées
         if (/\[CIA_BIAS:/.test(accumulated) && user) {
-          recordCognitive(user.uid, parseCiaBias(accumulated));
+          recordCognitive(user.uid, parseCiaBias(accumulated), parseCiaStrengths(accumulated));
         }
 
         // Détecter une question interactive dans la réponse
@@ -5382,7 +5441,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   onChange={(e) => {
                     let val = e.target.value;
                     // ── Raccourcis @persona
-                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent']];
+                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent'],['@strat','strategist']];
                     for (const [cmd, p] of pShorts) {
                       if (val.includes(cmd)) {
                         setPersona(p); val = val.replace(cmd, '').trimStart();
@@ -5408,7 +5467,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       ? 'Répondre…'
                       : activeConv?.debatePersonaId
                         ? (isMobile ? 'Répondre…' : `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`)
-                        : (isMobile ? 'Écrire…' : `Soumettez une thèse… (@arch @fact @opp · !doux !moyen !extreme)`)
+                        : (isMobile ? 'Écrire…' : `Soumettez une thèse… (@arch @fact @opp @strat · !doux !moyen !extreme)`)
                   }
                   rows={isMobile && inputFocused ? 2 : 1}
                   disabled={sending}
