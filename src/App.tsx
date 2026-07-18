@@ -12,7 +12,7 @@ import {
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
-  HelpCircle, Compass,
+  HelpCircle, Compass, Gavel,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -45,6 +45,7 @@ import { notifyLocal } from './push';
 import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive } from './cognitive';
 import { useMaintenance, isBlocked, useProductLogo, StariaxMaintenanceScreen, StariaxSectionGate } from './StariaxGate';
 import BetaBadge from './BetaBadge';
+import { useBetaFeature } from './beta';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -62,7 +63,7 @@ function weekStr(): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Persona = 'architect' | 'factchecker' | 'opponent' | 'strategist';
+type Persona = 'architect' | 'factchecker' | 'opponent' | 'strategist' | 'arbiter';
 type FrictionLevel = 'doux' | 'moyen' | 'extreme';
 
 interface Attachment {
@@ -144,6 +145,14 @@ const PERSONAS = {
     icon: Swords,
     color: '#EF4444',
   },
+  arbiter: {
+    id: 'arbiter' as const,
+    name: "L'Arbitre",
+    shortName: 'Arbitre',
+    desc: 'Tranche, explique et conclut la discussion',
+    icon: Gavel,
+    color: '#8B5CF6',
+  },
   strategist: {
     id: 'strategist' as const,
     name: 'Le Stratège',
@@ -184,6 +193,11 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
     { text: 'Le capitalisme libéral est le meilleur système économique jamais inventé.', icon: TrendingUp },
     { text: "L'État devrait contrôler internet pour protéger les citoyens.", icon: Target },
     { text: 'La mondialisation a globalement amélioré la condition humaine.', icon: Brain },
+  ],
+  arbiter: [
+    { text: "On a fait le tour du sujet — tranche : qui a raison, et pourquoi ?", icon: Target },
+    { text: "Résume le débat qu'on vient d'avoir et donne ta conclusion.", icon: BookOpen },
+    { text: "J'hésite encore entre les deux positions. Explique-moi ce qui est vraiment en jeu.", icon: Brain },
   ],
   strategist: [
     { text: "Je veux lancer une newsletter payante sur mon domaine d'expertise — aide-moi à bâtir le plan de A à Z.", icon: Target },
@@ -300,6 +314,14 @@ ${dosage}`;
 ## Le camp adverse — la MEILLEURE objection possible, incarnée sérieusement (exemples concrets, données réelles, penseurs qui la portent)
 ## L'angle mort — ce que sa position ne voit pas et que l'objection révèle
 ## À toi de défendre — comment tiendrais-tu ta thèse face à ça ? (un défi, pas un interrogatoire)`,
+    arbiter: `
+## Structure de ta réponse (Arbitre — tu CONCLUS la discussion : tu tranches, tu expliques, tu résumes, tu proposes)
+## Ce qui s'est dit — résumé fidèle et neutre des positions échangées, y compris celles que tu ne retiendras pas
+## Ce qui est établi — les points qui tiennent et que personne ne conteste sérieusement
+## Ce qui reste ouvert — les désaccords légitimes, ceux qui relèvent de valeurs ou de données manquantes
+## Ma décision — TU TRANCHES, explicitement, avec tes raisons. C'est le cœur de ton rôle : ne te réfugie jamais derrière un « les deux se valent » de confort. Si le sujet est réellement indécidable, dis-le et explique CE QUI manque pour décider.
+## Ce que tu en retiens — la leçon transposable, expliquée simplement (posture de pédagogue : l'utilisateur doit repartir plus lucide)
+## La suite — une proposition concrète pour continuer`,
     strategist: `
 ## Structure de ta réponse (Stratège — tu CONSTRUIS avec l'utilisateur, tu ne démolis pas)
 ## Où tu en es — reformule l'objectif / le projet et ce qui est DÉJÀ solide (constat lucide, sans flatterie)
@@ -333,6 +355,11 @@ Ne mentionne JAMAIS ce marqueur dans le texte visible.`;
       doux: `Tu es l'Opposant Bienveillant. Tu explores le point de vue contraire pour enrichir la pensée, avec respect. Réponds en français.`,
       moyen: `Tu es l'Opposant Idéologique. Tu défends la position contraire avec des arguments solides et documentés — un entraînement intellectuel, pas une attaque. Réponds en français.`,
       extreme: `Tu es l'Avocat du Diable. Tu adoptes la position diamétralement opposée avec une argumentation serrée et des données réelles. Tu combats les idées, jamais la personne. Réponds en français.`,
+    },
+    arbiter: {
+      doux: `Tu es l'Arbitre, dans une posture de pédagogue bienveillant. Tu clôtures la discussion : tu résumes ce qui s'est dit, tu expliques ce qui est en jeu avec des mots simples, et tu tranches en prenant le temps de justifier. L'utilisateur doit repartir en ayant COMPRIS, pas seulement en ayant reçu un verdict. Réponds en français.`,
+      moyen: `Tu es l'Arbitre. Tu clôtures la discussion : tu pèses honnêtement les positions échangées, tu sépares ce qui est établi de ce qui reste ouvert, et tu tranches clairement en justifiant. Équilibré mais jamais fuyant. Réponds en français.`,
+      extreme: `Tu es l'Arbitre en mode tranchant. Tu clôtures sans ménagement : tu dis quelle position l'emporte et pourquoi les autres échouent, sans arrondir les angles. Tu restes rigoureux et argumenté — la fermeté porte sur les idées, jamais sur la personne. Réponds en français.`,
     },
     strategist: {
       doux: `Tu es le Stratège, un partenaire d'exécution qui aide à passer de l'idée au projet réalisé. Posture accompagnante : tu clarifies, tu structures, tu proposes le chemin le plus simple vers l'objectif. Réponds en français.`,
@@ -1391,6 +1418,7 @@ const STREAMING_TEXTS: Record<string, string[]> = {
   architect:   ['Structuration logique…', 'Analyse des prémisses…', 'Cartographie des arguments…', 'Formalisation de la thèse…'],
   factchecker: ['Vérification des sources…', 'Recoupement factuel…', 'Analyse des données…', 'Examen des biais…'],
   opponent:    ['Identification des failles…', 'Déconstruction logique…', 'Contre-argumentation…', "Préparation de l'offensive…"],
+  arbiter:     ['Relecture des positions…', 'Pesee des arguments…', 'Formulation du verdict…', 'Redaction de la conclusion…'],
   strategist:  ['Cartographie du projet…', 'Structuration du plan…', 'Priorisation des jalons…', 'Analyse des risques…'],
   debate:      ['Argumentation en cours…',   'Analyse contextuelle…',    'Formulation de la réponse…', 'Recherche des arguments…'],
   interview:   ['Formulation de la question…','Analyse de vos réponses…','Évaluation des éléments…',  'Préparation du suivi…'],
@@ -3331,6 +3359,17 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
   const subsMaintenance = useMaintenance('abonnements');
   const subsBlocked = isBlocked(subsMaintenance);
 
+  // ─── L'Arbitre est en test : réservé aux inscrits de la beta ────────────────
+  const hasArbiter = useBetaFeature('arbiter_persona', user?.uid);
+  const visiblePersonas = (Object.values(PERSONAS) as (typeof PERSONAS[keyof typeof PERSONAS])[])
+    .filter((p) => p.id !== 'arbiter' || hasArbiter);
+
+  // Si la beta est retirée en cours d'usage, on ne laisse pas l'utilisateur
+  // bloqué sur un persona devenu invisible.
+  useEffect(() => {
+    if (!hasArbiter && persona === 'arbiter') setPersona('architect');
+  }, [hasArbiter, persona]);
+
   if (siteMaintenance && isBlocked(siteMaintenance)) {
     return <StariaxMaintenanceScreen m={siteMaintenance} />;
   }
@@ -3888,7 +3927,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   Persona
                 </p>
                 <div className="space-y-2">
-                  {(Object.values(PERSONAS) as (typeof PERSONAS[keyof typeof PERSONAS])[]).map(
+                  {visiblePersonas.map(
                     (p) => {
                       const Icon = p.icon;
                       const active = persona === p.id;
@@ -5527,7 +5566,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   onChange={(e) => {
                     let val = e.target.value;
                     // ── Raccourcis @persona
-                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent'],['@strat','strategist']];
+                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent'],['@strat','strategist'],
+                      ...(hasArbiter ? [['@arb','arbiter'] as [string, Persona]] : [])];
                     for (const [cmd, p] of pShorts) {
                       if (val.includes(cmd)) {
                         setPersona(p); val = val.replace(cmd, '').trimStart();
@@ -5783,7 +5823,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               <div>
                 <p className="text-[9px] font-black uppercase tracking-widest text-white/20 mb-2">Persona</p>
                 <div className="flex gap-1.5 flex-wrap">
-                  {(Object.values(PERSONAS) as (typeof PERSONAS[keyof typeof PERSONAS])[]).map((p) => {
+                  {visiblePersonas.map((p) => {
                     const Icon = p.icon;
                     const active = persona === p.id;
                     return (
