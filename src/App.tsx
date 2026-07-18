@@ -10,7 +10,7 @@ import {
   Mail, Lock, Eye, EyeOff, Zap as ZapIcon, Crown, Infinity as InfinityIcon,
   Mic, MicOff, Volume2, Settings,
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
-  Moon, Sun, Copy, Share2, Link, Trophy, Wrench,
+  Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
   HelpCircle,
 } from 'lucide-react';
@@ -1526,19 +1526,12 @@ export default function App() {
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const [sharedConvView, setSharedConvView] = useState<{ title: string; messages: { role: string; content: string; timestamp: string }[]; persona: string; sharedAt: string } | null>(null);
 
-  // ── Dark mode
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    try { return localStorage.getItem('cia_dark') === 'true'; } catch { return false; }
-  });
-
+  // Mode sombre retiré : l'app est toujours en clair. On nettoie une éventuelle
+  // classe/préférence sombre héritée d'une ancienne session.
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    try { localStorage.setItem('cia_dark', darkMode ? 'true' : 'false'); } catch {}
-  }, [darkMode]);
+    document.documentElement.classList.remove('dark');
+    try { localStorage.removeItem('cia_dark'); } catch { /* ignore */ }
+  }, []);
 
   // ── Défi quotidien
   const [challengeProgress, setChallengeProgress] = useState<number>(() => getChallengeProgress());
@@ -3671,15 +3664,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                             <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
                           </div>
                           <ChevronRight className="w-3 h-3 opacity-50" />
-                        </button>
-
-                        {/* Dark mode */}
-                        <button
-                          onClick={() => setDarkMode(d => !d)}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
-                        >
-                          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                          <span className="text-[11px] font-medium">{darkMode ? 'Mode clair' : 'Mode sombre'}</span>
                         </button>
 
                         {/* Profil IA */}
