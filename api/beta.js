@@ -21,6 +21,11 @@ const NOT_ENROLLED = { enrolled: false, version: null, features: [] };
 export default async function handler(req, res) {
   if (cors(req, res)) return;
 
+  // Jamais de cache : une beta retirée doit disparaître immédiatement. Sans
+  // cela, navigateur et CDN servent l'ancienne réponse et l'utilisateur garde
+  // un accès qu'on vient de lui retirer.
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
   const { uid, skipped } = await verifyIdToken(req);
   if (isAuthEnforced() && !uid) {
     return res.status(401).json({ error: 'Authentification requise' });

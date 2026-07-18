@@ -1709,6 +1709,10 @@ export default function App() {
   // pour ne pas re-rendre à chaque pixel de scroll.
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  // Suggestions : visibles à l'ouverture d'une session, puis repliées seules.
+  // `pinned` retient un dépliage manuel, pour ne pas refermer sous les doigts.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
+  const suggestionsPinnedRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -2080,6 +2084,22 @@ export default function App() {
     const distanceDuBas = el.scrollHeight - el.scrollTop - el.clientHeight;
     stickToBottomRef.current = distanceDuBas <= 80;
   }, []);
+
+  // Ouverture d'une session (ou changement de persona) : on montre les
+  // suggestions, puis on les replie au bout d'une seconde — sauf si
+  // l'utilisateur les a dépliées lui-même entre-temps.
+  // Le minuteur ne démarre que quand elles sont RÉELLEMENT à l'écran : sinon il
+  // s'écoule pendant l'écran de chargement et elles naissent déjà repliées.
+  const suggestionsVisible = !authLoading && (!activeConv || activeConv.messages.length === 0);
+  useEffect(() => {
+    if (!suggestionsVisible) return;
+    suggestionsPinnedRef.current = false;
+    setSuggestionsOpen(true);
+    const t = setTimeout(() => {
+      if (!suggestionsPinnedRef.current) setSuggestionsOpen(false);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [suggestionsVisible, activeId, persona]);
 
   // Nouveau message : on se ré-accroche uniquement si c'est l'utilisateur qui
   // vient d'envoyer. Une réponse qui arrive alors qu'il relit l'historique ne
@@ -4807,10 +4827,31 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </div>
               )}
 
-              {/* ── Suggestions ── */}
-              <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/25 text-center mb-2 md:mb-4">
+              {/* ── Suggestions (dépliables) ── */}
+              <button
+                type="button"
+                onClick={() => {
+                  suggestionsPinnedRef.current = true;
+                  setSuggestionsOpen((o) => !o);
+                }}
+                aria-expanded={suggestionsOpen}
+                className="w-full flex items-center justify-center gap-1.5 mb-2 md:mb-4 text-[8px] md:text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/50 transition-colors"
+              >
                 Suggestions
-              </p>
+                <ChevronDown
+                  className={cx('w-3 h-3 transition-transform duration-300', suggestionsOpen && 'rotate-180')}
+                />
+              </button>
+              <AnimatePresence initial={false}>
+              {suggestionsOpen && (
+              <motion.div
+                key="suggestions"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
               <div className="space-y-2 md:space-y-3">
                 {SUGGESTIONS[persona].map((s, i) => {
                   const SIcon = s.icon;
@@ -4834,6 +4875,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   );
                 })}
               </div>
+              </motion.div>
+              )}
+              </AnimatePresence>
             </motion.div>
             )
           ) : (
@@ -5593,7 +5637,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       ? 'Répondre…'
                       : activeConv?.debatePersonaId
                         ? (isMobile ? 'Répondre…' : `Défendez votre position face à ${getDP(activeConv)?.shortName ?? 'l\'adversaire'}…`)
-                        : (isMobile ? 'Écrire…' : `Soumettez une thèse… (@arch @fact @opp @strat · !doux !moyen !extreme)`)
+                        // Court par nécessité : l'ancien libellé listait tous les
+                        // raccourcis et forçait la zone de saisie sur deux lignes.
+                        : (isMobile ? 'Écrire…' : `Soumettez une thèse…  (@persona · !friction)`)
                   }
                   rows={isMobile && inputFocused ? 2 : 1}
                   disabled={sending}

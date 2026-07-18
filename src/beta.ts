@@ -27,7 +27,11 @@ const NOT_ENROLLED: BetaAssignment = { enrolled: false, version: null, features:
 
 // Cache par utilisateur : un résultat obtenu pour un compte ne doit jamais
 // être servi à un autre (ni survivre à une déconnexion).
-const cache = new Map<string, BetaAssignment>();
+// TTL court et OBLIGATOIRE : une beta retirée doit cesser d'être visible sans
+// exiger un rechargement de page. Sans expiration, un accès révoqué survivait
+// toute la session.
+const TTL = 60_000;
+const cache = new Map<string, { at: number; value: BetaAssignment }>();
 
 /**
  * Résout l'affectation beta. Renvoie `null` en cas d'échec (réseau, 401 parce
@@ -37,10 +41,10 @@ const cache = new Map<string, BetaAssignment>();
  */
 export async function getBeta(uid: string): Promise<BetaAssignment | null> {
   const hit = cache.get(uid);
-  if (hit) return hit;
+  if (hit && Date.now() - hit.at < TTL) return hit.value;
 
   try {
-    const res = await apiFetch('/api/beta');
+    const res = await apiFetch('/api/beta', { cache: 'no-store' });
     if (!res.ok) return null;
     const d = await res.json();
     const value: BetaAssignment = {
@@ -48,7 +52,7 @@ export async function getBeta(uid: string): Promise<BetaAssignment | null> {
       version: d?.version ?? null,
       features: Array.isArray(d?.features) ? d.features : [],
     };
-    cache.set(uid, value);
+    cache.set(uid, { at: Date.now(), value });
     return value;
   } catch {
     return null;
@@ -80,7 +84,11 @@ export function useBeta(uid: string | null | undefined): BetaAssignment | null {
     };
     void attempt(3);
 
-    return () => { on = false; cancelled = true; };
+    // Réévaluation périodique : un accès accordé OU RETIRÉ doit se refléter
+    // sans exiger de rechargement.
+    const timer = setInterval(() => { void attempt(1); }, TTL);
+
+    return () => { on = false; cancelled = true; clearInterval(timer); };
   }, [uid]);
 
   return b;
