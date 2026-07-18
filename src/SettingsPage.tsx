@@ -5,7 +5,7 @@ import CognitiveCard from './CognitiveCard';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
-  CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon,
+  CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
@@ -292,6 +292,10 @@ type Props = {
   user: FirebaseUser | null;
   autoUseCredits: boolean;
   onAutoUseCreditsChange: (v: boolean) => void;
+  showSuggestions: boolean;
+  onShowSuggestionsChange: (v: boolean) => void;
+  showDailyChallenge: boolean;
+  onShowDailyChallengeChange: (v: boolean) => void;
 };
 
 const FREE_DAILY   = 20;
@@ -303,6 +307,8 @@ export default function SettingsPage({
   onBack, profile: initialProfile, onSave,
   subscription, dailyUsage, weeklyUsage, userCredits, totalCredits, user,
   autoUseCredits, onAutoUseCreditsChange,
+  showSuggestions, onShowSuggestionsChange,
+  showDailyChallenge, onShowDailyChallengeChange,
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
@@ -837,6 +843,56 @@ export default function SettingsPage({
 
         {/* ═══════════════ ONGLET PROFIL (existant) ═══════════════ */}
         {activeTab === 'profil' && (<>
+
+          {/* ── ÉCRAN DE CHAT — épure de l'accueil de session */}
+          <div className="border-2 border-[#141414]/10">
+            <div className="flex items-center gap-2.5 px-5 py-3 border-b-2 border-[#141414]/10">
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#5D7BFF12', border: '1.5px solid #5D7BFF30' }}>
+                <MessageSquare className="w-4 h-4 text-[#5D7BFF]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">Écran de chat</h2>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-[10px] text-[#141414]/50 leading-relaxed">
+                Masquez ce dont vous n'avez pas besoin pour retrouver un écran de départ épuré.
+              </p>
+
+              {[
+                {
+                  titre: 'Afficher les suggestions',
+                  desc: "Les thèses proposées au démarrage d'une session.",
+                  valeur: showSuggestions,
+                  onChange: onShowSuggestionsChange,
+                },
+                {
+                  titre: 'Afficher le défi du jour',
+                  desc: 'Le défi quotidien et son crédit offert.',
+                  valeur: showDailyChallenge,
+                  onChange: onShowDailyChallengeChange,
+                },
+              ].map((o) => (
+                <div key={o.titre} className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <p className="text-[11px] font-black text-[#141414]">{o.titre}</p>
+                    <p className="text-[10px] text-[#141414]/50 mt-1 leading-relaxed">{o.desc}</p>
+                  </div>
+                  <button
+                    onClick={() => o.onChange(!o.valeur)}
+                    role="switch"
+                    aria-checked={o.valeur}
+                    aria-label={o.titre}
+                    className="flex-shrink-0 mt-0.5 relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none"
+                    style={{ backgroundColor: o.valeur ? '#5D7BFF' : '#D1D5DB' }}
+                  >
+                    <span
+                      className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                      style={{ transform: o.valeur ? 'translateX(20px)' : 'translateX(0)' }}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Info banner */}
           <div className="bg-[#5D7BFF]/5 border-2 border-[#5D7BFF]/20 px-4 py-3 flex gap-3 items-start">

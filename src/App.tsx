@@ -1547,6 +1547,14 @@ export default function App() {
   const [preparationError, setPreparationError] = useState<string | null>(null);
 
   // ── Préférences crédits
+  // Épure de l'écran de chat — préférences d'affichage (activées par défaut).
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(() => {
+    try { return localStorage.getItem('cia_show_suggestions') !== 'false'; } catch { return true; }
+  });
+  const [showDailyChallenge, setShowDailyChallenge] = useState<boolean>(() => {
+    try { return localStorage.getItem('cia_show_challenge') !== 'false'; } catch { return true; }
+  });
+
   const [autoUseCredits, setAutoUseCredits] = useState<boolean>(() => {
     try { return localStorage.getItem('autoUseCredits') !== 'false'; } catch { return true; }
   });
@@ -2024,6 +2032,13 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('autoUseCredits', String(autoUseCredits)); } catch {}
   }, [autoUseCredits]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cia_show_suggestions', String(showSuggestions));
+      localStorage.setItem('cia_show_challenge', String(showDailyChallenge));
+    } catch { /* stockage indisponible : la préférence vaut pour la session */ }
+  }, [showSuggestions, showDailyChallenge]);
 
   // ── Détection lien de partage ?share=ID
   useEffect(() => {
@@ -4371,6 +4386,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             user={user}
             autoUseCredits={autoUseCredits}
             onAutoUseCreditsChange={setAutoUseCredits}
+            showSuggestions={showSuggestions}
+            onShowSuggestionsChange={setShowSuggestions}
+            showDailyChallenge={showDailyChallenge}
+            onShowDailyChallengeChange={setShowDailyChallenge}
           />
         </div>
       )}
@@ -4791,8 +4810,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 )}
               </div>
 
-              {/* ── Défi quotidien ── */}
-              {!challengeRewarded ? (
+              {/* ── Défi quotidien (masquable depuis les Réglages) ── */}
+              {!showDailyChallenge ? null : !challengeRewarded ? (
                 <button
                   onClick={() => {
                     setInput(dailyChallenge.prompt);
@@ -4827,7 +4846,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </div>
               )}
 
-              {/* ── Suggestions (dépliables) ── */}
+              {/* ── Suggestions (dépliables, masquables depuis les Réglages) ── */}
+              {showSuggestions && (<>
               <button
                 type="button"
                 onClick={() => {
@@ -4878,6 +4898,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               </motion.div>
               )}
               </AnimatePresence>
+              </>)}
             </motion.div>
             )
           ) : (
