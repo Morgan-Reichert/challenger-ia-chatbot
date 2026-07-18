@@ -44,6 +44,7 @@ import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
 import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive } from './cognitive';
 import { useMaintenance, isBlocked, useProductLogo, StariaxMaintenanceScreen, StariaxSectionGate } from './StariaxGate';
+import BetaBadge from './BetaBadge';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -3621,6 +3622,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Application (connecté ou mode local sans Firebase) ────────────── */}
       {(!FIREBASE_ENABLED || user) && !authLoading && (<>
+
+      {/* Badge beta discret — ne s'affiche que si l'utilisateur est inscrit */}
+      <BetaBadge />
 
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       {/* Mobile sidebar backdrop */}
