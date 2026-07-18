@@ -45,7 +45,7 @@ import { notifyLocal } from './push';
 import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive } from './cognitive';
 import { useMaintenance, isBlocked, useProductLogo, StariaxMaintenanceScreen, StariaxSectionGate } from './StariaxGate';
 import BetaBadge from './BetaBadge';
-import { useBetaFeature } from './beta';
+import { useBeta } from './beta';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -162,6 +162,15 @@ const PERSONAS = {
     color: '#F59E0B',
   },
 } as const;
+
+/**
+ * Personas en test : visibles uniquement pour les inscrits au drapeau
+ * correspondant côté STARIAX. Un persona absent de cette table est public.
+ */
+const BETA_PERSONA_FLAGS: Partial<Record<Persona, string>> = {
+  strategist: 'strategist_persona',
+  arbiter: 'arbiter_persona',
+};
 
 const FRICTION = {
   doux: { label: 'Doux', hint: 'Maïeutique bienveillante' },
@@ -3401,15 +3410,25 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
   const subsBlocked = isBlocked(subsMaintenance);
 
   // ─── L'Arbitre est en test : réservé aux inscrits de la beta ────────────────
-  const hasArbiter = useBetaFeature('arbiter_persona', user?.uid);
+  // Une seule résolution beta, dont on dérive tous les drapeaux — plutôt qu'un
+  // hook par persona, qui multiplierait les minuteurs de rafraîchissement.
+  const betaAssignment = useBeta(user?.uid);
+  const hasFeature = (flag: string) =>
+    Boolean(betaAssignment?.enrolled && betaAssignment.features.includes(flag));
+
   const visiblePersonas = (Object.values(PERSONAS) as (typeof PERSONAS[keyof typeof PERSONAS])[])
-    .filter((p) => p.id !== 'arbiter' || hasArbiter);
+    .filter((p) => {
+      const flag = BETA_PERSONA_FLAGS[p.id];
+      return !flag || hasFeature(flag);
+    });
+  const hasArbiter = hasFeature('arbiter_persona');
 
   // Si la beta est retirée en cours d'usage, on ne laisse pas l'utilisateur
   // bloqué sur un persona devenu invisible.
   useEffect(() => {
-    if (!hasArbiter && persona === 'arbiter') setPersona('architect');
-  }, [hasArbiter, persona]);
+    if (!visiblePersonas.some((p) => p.id === persona)) setPersona('architect');
+    // clé stable : `visiblePersonas` est un nouveau tableau à chaque rendu
+  }, [visiblePersonas.map((p) => p.id).join(','), persona]);
 
   if (siteMaintenance && isBlocked(siteMaintenance)) {
     return <StariaxMaintenanceScreen m={siteMaintenance} />;
@@ -5697,7 +5716,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   onChange={(e) => {
                     let val = e.target.value;
                     // ── Raccourcis @persona
-                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent'],['@strat','strategist'],
+                    const pShorts: [string, Persona][] = [['@arch','architect'],['@fact','factchecker'],['@opp','opponent'],
+                      ...(hasFeature('strategist_persona') ? [['@strat','strategist'] as [string, Persona]] : []),
                       ...(hasArbiter ? [['@arb','arbiter'] as [string, Persona]] : [])];
                     for (const [cmd, p] of pShorts) {
                       if (val.includes(cmd)) {
