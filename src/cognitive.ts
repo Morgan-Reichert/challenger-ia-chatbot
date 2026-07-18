@@ -77,6 +77,27 @@ export async function loadCognitive(userId: string): Promise<Cognitive | null> {
   } catch { return null; }
 }
 
+// ─── Rangs / titres (fierté + appartenance) ─────────────────────────────────────
+export const RANKS: { min: number; title: string; emoji: string }[] = [
+  { min: 0,   title: 'Apprenti du doute',    emoji: '🌱' },
+  { min: 10,  title: 'Esprit curieux',       emoji: '🔍' },
+  { min: 30,  title: 'Sceptique aguerri',    emoji: '⚖️' },
+  { min: 75,  title: 'Esprit affûté',        emoji: '🗡️' },
+  { min: 150, title: 'Maître de la nuance',  emoji: '🧠' },
+  { min: 300, title: "Challenger d'élite",   emoji: '👑' },
+];
+
+/** Rang courant + progression vers le suivant, selon le nombre de messages analysés. */
+export function rank(total: number) {
+  let cur = RANKS[0];
+  let next: typeof RANKS[number] | null = RANKS[1] ?? null;
+  for (let i = 0; i < RANKS.length; i++) {
+    if (total >= RANKS[i].min) { cur = RANKS[i]; next = RANKS[i + 1] ?? null; }
+  }
+  const progress = next ? Math.min(1, (total - cur.min) / (next.min - cur.min)) : 1;
+  return { cur, next, progress, total };
+}
+
 /** Agrégats prêts pour l'affichage : top faiblesses + tendance (amélioration ?). */
 export function summarize(c: Cognitive | null) {
   if (!c || !c.totalMessages) return null;

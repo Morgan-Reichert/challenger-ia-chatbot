@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Brain, TrendingDown, TrendingUp, Minus } from 'lucide-react';
-import { loadCognitive, summarize, type Cognitive } from './cognitive';
+import { loadCognitive, summarize, rank, type Cognitive } from './cognitive';
 
 /** Carte "Profil cognitif" : faiblesses de raisonnement récurrentes + progression. */
 export default function CognitiveCard({ userId }: { userId: string | null }) {
@@ -16,6 +16,7 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
 
   const s = summarize(data);
   const maxCount = s ? Math.max(...s.top.map((t) => t.count), 1) : 1;
+  const r = rank(data?.totalMessages ?? 0);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-white p-5">
@@ -25,18 +26,34 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
         </div>
         <div>
           <p className="text-sm font-bold text-[var(--text-primary)]">Profil cognitif</p>
-          <p className="text-xs text-[var(--text-primary)]/50">Tes faiblesses de raisonnement récurrentes</p>
+          <p className="text-xs text-[var(--text-primary)]/50">Ton rang & tes faiblesses récurrentes</p>
         </div>
       </div>
+
+      {/* Rang (titre + progression) */}
+      {!loading && (
+        <div className="mt-4 flex items-center gap-3">
+          <div className="text-3xl leading-none flex-shrink-0">{r.cur.emoji}</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-[var(--text-primary)]">{r.cur.title}</p>
+            <div className="h-1.5 rounded-full bg-[var(--text-primary)]/[0.08] overflow-hidden mt-1.5">
+              <div className="h-full rounded-full bg-[#5D7BFF] transition-all" style={{ width: `${Math.round(r.progress * 100)}%` }} />
+            </div>
+            <p className="text-[10px] text-[var(--text-primary)]/40 mt-1">
+              {r.next ? `Encore ${r.next.min - r.total} pour « ${r.next.title} »` : 'Rang maximal atteint 👑'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-xs text-[var(--text-primary)]/40 mt-4">Chargement…</p>
       ) : !s ? (
-        <p className="text-xs text-[var(--text-primary)]/50 mt-4 leading-relaxed">
-          Débats avec Challenger : l'IA repère tes biais récurrents (généralisations, corrélation/causalité, appels à l'autorité…) et affichera ici ta progression.
+        <p className="text-xs text-[var(--text-primary)]/50 mt-5 leading-relaxed border-t border-[var(--border)] pt-4">
+          Débats avec Challenger : l'IA repère tes biais récurrents (généralisations, corrélation/causalité, appels à l'autorité…) et tu montes en grade à mesure que ton esprit s'affûte.
         </p>
       ) : (
-        <div className="mt-4 space-y-4">
+        <div className="mt-5 border-t border-[var(--border)] pt-4 space-y-4">
           {s.trend && (
             <div className="flex items-center gap-2 text-xs">
               {s.trend === 'down' ? (

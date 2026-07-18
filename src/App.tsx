@@ -1146,6 +1146,17 @@ const ONBOARDING_SUGGESTIONS = [
   "Les réseaux sociaux sont fondamentalement néfastes pour la société.",
 ];
 
+// Manifeste d'accueil — chaque ligne apparaît en cascade (émotion + mission)
+const MANIFESTO: { text: string; strong?: boolean }[] = [
+  { text: 'Le monde te noie de certitudes.' },
+  { text: 'Des opinions déguisées en faits.' },
+  { text: 'Des raisonnements qui sonnent justes… et qui sont faux.' },
+  { text: 'Challenger IA ne cherche pas à te plaire.', strong: true },
+  { text: 'Il cherche à te rendre plus lucide.', strong: true },
+  { text: 'Ici, on affronte la contradiction au lieu de la fuir.' },
+  { text: "On accepte d'avoir tort — pour penser plus juste." },
+];
+
 function OnboardingOverlay({
   step, persona, onStepChange, onPersonaChange, onClose, onSend,
 }: {
@@ -1169,24 +1180,59 @@ function OnboardingOverlay({
           <motion.div
             key="step0"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            className="text-center max-w-sm w-full"
+            className="text-center max-w-md w-full"
           >
-            <div className="relative inline-flex mb-6">
-              <div className="absolute inset-[-10px] rounded-full bg-[#5D7BFF]/10 animate-ping" style={{ animationDuration: '2.5s' }} />
-              <img src="/icon-192.png" alt="Challenger IA" className="w-20 h-20 object-contain relative" style={{ animation: 'cr-breathe 2s ease-in-out infinite' }} />
+            <motion.img
+              src="/icon-192.png" alt="Challenger IA"
+              className="w-14 h-14 object-contain mx-auto mb-8"
+              initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }}
+            />
+
+            {/* Manifeste — lignes en cascade */}
+            <div className="space-y-3 mb-9">
+              {MANIFESTO.map((line, i) => (
+                <motion.p
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + i * 0.7, duration: 0.55 }}
+                  className={cx(
+                    'leading-snug',
+                    line.strong
+                      ? 'text-[17px] font-black text-[var(--text-primary)]'
+                      : 'text-[15px] font-medium text-[var(--text-primary)]/55'
+                  )}
+                >
+                  {line.text}
+                </motion.p>
+              ))}
             </div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter text-[var(--text-primary)] mb-2">Challenger IA</h1>
-            <p className="text-sm text-[var(--text-primary)]/50 mb-8 font-medium">Ton adversaire intellectuel. Challengé pour progresser.</p>
-            <button
-              onClick={() => onStepChange(1)}
-              className="px-8 py-3 bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
-              style={{ boxShadow: '0 6px 16px rgba(93,123,255,0.3)' }}
+
+            {/* Ralliement */}
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 + MANIFESTO.length * 0.7 + 0.2, duration: 0.6 }}
+              className="text-2xl font-black uppercase tracking-tight text-[#5D7BFF] mb-8"
             >
-              Commencer →
-            </button>
-            <button onClick={onClose} className="block mx-auto mt-4 text-[9px] text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/50 font-black uppercase tracking-widest transition-colors">
-              Passer
-            </button>
+              Bienvenue chez les Challengers.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 + MANIFESTO.length * 0.7 + 0.7, duration: 0.5 }}
+            >
+              <button
+                onClick={() => onStepChange(1)}
+                className="px-8 py-3.5 rounded-xl bg-[#5D7BFF] text-white text-[11px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-all"
+                style={{ boxShadow: '0 6px 18px rgba(93,123,255,0.35)' }}
+              >
+                Rejoindre →
+              </button>
+              <button onClick={onClose} className="block mx-auto mt-4 text-[9px] text-[var(--text-primary)]/25 hover:text-[var(--text-primary)]/50 font-black uppercase tracking-widest transition-colors">
+                Passer
+              </button>
+            </motion.div>
           </motion.div>
         )}
 
