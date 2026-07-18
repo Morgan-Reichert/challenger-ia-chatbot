@@ -43,6 +43,7 @@ import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CRE
 import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
 import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive } from './cognitive';
+import { useMaintenance, isBlocked, useProductLogo, StariaxMaintenanceScreen, StariaxSectionGate } from './StariaxGate';
 import { playSend, playReceive, playDone, playError, playNewConv, playSlash, playCopy, playDelete, playMicOn, playMicOff, playPin } from './sounds';
 
 // ─── Constantes abonnement & limites ─────────────────────────────────────────
@@ -1383,6 +1384,7 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
   const key = isInterview ? 'interview' : isDebate ? 'debate' : persona;
   const texts = STREAMING_TEXTS[key] ?? STREAMING_TEXTS.architect;
   const [idx, setIdx] = useState(0);
+  const logoSrc = useProductLogo('/icon-192.png');
 
   useEffect(() => {
     const t = setInterval(() => setIdx(i => (i + 1) % texts.length), 2000);
@@ -1410,8 +1412,9 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
           style={{ width: 26, height: 26 }}
         >
           <img
-            src="/icon-192.png"
+            src={logoSrc}
             alt="Challenger IA"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/icon-192.png'; }}
             style={{
               width: 26,
               height: 26,
@@ -3271,6 +3274,17 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
   const CurrentIcon = PERSONAS[persona].icon;
 
+  // ─── STARIAX : coupure globale pilotée à distance ───────────────────────────
+  // Placé après tous les hooks (règle des hooks) et avant le rendu principal.
+  // Couvre le web ET l'app native, que le middleware edge ne protège pas.
+  const siteMaintenance = useMaintenance('site');
+  const subsMaintenance = useMaintenance('abonnements');
+  const subsBlocked = isBlocked(subsMaintenance);
+
+  if (siteMaintenance && isBlocked(siteMaintenance)) {
+    return <StariaxMaintenanceScreen m={siteMaintenance} />;
+  }
+
   return (
     <div
       className="flex h-full overflow-hidden bg-[var(--bg-app)]"
@@ -3399,6 +3413,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 Stariax Group — Challenger IA
               </p>
             </div>
+
+            {/* STARIAX — scope « connexion » : masque le formulaire à distance */}
+            <StariaxSectionGate scope="connexion">
 
             {/* Toggle Connexion / Créer un compte */}
             <div className="grid grid-cols-2 border-2 border-[var(--text-primary)]/15 mb-6">
@@ -3595,6 +3612,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             >
               Essayer sans compte →
             </button>
+
+            </StariaxSectionGate>
 
           </div>
         </div>
@@ -5919,7 +5938,43 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Modal Upgrade Pro ───────────────────────────────────────────── */}
       <AnimatePresence>
-        {upgradeModal && (
+        {/* STARIAX — scope « abonnements » : coupe le parcours de paiement */}
+        {upgradeModal && subsBlocked && (
+          <motion.div
+            key="subs-maintenance"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(10,10,10,0.78)' }}
+            onClick={() => setUpgradeModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="bg-[#141414] border border-amber-400/30 rounded-2xl w-full max-w-sm p-6 text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Wrench className="w-6 h-6 text-amber-400 mx-auto mb-3" />
+              <p className="text-[11px] font-black uppercase tracking-widest text-white mb-2">
+                {subsMaintenance?.title || 'Abonnements en maintenance'}
+              </p>
+              <p className="text-xs text-white/50 leading-relaxed mb-5">
+                {subsMaintenance?.message || "Les abonnements sont momentanément indisponibles. Réessaie dans quelques instants — ton compte n'est pas affecté."}
+              </p>
+              <button
+                onClick={() => setUpgradeModal(null)}
+                className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+              >
+                Fermer
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+        {upgradeModal && !subsBlocked && (
           <motion.div
             key="upgrade-backdrop"
             initial={{ opacity: 0 }}

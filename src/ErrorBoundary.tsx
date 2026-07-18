@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportError } from './stariax';
 
 /**
  * Capture les erreurs de rendu pour éviter la page blanche : affiche un écran
@@ -15,8 +16,14 @@ export class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    // À brancher sur Sentry/console — visible dans les logs en prod.
     console.error('[ErrorBoundary]', error, info);
+    // Remontée vers STARIAX : les erreurs de rendu React ne déclenchent pas
+    // window.onerror, il faut donc les signaler explicitement ici.
+    reportError({
+      message: error instanceof Error ? error.message : `Erreur de rendu : ${String(error)}`,
+      stack: error instanceof Error ? error.stack : undefined,
+      level: 'error',
+    });
   }
 
   render() {
