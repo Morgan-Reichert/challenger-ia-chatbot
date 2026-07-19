@@ -10,6 +10,8 @@
  *    d'ingest (public par design) transitent ici.
  */
 
+import { mesureAutorisee } from './consent';
+
 const BASE = ((import.meta.env.VITE_STARIAX_BASE as string | undefined) ?? '').replace(/\/+$/, '');
 const PRODUCT_ID = (import.meta.env.VITE_STARIAX_PRODUCT_ID as string | undefined) ?? '';
 const INGEST_TOKEN = (import.meta.env.VITE_STARIAX_INGEST_TOKEN as string | undefined) ?? '';
@@ -110,6 +112,10 @@ export function reportError(e: {
   level?: 'error' | 'warn' | 'info';
 }): void {
   if (!BASE || !INGEST_TOKEN) return;
+  // Traceur non essentiel : soumis au consentement préalable. Contrôle placé
+  // ici plutôt qu'aux appelants, pour qu'aucun chemin ne puisse le contourner
+  // (l'ErrorBoundary appelle cette fonction directement).
+  if (!mesureAutorisee()) return;
   if (sentCount >= MAX_PER_SESSION) return;
 
   const level = e.level ?? 'error';

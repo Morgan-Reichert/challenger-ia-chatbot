@@ -9,14 +9,6 @@ service cloud.firestore {
     function isOwner(uid) {
       return isAuth() && request.auth.uid == uid;
     }
-    // Champs effectivement modifiés par cette écriture
-    function changedKeys() {
-      return request.resource.data.diff(resource.data).affectedKeys();
-    }
-    // L'écriture ne touche QUE les champs listés
-    function onlyChanged(allowedKeys) {
-      return changedKeys().hasOnly(allowedKeys);
-    }
 
     // ─── Données utilisateur — accès privé strict ─────────────────────────────
     match /users/{userId}/{collection}/{docId} {
@@ -34,115 +26,10 @@ service cloud.firestore {
                             && resource.data.ownerId == request.auth.uid;
     }
 
-    // ─── Arena — profils ──────────────────────────────────────────────────────
-    match /arena_users/{userId} {
-      allow read: if isAuth();
-      allow write: if isOwner(userId);
-    }
-
-    // ─── Arena — posts ────────────────────────────────────────────────────────
-    // Author can edit content. Anyone authed can update counters (commentaires,
-    // votes, sondages) — sinon le débat se fige.
-    match /arena_posts/{postId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && (request.resource.data.authorId == request.auth.uid
-                        || request.resource.data.isAnonymous == true);
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.authorId
-        || onlyChanged([
-             'commentCount',
-             'agreeCount', 'disagreeCount', 'nuanceCount',
-             'pollOptions',
-           ])
-      );
-      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
-    }
-
-    // ─── Arena — commentaires ─────────────────────────────────────────────────
-    match /arena_posts/{postId}/comments/{commentId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.authorId
-        || onlyChanged(['upvotes', 'upvotedBy'])
-      );
-      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
-    }
-
-    // ─── Arena — connexions (follow / connect) ────────────────────────────────
-    // Emetteur crée, destinataire ou émetteur peut accepter / annuler.
-    match /arena_connections/{connId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && request.resource.data.fromUserId == request.auth.uid;
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.fromUserId
-        || request.auth.uid == resource.data.toUserId
-      );
-      allow delete: if isAuth() && (
-        request.auth.uid == resource.data.fromUserId
-        || request.auth.uid == resource.data.toUserId
-      );
-    }
-
-    // ─── Arena — posts personnels ─────────────────────────────────────────────
-    match /arena_personal_posts/{postId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.authorId
-        || onlyChanged(['likeCount', 'commentCount', 'likedBy'])
-      );
-      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
-    }
-
-    match /arena_personal_posts/{postId}/comments/{commentId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.authorId
-        || onlyChanged(['upvotes', 'upvotedBy'])
-      );
-      allow delete: if isAuth() && request.auth.uid == resource.data.authorId;
-    }
-
-    // ─── XPOSE — posts ────────────────────────────────────────────────────────
-    match /xpose_posts/{postId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.authorId
-        || onlyChanged([
-             'resonanceCount', 'commentCount', 'amplifyCount',
-             'resonatedBy', 'amplifiedBy',
-             'pollOptions',
-           ])
-      );
-      allow delete: if isAuth() && resource.data.authorId == request.auth.uid;
-    }
-
-    // ─── XPOSE — commentaires ────────────────────────────────────────────────
-    match /xpose_posts/{postId}/comments/{commentId} {
-      allow read: if isAuth();
-      allow create: if isAuth()
-                    && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAuth() && (
-        request.auth.uid == resource.data.authorId
-        || onlyChanged(['upvotes', 'upvotedBy'])
-      );
-      allow delete: if isAuth() && resource.data.authorId == request.auth.uid;
-    }
-
-    // ─── XPOSE — streaks ──────────────────────────────────────────────────────
-    match /xpose_streaks/{userId} {
-      allow read: if isAuth();
-      allow write: if isOwner(userId);
-    }
+    // ─── Collections héritées (arena_*, xpose_*) ─────────────────────────────
+    // Leurs règles ont été retirées : aucune n'était plus utilisée par
+    // l'application, mais elles laissaient ces documents lisibles par tout
+    // compte authentifié. La règle terminale ci-dessous les refuse désormais.
 
     // ─── Daily challenges générés (cache lecture seule côté client) ──────────
     // Écriture réservée au serveur via Admin SDK (bypass des rules).

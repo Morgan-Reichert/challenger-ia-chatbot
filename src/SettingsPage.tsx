@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import PushToggle from './PushToggle';
 import CognitiveCard from './CognitiveCard';
+import PrivacyPanel from './PrivacyPanel';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
@@ -296,6 +297,10 @@ type Props = {
   onShowSuggestionsChange: (v: boolean) => void;
   showDailyChallenge: boolean;
   onShowDailyChallengeChange: (v: boolean) => void;
+  shares: { shareId: string; title: string; sharedAt: string }[];
+  onRevokeShare: (shareId: string) => Promise<boolean>;
+  onRefreshShares: () => void;
+  onAccountDeleted: () => void;
 };
 
 const FREE_DAILY   = 20;
@@ -309,6 +314,7 @@ export default function SettingsPage({
   autoUseCredits, onAutoUseCreditsChange,
   showSuggestions, onShowSuggestionsChange,
   showDailyChallenge, onShowDailyChallengeChange,
+  shares, onRevokeShare, onRefreshShares, onAccountDeleted,
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
@@ -480,6 +486,15 @@ export default function SettingsPage({
 
         {/* Notifications push (mobile surtout) */}
         <PushToggle />
+
+        {/* Droits RGPD : partages publics, export, effacement */}
+        <PrivacyPanel
+          userId={user?.uid ?? null}
+          shares={shares}
+          onRevokeShare={onRevokeShare}
+          onRefreshShares={onRefreshShares}
+          onDeleted={onAccountDeleted}
+        />
 
         {/* ═══════════════ ONGLET ABONNEMENT ═══════════════ */}
         {activeTab === 'abonnement' && (<>
@@ -1064,8 +1079,55 @@ export default function SettingsPage({
             </Field>
           </Section>
 
-          {/* ── NEURO */}
+          {/* ── NEURO — données de santé (RGPD art. 9) */}
           <Section icon={Zap} title="Profil neuro" accent="#10B981">
+
+            {/* Consentement explicite et spécifique — art. 9.2.a.
+                Sans lui, ces champs ne sont jamais transmis au modèle. */}
+            <div className="mb-5 border-2 border-[#10B981]/30 bg-[#10B981]/[0.04] p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#10B981] mb-2">
+                Données de santé — consentement requis
+              </p>
+              <p className="text-[10px] text-[#141414]/60 leading-relaxed mb-3">
+                Les profils neuro-atypiques sont des <strong>données de santé</strong>. La
+                réglementation exige votre consentement explicite avant tout traitement.
+                Si vous consentez, ces informations seront transmises au modèle
+                d'intelligence artificielle afin d'adapter ses réponses à votre
+                fonctionnement. Vous pouvez retirer ce consentement à tout moment : les
+                données cesseront alors d'être transmises, et vous pouvez les effacer
+                depuis la section « Vos données ».
+              </p>
+              <button
+                onClick={() => updateProfile({
+                  healthDataConsent: !profile.healthDataConsent,
+                  healthConsentAt: !profile.healthDataConsent ? new Date().toISOString() : '',
+                })}
+                role="switch"
+                aria-checked={profile.healthDataConsent}
+                aria-label="Consentir au traitement des données de santé"
+                className="flex items-center gap-3 group"
+              >
+                <span
+                  className="relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0"
+                  style={{ backgroundColor: profile.healthDataConsent ? '#10B981' : '#D1D5DB' }}
+                >
+                  <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                        style={{ transform: profile.healthDataConsent ? 'translateX(20px)' : 'translateX(0)' }} />
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-left"
+                      style={{ color: profile.healthDataConsent ? '#10B981' : '#141414' }}>
+                  {profile.healthDataConsent
+                    ? 'Consentement donné — ces données sont utilisées'
+                    : 'Consentement non donné — ces données ne sont pas utilisées'}
+                </span>
+              </button>
+              {profile.healthDataConsent && profile.healthConsentAt && (
+                <p className="text-[9px] text-[#141414]/40 mt-2">
+                  Consentement enregistré le {new Date(profile.healthConsentAt).toLocaleString('fr-FR')}
+                </p>
+              )}
+            </div>
+
             <Field label="Profil(s) neuro-atypique" hint="Sélectionnez ce qui vous correspond — sans jugement, sans obligation.">
               <div className="flex flex-wrap gap-2">
                 {NEURO_TAGS.map(tag => {

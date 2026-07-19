@@ -37,7 +37,7 @@ import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInAnonymously,
-  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy,
+  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, where,
 } from './firebase';
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 import { apiFetch, apiUrl } from './apiClient';
@@ -800,12 +800,16 @@ async function fsDeleteProject(userId: string, projectId: string): Promise<void>
 
 // ─── Firestore: Partage de conversation ──────────────────────────────────────
 
-async function fsShareConversation(conv: Conversation): Promise<string | null> {
+async function fsShareConversation(conv: Conversation, ownerId: string): Promise<string | null> {
   if (!db) return null;
   try {
     const shareId = uid();
     const payload = {
       shareId,
+      // ownerId est INDISPENSABLE : les règles Firestore l'exigent pour autoriser
+      // la suppression. Sans lui, un partage public devient irrévocable par son
+      // auteur — ce qui contrevient au droit à l'effacement (RGPD art. 17).
+      ownerId,
       title: conv.title,
       persona: conv.persona,
       sharedAt: new Date().toISOString(),
@@ -821,6 +825,30 @@ async function fsShareConversation(conv: Conversation): Promise<string | null> {
     return shareId;
   } catch {
     return null;
+  }
+}
+
+/** Révoque un partage public. Réservé à son auteur par les règles Firestore. */
+async function fsRevokeShare(shareId: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await deleteDoc(doc(db, 'shared', shareId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Liste les partages publics encore actifs d'un utilisateur. */
+async function fsListShares(ownerId: string): Promise<{ shareId: string; title: string; sharedAt: string }[]> {
+  if (!db) return [];
+  try {
+    const snap = await getDocs(query(collection(db, 'shared'), where('ownerId', '==', ownerId)));
+    return snap.docs
+      .map(dd => dd.data() as { shareId: string; title: string; sharedAt: string })
+      .sort((a, b) => (b.sharedAt ?? '').localeCompare(a.sharedAt ?? ''));
+  } catch {
+    return [];
   }
 }
 
@@ -1686,6 +1714,18 @@ export default function App() {
   // déjà observés, au lieu de repartir de zéro à chaque conversation.
   // Rechargé au changement d'utilisateur et de session : le profil évolue
   // lentement, inutile de relire à chaque message.
+  // Partages publics de l'utilisateur — nécessaires à leur révocation (RGPD art. 17).
+  const [publicShares, setPublicShares] = useState<{ shareId: string; title: string; sharedAt: string }[]>([]);
+  const refreshShares = useCallback(() => {
+    if (!user?.uid) { setPublicShares([]); return; }
+    void fsListShares(user.uid).then(setPublicShares);
+  }, [user?.uid]);
+  const revokeShare = useCallback(async (shareId: string) => {
+    const ok = await fsRevokeShare(shareId);
+    if (ok) setPublicShares((l) => l.filter((p) => p.shareId !== shareId));
+    return ok;
+  }, []);
+
   const [cognitiveProfile, setCognitiveProfile] = useState<Cognitive | null>(null);
   useEffect(() => {
     if (!user?.uid) { setCognitiveProfile(null); return; }
@@ -4472,6 +4512,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             onShowSuggestionsChange={setShowSuggestions}
             showDailyChallenge={showDailyChallenge}
             onShowDailyChallengeChange={setShowDailyChallenge}
+            shares={publicShares}
+            onRevokeShare={revokeShare}
+            onRefreshShares={refreshShares}
+            onAccountDeleted={() => {
+              // Le compte n'existe plus côté serveur : on purge l'état local
+              // et on repart d'une session vierge.
+              try { localStorage.clear(); } catch { /* stockage indisponible */ }
+              window.location.href = window.location.origin + window.location.pathname;
+            }}
           />
         </div>
       )}
@@ -4611,9 +4660,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               {FIREBASE_ENABLED && (
                 <button
                   onClick={async () => {
-                    if (!activeConv) return;
+                    if (!activeConv || !user) return;
                     setShareLoading(true);
-                    const shareId = await fsShareConversation(activeConv);
+                    const shareId = await fsShareConversation(activeConv, user.uid);
                     setShareLoading(false);
                     if (shareId) {
                       const url = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
@@ -6149,7 +6198,16 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       >
                         conditions générales d'utilisation
                       </a>{' '}
-                      et notre politique de confidentialité.
+                      et notre{' '}
+                      <a
+                        href="https://challengeria.fr/confidentialite"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[#5D7BFF] underline hover:text-white transition-colors"
+                      >
+                        politique de confidentialité
+                      </a>.
                     </p>
                   </div>
                 </label>

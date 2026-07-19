@@ -22,7 +22,7 @@ import {
   getDocs,
   deleteDoc,
   query,
-  orderBy,
+  orderBy, where
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -78,4 +78,5 @@ export {
   deleteDoc,
   query,
   orderBy,
+  where,
 };

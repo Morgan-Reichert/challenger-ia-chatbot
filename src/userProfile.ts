@@ -46,7 +46,12 @@ export type UserProfile = {
   personalityNotes: string;
   mbti: string;
   bigFive: BigFiveResult | null;
-  // Neuro
+  // Neuro — DONNÉES DE SANTÉ (RGPD art. 9) : traitement interdit sauf
+  // consentement explicite et spécifique (art. 9.2.a). `healthDataConsent`
+  // porte ce consentement ; sans lui, ces champs ne sont JAMAIS transmis au
+  // modèle de langage.
+  healthDataConsent: boolean;
+  healthConsentAt: string;
   neuroTags: NeuroTag[];
   neuroNotes: string;
   // Intérêts
@@ -65,6 +70,8 @@ export const EMPTY_PROFILE: UserProfile = {
   personalityNotes: '',
   mbti: '',
   bigFive: null,
+  healthDataConsent: false,
+  healthConsentAt: '',
   neuroTags: [],
   neuroNotes: '',
   interests: [],
@@ -127,8 +134,12 @@ export function buildProfileContext(profile: UserProfile): string {
     );
   }
   if (profile.personalityNotes) lines.push(`Personnalité (notes libres) : ${profile.personalityNotes}`);
-  if (profile.neuroTags.length > 0) lines.push(`Profil neuro-atypique : ${profile.neuroTags.join(', ')}`);
-  if (profile.neuroNotes) lines.push(`Notes neuro : ${profile.neuroNotes}`);
+  // Données de santé : transmises au modèle UNIQUEMENT si l'utilisateur y a
+  // consenti explicitement. Le consentement est révocable à tout moment.
+  if (profile.healthDataConsent) {
+    if (profile.neuroTags.length > 0) lines.push(`Profil neuro-atypique : ${profile.neuroTags.join(', ')}`);
+    if (profile.neuroNotes) lines.push(`Notes neuro : ${profile.neuroNotes}`);
+  }
   if (profile.interests.length > 0) lines.push(`Centres d'intérêt : ${profile.interests.join(', ')}`);
   if (profile.interestNotes) lines.push(`Détail intérêts : ${profile.interestNotes}`);
 
