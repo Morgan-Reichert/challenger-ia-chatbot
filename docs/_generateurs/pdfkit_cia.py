@@ -32,6 +32,15 @@ LOGO_STARIAX = '/Users/morganreichert/Desktop/stariax-app/public/logo stariax/lo
 EDITEUR = "STARIAX GROUP — European Tech Group"
 PRODUIT = "Challenger IA"
 
+# Échelle de classification documentaire STARIAX.
+# Le niveau conditionne le bandeau de couverture et la mention de pied de page.
+CLASSIFICATIONS = {
+    1: ("PUBLIC",              colors.HexColor('#10B981')),
+    2: ("INTERNE",             colors.HexColor('#B45309')),
+    3: ("CONFIDENTIEL",        colors.HexColor('#B91C1C')),
+    4: ("SECRET",              colors.HexColor('#7C2D12')),
+}
+
 # ─── Nettoyage typographique ─────────────────────────────────────────────────
 # Les polices PDF de base (Helvetica/Courier) n'ont pas de glyphes pour les
 # emoji ni pour certains symboles : sans substitution, ils sortent en carrés
@@ -121,12 +130,13 @@ def _styles():
 class _Doc(BaseDocTemplate):
     """Gère en-tête, pied de page et remontée des titres vers le sommaire."""
 
-    def __init__(self, chemin, titre_doc, reference, **kw):
+    def __init__(self, chemin, titre_doc, reference, niveau=3, **kw):
         super().__init__(chemin, pagesize=A4, title=titre_doc,
                          author=EDITEUR, subject=f"{PRODUIT} — {titre_doc}",
                          creator=EDITEUR, **kw)
         self.titre_doc = titre_doc
         self.reference = reference
+        self.niveau = niveau
         cadre = Frame(18 * mm, 20 * mm, A4[0] - 36 * mm, A4[1] - 46 * mm, id='corps')
         self.addPageTemplates([
             PageTemplate(id='couverture', frames=[
@@ -154,9 +164,10 @@ class _Doc(BaseDocTemplate):
         canvas.setFont('Helvetica', 6.8)
         canvas.setFillColor(GRIS)
         canvas.drawString(18 * mm, 11 * mm, f"{EDITEUR} — {PRODUIT}")
+        libelle, couleur = CLASSIFICATIONS.get(self.niveau, CLASSIFICATIONS[3])
         canvas.setFont('Helvetica-Bold', 6.8)
-        canvas.setFillColor(ROUGE)
-        canvas.drawCentredString(l / 2, 11 * mm, "DOCUMENT CONFIDENTIEL")
+        canvas.setFillColor(couleur)
+        canvas.drawCentredString(l / 2, 11 * mm, f"NIVEAU {self.niveau} — {libelle}")
         canvas.setFont('Helvetica', 6.8)
         canvas.setFillColor(GRIS)
         canvas.drawRightString(l - 18 * mm, 11 * mm,
@@ -174,9 +185,10 @@ class _Doc(BaseDocTemplate):
 class Document:
     """API de construction d'un document."""
 
-    def __init__(self, chemin, titre, sous_titre, reference, version, date, resume):
+    def __init__(self, chemin, titre, sous_titre, reference, version, date, resume, niveau=3):
         self.chemin, self.titre, self.sous_titre = chemin, titre, sous_titre
         self.reference, self.version, self.date, self.resume = reference, version, date, resume
+        self.niveau = niveau
         self.st = _styles()
         self.flow = []
         self._n1 = self._n2 = self._n3 = 0
@@ -211,7 +223,7 @@ class Document:
             ['Date d\'émission', self.date],
             ['Éditeur', EDITEUR],
             ['Produit', f"{PRODUIT} (challengeria.fr)"],
-            ['Classification', 'CONFIDENTIEL — Diffusion restreinte'],
+            ['Classification', f"Niveau {self.niveau} — {CLASSIFICATIONS.get(self.niveau, CLASSIFICATIONS[3])[0]}"],
         ]
         t = Table([[Paragraph(f"<b>{echapper(a)}</b>", s['cellule']),
                     Paragraph(echapper(b), s['cellule'])] for a, b in meta],
@@ -227,10 +239,19 @@ class Document:
         ]))
         f.append(t)
         f.append(Spacer(1, 12 * mm))
-        f.append(self._bandeau(
-            "Ce document contient des informations confidentielles et des secrets d'affaires "
-            f"appartenant à {EDITEUR}. Toute reproduction, diffusion ou communication à un tiers, "
-            "totale ou partielle, est interdite sans autorisation écrite préalable.", ROUGE))
+        couleur_niv = CLASSIFICATIONS.get(self.niveau, CLASSIFICATIONS[3])[1]
+        if self.niveau <= 2:
+            texte_bandeau = (
+                "Document à usage interne. Sa diffusion est réservée aux collaborateurs et "
+                f"partenaires de {EDITEUR} ayant à en connaître. Il ne contient ni secret "
+                "technique ni élément de savoir-faire, mais sa communication publique n'est "
+                "pas souhaitée.")
+        else:
+            texte_bandeau = (
+                "Ce document contient des informations confidentielles et des secrets d'affaires "
+                f"appartenant à {EDITEUR}. Toute reproduction, diffusion ou communication à un tiers, "
+                "totale ou partielle, est interdite sans autorisation écrite préalable.")
+        f.append(self._bandeau(texte_bandeau, couleur_niv))
         # La couverture n'a ni en-tête ni pied de page : on bascule ensuite
         # sur le gabarit de contenu, qui les porte.
         f.append(NextPageTemplate('contenu'))
@@ -350,7 +371,7 @@ class Document:
 
     # ── Génération ───────────────────────────────────────────────────────────
     def _construire(self, total=None):
-        doc = _Doc(self.chemin, self.titre, self.reference)
+        doc = _Doc(self.chemin, self.titre, self.reference, niveau=self.niveau)
         doc._total = total if total is not None else '?'
         doc.multiBuild(self.flow)
 
