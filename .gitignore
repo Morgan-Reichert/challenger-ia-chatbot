@@ -6,3 +6,7 @@ dist
 .DS_Store
 .vercel
 .env*
+
+# Caches Python des generateurs de documentation
+__pycache__/
+*.pyc
