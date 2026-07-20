@@ -123,9 +123,14 @@ function planifier(appelerModele) {
   // Volet B — par domaine, avec le contradicteur le plus pertinent.
   for (const d of DOMAINES) {
     for (const t of d.theses) {
+      // « factchecker » n'existe pas sur ce point d'entrée : il dispose du sien
+      // (/v1/factcheck). On rabat sur l'Architecte, dont la structure logique
+      // est la plus proche — comme au rejeu de la première campagne, afin que
+      // les deux séries restent comparables.
+      const persona = d.persona === 'factchecker' ? 'architect' : d.persona;
       taches.push(() => unAppel({
         appelerModele, volet: 'B-domaine',
-        entree: { ...t, domaine: d.domaine }, persona: d.persona, friction: 'moyen',
+        entree: { ...t, domaine: d.domaine }, persona, friction: 'moyen',
       }));
     }
   }
