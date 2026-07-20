@@ -47,11 +47,34 @@ Clés de biais autorisées : ${Object.keys(BIAIS).join(', ')}.
 Clés de forces autorisées : ${Object.keys(FORCES).join(', ')}.
 N'utilise AUCUNE autre clé. Maximum 5 entrées par liste. Réponds en français.`;
 
+/**
+ * Extraction de l'analyse. Filet de sécurité conservé malgré le mode JSON
+ * natif : un modèle reste capable de s'en écarter, et les deux défauts traités
+ * ici ont été observés en conditions réelles — clôture Markdown, et retours à
+ * la ligne bruts à l'intérieur des chaînes.
+ */
 function extraireJson(texte) {
-  try { return JSON.parse(texte); } catch { /* tentative d'extraction */ }
-  const m = texte.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+  const sansCloture = texte.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  const m = sansCloture.match(/\{[\s\S]*\}/);
+  for (const candidat of [texte, sansCloture, m ? m[0] : null]) {
+    if (!candidat) continue;
+    try { return JSON.parse(candidat); } catch { /* candidat suivant */ }
+  }
+  // Échappe les caractères de contrôle présents dans les chaînes, en suivant
+  // l'état « dans une chaîne » plutôt qu'en remplaçant globalement — ce qui
+  // abîmerait la structure du document.
+  const source = m ? m[0] : sansCloture;
+  let repare = '', dansChaine = false, echappe = false;
+  for (const c of source) {
+    if (echappe) { repare += c; echappe = false; continue; }
+    if (c === '\\') { repare += c; echappe = true; continue; }
+    if (c === '"') { dansChaine = !dansChaine; repare += c; continue; }
+    if (dansChaine && (c === '\n' || c === '\r' || c === '\t')) {
+      repare += { '\n': '\\n', '\r': '\\r', '\t': '\\t' }[c]; continue;
+    }
+    repare += c;
+  }
+  try { return JSON.parse(repare); } catch { return null; }
 }
 
 /** Filtre les entrées dont le code n'appartient pas à la taxonomie. */
@@ -86,6 +109,11 @@ export const traiterAnalyze = {
       utilisateur: `Texte à analyser :\n\n${texte}`,
       modele: 'mistral-large-latest',
       temperature: 0.3,
+      // Mode JSON natif. Sans lui, le modèle entoure sa réponse d'une clôture
+      // Markdown et insère de vrais retours à la ligne dans les chaînes, ce que
+      // JSON interdit : le même défaut rendait trois réponses sur quatre
+      // illisibles sur le point d'entrée de vérification factuelle.
+      json: true,
     });
     if (!r.ok) return { ok: false, statut: r.statut, erreur: 'modele_indisponible', message: r.message };
 
