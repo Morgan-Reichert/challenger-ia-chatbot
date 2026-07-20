@@ -24,6 +24,8 @@ Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour, sans bloc de
 }
 Réponds en français.`;
 
+import { rechercher } from './recherche.js';
+
 const VALEURS = {
   fact: ['vrai', 'probable_vrai', 'inconnu', 'non_verifie', 'inconcluant', 'probable_faux', 'faux'],
   risk: ['safe', 'faible', 'modere', 'dangereux', 'critique'],
@@ -31,40 +33,49 @@ const VALEURS = {
   confidence: ['speculatif', 'faible', 'plausible', 'eleve', 'quasi_certain'],
 };
 
-/** Recherche web optionnelle. Échoue en silence : l'analyse reste possible sans. */
-async function chercher(requete) {
-  const cle = process.env.TAVILY_API_KEY;
-  if (!cle) return { contexte: '', sources: [] };
-  try {
-    const r = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: cle, query: requete, search_depth: 'advanced',
-        max_results: 6, include_answer: 'advanced',
-      }),
-    });
-    if (!r.ok) return { contexte: '', sources: [] };
-    const d = await r.json();
-    const sources = (d.results || []).slice(0, 6).map((s, i) => ({
-      n: i + 1, titre: s.title, url: s.url,
-    }));
-    const contexte = [
-      d.answer ? `Synthèse : ${d.answer}` : '',
-      ...sources.map((s, i) => `[${s.n}] ${s.titre} — ${s.url}\n${(d.results[i]?.content || '').slice(0, 500)}`),
-    ].filter(Boolean).join('\n\n');
-    return { contexte, sources };
-  } catch {
-    return { contexte: '', sources: [] };
-  }
-}
 
 /** Extraction tolérante : le modèle encadre parfois son JSON de texte. */
+/**
+ * Extraction du verdict.
+ *
+ * Le mode JSON natif rend normalement ce filet inutile. Il est conservé parce
+ * qu'un modèle reste capable de s'en écarter, et parce que les deux défauts
+ * traités ici ont été observés en conditions réelles :
+ *   — la réponse entourée d'une clôture Markdown ```json ;
+ *   — de vrais retours à la ligne à l'intérieur des chaînes, que JSON
+ *     interdit et qui rendaient une réponse sur deux inexploitable.
+ */
 function extraireJson(texte) {
-  try { return JSON.parse(texte); } catch { /* on tente une extraction */ }
-  const m = texte.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+  const essais = [];
+  essais.push(texte);
+
+  // Clôture Markdown éventuelle.
+  const sansCloture = texte.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  if (sansCloture !== texte) essais.push(sansCloture);
+
+  // Premier objet accolade à accolade.
+  const m = sansCloture.match(/\{[\s\S]*\}/);
+  if (m) essais.push(m[0]);
+
+  for (const candidat of essais) {
+    try { return JSON.parse(candidat); } catch { /* candidat suivant */ }
+  }
+
+  // Dernier recours : échapper les caractères de contrôle présents dans les
+  // chaînes. On suit l'état « dans une chaîne » plutôt que d'appliquer un
+  // remplacement global, qui abîmerait la structure du document.
+  const source = m ? m[0] : sansCloture;
+  let repare = '', dansChaine = false, echappe = false;
+  for (const c of source) {
+    if (echappe) { repare += c; echappe = false; continue; }
+    if (c === '\\') { repare += c; echappe = true; continue; }
+    if (c === '"') { dansChaine = !dansChaine; repare += c; continue; }
+    if (dansChaine && c === '\n') { repare += '\\n'; continue; }
+    if (dansChaine && c === '\r') { repare += '\\r'; continue; }
+    if (dansChaine && c === '\t') { repare += '\\t'; continue; }
+    repare += c;
+  }
+  try { return JSON.parse(repare); } catch { return null; }
 }
 
 export const traiterFactcheck = {
@@ -80,15 +91,17 @@ export const traiterFactcheck = {
   },
 
   async executer({ affirmation, recherche_web }, { appelerModele }) {
-    const { contexte, sources } = recherche_web
-      ? await chercher(affirmation)
-      : { contexte: '', sources: [] };
+    // Même recherche vérifiée que la contradiction : sources atteignables,
+    // murs payants écartés, repli encyclopédique si la clé payante manque.
+    const { contexte, sources, ecartees = [], panne } = recherche_web
+      ? await rechercher(affirmation)
+      : { contexte: '', sources: [], panne: null };
 
     const utilisateur = contexte
       ? `Affirmation à vérifier : ${affirmation}\n\nSources disponibles :\n${contexte}`
       : `Affirmation à vérifier : ${affirmation}\n\n(Aucune source web fournie : fonde ton évaluation sur tes connaissances et signale-le dans les limites.)`;
 
-    const r = await appelerModele({ systeme: SYSTEME, utilisateur, modele: 'mistral-large-latest', temperature: 0.3 });
+    const r = await appelerModele({ systeme: SYSTEME, utilisateur, modele: 'mistral-large-latest', temperature: 0.3, json: true });
     if (!r.ok) return { ok: false, statut: r.statut, erreur: 'modele_indisponible', message: r.message };
 
     const brut = extraireJson(r.texte);
@@ -114,6 +127,11 @@ export const traiterFactcheck = {
       limites: brut.limites ?? '',
       contre_hypotheses: brut.contre_hypotheses ?? '',
       base: sources.length ? 'sources' : 'qualitatif',
+      // Distingue « aucune source trouvée » de « recherche en panne ». Sans
+      // cette distinction, un verdict rendu à l'aveugle est indiscernable d'un
+      // verdict rendu sur un sujet sans couverture web.
+      recherche_indisponible: panne ?? null,
+      sources_ecartees: ecartees.map((x) => ({ url: x.url, motif: x.motif })),
       sources,
       usage: r.usage,
     } };

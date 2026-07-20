@@ -28,8 +28,25 @@ function capter({ systeme, utilisateur, temperature }) {
 
 /* ─── Mistral ─────────────────────────────────────────────────────────────── */
 
+const ATTENTES = [800, 2500, 6000, 12000];
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export function adaptateurMistral(cle, modele = 'mistral-small-latest') {
-  return async function appelerModele({ systeme, utilisateur, temperature }) {
+  return async function appelerModele(args) {
+    // Reprise sur 429, comme le fait désormais le code de production. Sans
+    // elle, le banc mesurerait la saturation de l'API plutôt que le produit.
+    let dernier = null;
+    for (let i = 0; i <= ATTENTES.length; i++) {
+      if (i > 0) await dormir(ATTENTES[i - 1]);
+      dernier = await unAppelMistral(cle, modele, args);
+      if (dernier.ok || dernier.statut !== 429) return dernier;
+    }
+    return dernier;
+  };
+}
+
+function unAppelMistral(cle, modele, { systeme, utilisateur, temperature, modele: modeleDemande, json }) {
+  return (async () => {
     capter({ systeme, utilisateur, temperature });
     const t0 = Date.now();
     try {
@@ -37,12 +54,15 @@ export function adaptateurMistral(cle, modele = 'mistral-small-latest') {
         method: 'POST',
         headers: { Authorization: `Bearer ${cle}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: modele,
+          model: modeleDemande || modele,
           messages: [
             { role: 'system', content: systeme },
             { role: 'user', content: utilisateur },
           ],
           temperature: temperature ?? 0.7,
+          // Relaie le mode JSON natif : sans cela le banc n'exercerait pas le
+          // chemin réellement emprunté en production.
+          ...(json ? { response_format: { type: 'json_object' } } : {}),
         }),
       });
       const ms = Date.now() - t0;
@@ -56,12 +76,12 @@ export function adaptateurMistral(cle, modele = 'mistral-small-latest') {
         texte: d.choices?.[0]?.message?.content ?? '',
         usage: d.usage,
         ms,
-        modele,
+        modele: modeleDemande || modele,
       };
     } catch (e) {
       return { ok: false, statut: 0, message: String(e?.message ?? e), ms: Date.now() - t0 };
     }
-  };
+  })();
 }
 
 /* ─── Gemini ──────────────────────────────────────────────────────────────── */

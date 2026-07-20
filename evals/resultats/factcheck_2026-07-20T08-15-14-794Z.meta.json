@@ -1,0 +1,14 @@
+{
+  "banc": "factcheck",
+  "modele": "mistral-large-latest",
+  "temperature": 0.3,
+  "repetitions": 3,
+  "affirmations": 30,
+  "debutSerie": "2026-07-20T08:15:14.801Z",
+  "finSerie": "2026-07-20T08:15:49.103Z",
+  "dureeMs": 34298,
+  "appels": 90,
+  "concurrence": 3,
+  "codeExerce": "api/_lib/op-factcheck.js (traiterFactcheck)",
+  "versionNode": "v24.14.1"
+}

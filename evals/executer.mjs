@@ -20,7 +20,7 @@ import { controler } from './controles.mjs';
 /* ─── Configuration ───────────────────────────────────────────────────────── */
 
 const FOURNISSEUR = (process.argv[2] ?? 'mistral').toLowerCase();
-const CONCURRENCE = 4;   // au-delà, les deux fournisseurs limitent le débit
+const CONCURRENCE = 3;   // la recherche web ajoute des requetes sortantes   // au-delà, les deux fournisseurs limitent le débit
 const PERSONAS = ['architect', 'opponent', 'arbiter', 'strategist'];
 
 function env() {
@@ -102,7 +102,13 @@ async function unAppel({ appelerModele, volet, entree, persona, friction, longue
     ok: true,
     reponse: texte,
     usage: r.corps.usage ?? null,
-    controles: controler(texte, { persona, longueurAttendue }),
+    // Produits par la nouvelle architecture : sources vérifiées transmises au
+    // modèle, et vérification déterministe de ce qu'il en a fait.
+    sources: r.corps.sources ?? [],
+    sourcesEcartees: r.corps.sources_ecartees ?? [],
+    rechercheIndisponible: r.corps.recherche_indisponible ?? null,
+    verification: r.corps.verification ?? null,
+    controles: controler(texte, { persona, longueurAttendue, these: entree.these }),
   };
 }
 
@@ -160,6 +166,7 @@ function planifier(appelerModele) {
 
 async function principal() {
   const e = env();
+  for (const [k, v] of Object.entries(e)) if (!process.env[k]) process.env[k] = v;
   let appelerModele, modele;
 
   if (FOURNISSEUR === 'mistral') {
