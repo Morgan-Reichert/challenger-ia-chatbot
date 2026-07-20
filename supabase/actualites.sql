@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS articles (
   statut        text NOT NULL DEFAULT 'brouillon'
                 CHECK (statut IN ('brouillon', 'publie')),
   temps_lecture integer NOT NULL DEFAULT 3,
+  -- Avancement d'un chantier, en pourcentage. Réservé à la rubrique « wip » :
+  -- une mise à jour livrée est achevée par définition. Nul ailleurs plutôt que
+  -- zéro, pour distinguer « non applicable » de « pas commencé ».
+  avancement    integer CHECK (avancement IS NULL OR (avancement BETWEEN 0 AND 100)),
+  image_url     text,           -- facultatif ; un visuel est engendré à défaut
   publie_le     timestamptz,
   cree_le       timestamptz NOT NULL DEFAULT now(),
   maj_le        timestamptz NOT NULL DEFAULT now()
@@ -31,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_articles_publies
 -- Le contenu intégral en est ABSENT : il ne peut donc pas fuiter par une
 -- requête directe, quelle que soit la façon dont l'interface est contournée.
 CREATE OR REPLACE VIEW articles_publics AS
-  SELECT id, type, titre, resume, temps_lecture, publie_le
+  SELECT id, type, titre, resume, temps_lecture, avancement, image_url, publie_le
   FROM articles
   WHERE statut = 'publie'
   ORDER BY publie_le DESC;

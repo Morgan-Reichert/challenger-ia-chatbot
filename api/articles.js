@@ -115,7 +115,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ erreur: 'non_autorise' });
     }
 
-    const { type, titre, resume, contenu, temps_lecture, publier = false } = req.body ?? {};
+    const { type, titre, resume, contenu, temps_lecture, avancement, image_url, publier = false } = req.body ?? {};
     if (!TYPES.includes(type)) return res.status(400).json({ erreur: 'type_invalide', message: 'type doit valoir « maj » ou « wip ».' });
     for (const [champ, valeur] of [['titre', titre], ['resume', resume], ['contenu', contenu]]) {
       if (typeof valeur !== 'string' || valeur.trim().length < 3) {
@@ -129,6 +129,11 @@ export default async function handler(req, res) {
     const { data: article, error } = await supa.from('articles').insert({
       type, titre: titre.trim(), resume: resume.trim(), contenu,
       temps_lecture: Number(temps_lecture) || 3,
+      // L'avancement ne vaut que pour un chantier : une mise à jour livrée est
+      // achevée, un pourcentage y serait trompeur.
+      avancement: type === 'wip' && avancement != null
+        ? Math.max(0, Math.min(100, Number(avancement))) : null,
+      image_url: typeof image_url === 'string' && image_url.startsWith('https://') ? image_url : null,
       statut: publier ? 'publie' : 'brouillon',
       publie_le: publier ? new Date().toISOString() : null,
     }).select('*').single();
@@ -172,7 +177,7 @@ export default async function handler(req, res) {
     }
 
     const { data, error } = await supa.from('articles')
-      .select('id, type, titre, resume, contenu, temps_lecture, publie_le')
+      .select('id, type, titre, resume, contenu, temps_lecture, avancement, image_url, publie_le')
       .eq('id', id).eq('statut', 'publie').maybeSingle();
     if (error) return res.status(500).json({ erreur: 'erreur_interne' });
     if (!data) return res.status(404).json({ erreur: 'introuvable' });
@@ -183,7 +188,7 @@ export default async function handler(req, res) {
 
   /* ── Liste des résumés — public ────────────────────────────────────────── */
   const { data, error } = await supa.from('articles_publics')
-    .select('id, type, titre, resume, temps_lecture, publie_le');
+    .select('id, type, titre, resume, temps_lecture, avancement, image_url, publie_le');
   if (error) return res.status(500).json({ erreur: 'erreur_interne' });
 
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
