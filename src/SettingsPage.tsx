@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import PushToggle from './PushToggle';
 import CognitiveCard from './CognitiveCard';
 import PrivacyPanel from './PrivacyPanel';
+import ApiKeysPanel from './ApiKeysPanel';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
@@ -486,6 +487,9 @@ export default function SettingsPage({
 
         {/* Notifications push (mobile surtout) */}
         <PushToggle />
+
+        {/* Clés d'API développeur */}
+        <ApiKeysPanel userId={user?.uid ?? null} />
 
         {/* Droits RGPD : partages publics, export, effacement */}
         <PrivacyPanel
