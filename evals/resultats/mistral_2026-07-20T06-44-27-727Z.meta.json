@@ -1,0 +1,13 @@
+{
+  "fournisseur": "mistral",
+  "modele": "mistral-small-latest",
+  "debutSerie": "2026-07-20T06:44:27.734Z",
+  "finSerie": "2026-07-20T06:49:43.104Z",
+  "dureeMs": 315368,
+  "appelsPlanifies": 148,
+  "appelsFaits": 148,
+  "echecs": 8,
+  "concurrence": 4,
+  "codeExerce": "api/_lib/op-challenge.js (traiterChallenge)",
+  "versionNode": "v24.14.1"
+}
