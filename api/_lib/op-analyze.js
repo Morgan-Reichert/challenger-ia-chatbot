@@ -15,6 +15,24 @@ const BIAIS = {
   cherry_picking: 'Sélection biaisée',
   anecdote: 'Preuve anecdotique',
   petition_principe: 'Raisonnement circulaire',
+  // ── Ajouts issus de la premiere campagne de mesure ────────────────────────
+  // Onze appels portaient une faille reelle qu'aucun code ne savait nommer :
+  // le modele devait alors forcer un code approchant, ou ne rien rapporter.
+  // Une taxonomie trop etroite se lit comme un defaut de detection.
+  appel_nature: 'Appel à la nature',
+  appel_tradition: 'Appel à la tradition',
+  appel_ignorance: "Appel à l'ignorance",
+  non_falsifiable: 'Affirmation non falsifiable',
+  biais_survivant: 'Biais du survivant',
+  chiffre_non_source: 'Chiffre avancé sans source',
+  analogie_trompeuse: 'Analogie trompeuse',
+  consensus_unanimite: 'Confusion consensus / unanimité',
+  legalite_legitimite: 'Confusion légalité / légitimité',
+  etre_devoir_etre: "Passage indu de l'être au devoir-être",
+  determinisme: 'Déterminisme présenté comme nécessité',
+  metrique_objectif: "Métrique confondue avec l'objectif",
+  prediction_sans_mecanisme: 'Prédiction sans mécanisme explicité',
+  theorie_invalidee: 'Théorie invalidée présentée comme acquise',
 };
 
 const FORCES = {
@@ -45,7 +63,7 @@ Tu réponds UNIQUEMENT par un objet JSON valide, sans texte autour, à ce format
 
 Clés de biais autorisées : ${Object.keys(BIAIS).join(', ')}.
 Clés de forces autorisées : ${Object.keys(FORCES).join(', ')}.
-N'utilise AUCUNE autre clé. Maximum 5 entrées par liste. Réponds en français.`;
+N'utilise AUCUNE autre clé. Maximum 5 entrées par liste — retiens les plus déterminantes, pas les plus nombreuses. Réponds en français.`;
 
 /**
  * Extraction de l'analyse. Filet de sécurité conservé malgré le mode JSON

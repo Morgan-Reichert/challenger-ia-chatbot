@@ -1,0 +1,14 @@
+{
+  "banc": "analyze",
+  "modele": "mistral-large-latest",
+  "temperature": 0.3,
+  "repetitions": 1,
+  "textes": 52,
+  "debutSerie": "2026-07-20T14:38:17.259Z",
+  "finSerie": "2026-07-20T14:48:17.564Z",
+  "dureeMs": 600305,
+  "appels": 52,
+  "concurrence": 1,
+  "codeExerce": "api/_lib/op-analyze.js (traiterAnalyze)",
+  "versionNode": "v24.14.1"
+}

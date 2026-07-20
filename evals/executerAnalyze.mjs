@@ -22,7 +22,7 @@ import { adaptateurMistral } from './adaptateurs.mjs';
 import { GENERALISTE, DOMAINES } from './corpus.mjs';
 
 const REPETITIONS = Number(process.argv[2] ?? 2);
-const CONCURRENCE = 2;   // mistral-large plafonne bas
+const CONCURRENCE = 1;   // mistral-large plafonne tres bas : 32 refus sur 62 a 2
 
 /**
  * Correspondance entre les failles du corpus et la taxonomie du produit.
@@ -44,21 +44,21 @@ const CORRESPONDANCE = {
   'anecdote érigée en preuve': 'anecdote',
   'pétition de principe': 'petition_principe',
   'recette universelle': 'generalisation_abusive',
-  'biais du survivant': null,
-  'appel à la nature': null,
-  'affirmation non falsifiable': null,
-  'chiffre non sourçable': null,
-  'analogie trompeuse ménage/État': null,
-  'confusion consensus/unanimité': null,
-  'appel à l’ignorance': null,
-  'prédiction sans mécanisme': null,
-  'déterminisme technologique': null,
-  'théorie invalidée présentée comme acquise': null,
+  'biais du survivant': 'biais_survivant',
+  'appel à la nature': 'appel_nature',
+  'affirmation non falsifiable': 'non_falsifiable',
+  'chiffre non sourçable': 'chiffre_non_source',
+  'analogie trompeuse ménage/État': 'analogie_trompeuse',
+  'confusion consensus/unanimité': 'consensus_unanimite',
+  'appel à l’ignorance': 'appel_ignorance',
+  'prédiction sans mécanisme': 'prediction_sans_mecanisme',
+  'déterminisme technologique': 'determinisme',
+  'théorie invalidée présentée comme acquise': 'theorie_invalidee',
   'nostalgie érigée en argument': null,
-  'métrique confondue avec l’objectif': null,
-  'confusion légalité/légitimité': null,
-  'appel à la tradition': null,
-  'passage indu de l’être au devoir-être': null,
+  'métrique confondue avec l’objectif': 'metrique_objectif',
+  'confusion légalité/légitimité': 'legalite_legitimite',
+  'appel à la tradition': 'appel_tradition',
+  'passage indu de l’être au devoir-être': 'etre_devoir_etre',
 };
 
 function env() {
