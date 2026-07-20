@@ -3,7 +3,7 @@
  * Nouveau défi chaque jour, récompense +1 crédit après 3 messages.
  *
  * Source : `daily_challenges/{YYYY-MM-DD}` dans Firestore (généré chaque
- * semaine par api/generate-challenges.js). Fallback : la liste statique
+ * semaine par api/cron.js?task=challenges). Fallback : la liste statique
  * ci-dessous (utilisée hors-ligne ou si le cron n'a pas tourné).
  */
 

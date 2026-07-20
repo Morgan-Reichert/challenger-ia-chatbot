@@ -3,20 +3,26 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
     {
-      "path": "/api/generate-challenges",
+      "path": "/api/cron?task=challenges",
       "schedule": "0 3 * * 0"
     },
     {
-      "path": "/api/reengagement",
+      "path": "/api/cron?task=reengagement",
       "schedule": "0 10 * * 1"
     },
     {
-      "path": "/api/purge",
+      "path": "/api/cron?task=purge",
       "schedule": "0 4 * * 2"
     }
   ]

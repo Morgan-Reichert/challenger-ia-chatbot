@@ -31,7 +31,7 @@ export default function ApiKeysPanel({ userId }: { userId: string | null }) {
   const charger = useCallback(async () => {
     if (!userId) { setChargement(false); return; }
     try {
-      const res = await apiFetch('/api/keys', { cache: 'no-store' });
+      const res = await apiFetch('/api/account?resource=keys', { cache: 'no-store' });
       if (res.ok) {
         const d = await res.json();
         setCles(d.cles ?? []);
@@ -46,7 +46,7 @@ export default function ApiKeysPanel({ userId }: { userId: string | null }) {
     setCreation(true);
     setErreur('');
     try {
-      const res = await apiFetch('/api/keys', {
+      const res = await apiFetch('/api/account?resource=keys', {
         method: 'POST',
         body: JSON.stringify({ name: nom || 'Clé sans nom' }),
       });
@@ -60,7 +60,7 @@ export default function ApiKeysPanel({ userId }: { userId: string | null }) {
   };
 
   const revoquer = async (id: string) => {
-    await apiFetch(`/api/keys?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await apiFetch(`/api/account?resource=keys&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     void charger();
   };
 

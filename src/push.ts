@@ -40,7 +40,7 @@ export async function enablePush(): Promise<PushResult> {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
       });
     }
-    await apiFetch('/api/push-subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
+    await apiFetch('/api/push?action=subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
     return 'granted';
   } catch {
     return 'error';

@@ -1,18 +1,7 @@
 /**
- * POST /api/v1/analyze — analyse du raisonnement contenu dans un texte.
- *
- * Corps :  { texte: string }
- * Réponse : { biais: [...], forces: [...], synthese, credits_restants }
- *
- * Coût : 1 crédit.
- *
- * Les catégories sont des ÉNUMÉRATIONS FERMÉES : le modèle ne peut pas
- * inventer un biais, ce qui rend la sortie exploitable programmatiquement.
+ * Opération « analyze » — analyse du raisonnement d'un texte.
+ * Logique pure, appelée par api/v1/[action].js.
  */
-import { cors } from '../_lib/cors.js';
-import { autoriser, entetesApi } from '../_lib/apikey.js';
-import { appelerModele } from '../_lib/mistral.js';
-
 const BIAIS = {
   generalisation_abusive: 'Généralisation abusive',
   correlation_causalite: 'Confusion corrélation / causalité',
@@ -79,55 +68,38 @@ function nettoyer(liste, reference) {
     }));
 }
 
-export default async function handler(req, res) {
-  if (cors(req, res)) return;
-  if (req.method !== 'POST') {
-    return res.status(405).json({ erreur: 'methode_non_autorisee', message: 'Utilisez POST.' });
-  }
+export const traiterAnalyze = {
+  valider(corps) {
+    const { texte } = corps;
+    if (typeof texte !== 'string' || texte.trim().length < 20) {
+      return { ok: false, message: 'Le champ « texte » est requis (20 caractères minimum).' };
+    }
+    if (texte.length > 8000) {
+      return { ok: false, message: '« texte » dépasse 8000 caractères.' };
+    }
+    return { ok: true, valeurs: { texte } };
+  },
 
-  const { texte } = req.body || {};
-  if (typeof texte !== 'string' || texte.trim().length < 20) {
-    return res.status(400).json({
-      erreur: 'parametre_invalide',
-      message: 'Le champ « texte » est requis (20 caractères minimum).',
+  async executer({ texte }, { appelerModele }) {
+    const r = await appelerModele({
+      systeme: SYSTEME,
+      utilisateur: `Texte à analyser :\n\n${texte}`,
+      modele: 'mistral-large-latest',
+      temperature: 0.3,
     });
-  }
-  if (texte.length > 8000) {
-    return res.status(400).json({ erreur: 'parametre_invalide', message: '« texte » dépasse 8000 caractères.' });
-  }
+    if (!r.ok) return { ok: false, statut: r.statut, erreur: 'modele_indisponible', message: r.message };
 
-  const auth = await autoriser(req, 'analyze');
-  if (!auth.ok) {
-    entetesApi(res);
-    return res.status(auth.statut).json({ erreur: auth.erreur, message: auth.message, credits: auth.credits });
-  }
+    const brut = extraireJson(r.texte);
+    if (!brut) {
+      return { ok: false, statut: 502, erreur: 'reponse_illisible',
+               message: "Le modèle n'a pas produit une analyse exploitable." };
+    }
 
-  const r = await appelerModele({
-    systeme: SYSTEME,
-    utilisateur: `Texte à analyser :\n\n${texte}`,
-    modele: 'mistral-large-latest',
-    temperature: 0.3,
-  });
-  entetesApi(res, auth.creditsRestants);
-
-  if (!r.ok) {
-    return res.status(r.statut).json({ erreur: 'modele_indisponible', message: r.message });
-  }
-
-  const brut = extraireJson(r.texte);
-  if (!brut) {
-    return res.status(502).json({
-      erreur: 'reponse_illisible',
-      message: "Le modèle n'a pas produit une analyse exploitable.",
-    });
-  }
-
-  return res.status(200).json({
-    biais: nettoyer(brut.biais, BIAIS),
-    forces: nettoyer(brut.forces, FORCES),
-    synthese: typeof brut.synthese === 'string' ? brut.synthese : '',
-    credits_consommes: auth.cout,
-    credits_restants: auth.creditsRestants,
-    usage: r.usage,
-  });
-}
+    return { ok: true, corps: {
+      biais: nettoyer(brut.biais, BIAIS),
+      forces: nettoyer(brut.forces, FORCES),
+      synthese: typeof brut.synthese === 'string' ? brut.synthese : '',
+      usage: r.usage,
+    } };
+  },
+};
