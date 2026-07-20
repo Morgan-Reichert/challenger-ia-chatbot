@@ -8,8 +8,9 @@ import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
   CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
-  SlidersHorizontal, Info,
+  SlidersHorizontal, Info, Bell, KeyRound, ChevronRight,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
   type UserProfile, type NeuroTag, type BigFiveResult,
@@ -305,6 +306,72 @@ type Props = {
   onAccountDeleted: () => void;
 };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Arborescence des réglages
+
+   Un menu de sections, chacune ouvrant soit une liste de sous-sections, soit
+   directement son contenu. Les sections à contenu unique n'ont pas de niveau
+   intermédiaire : imposer un clic sur une liste d'un seul élément allongerait
+   le chemin sans rien clarifier.
+   ═════════════════════════════════════════════════════════════════════════ */
+type SousSection = { id: string; label: string; icon: LucideIcon; hint: string };
+type SectionReglages = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  accent: string;
+  desc: string;
+  sous?: SousSection[];
+};
+
+const ARBORESCENCE: SectionReglages[] = [
+  {
+    id: 'profil', label: 'Profil IA', icon: User, accent: '#5D7BFF',
+    desc: "Ce que l'IA sait de vous et mobilise dans vos échanges.",
+    sous: [
+      { id: 'identite',  label: 'Identité',               icon: User,      hint: 'Nom affiché, parcours de vie' },
+      { id: 'parcours',  label: 'Parcours professionnel', icon: Briefcase, hint: 'Métier, secteur, expertise' },
+      { id: 'caractere', label: 'Personnalité',           icon: Brain,     hint: 'Type MBTI et traits Big Five' },
+      { id: 'neuro',     label: 'Profil neuro',           icon: Zap,       hint: 'Fonctionnement cognitif — données sensibles' },
+      { id: 'interets',  label: "Centres d'intérêt",      icon: Heart,     hint: 'Sujets qui vous mobilisent' },
+      { id: 'fichier',   label: 'Données du profil',      icon: Download,  hint: 'Importer, exporter, effacer le profil' },
+    ],
+  },
+  {
+    id: 'progression', label: 'Progression', icon: TrendingUp, accent: '#10B981',
+    desc: 'Votre rang, vos forces repérées et ce qui reste à travailler.',
+  },
+  {
+    id: 'personnalisation', label: 'Personnalisation', icon: SlidersHorizontal, accent: '#8B5CF6',
+    desc: 'Affichage du chat, notifications et personas sur mesure.',
+    sous: [
+      { id: 'ecran',         label: 'Écran de chat',      icon: MessageSquare, hint: 'Suggestions et défi du jour' },
+      { id: 'notifications', label: 'Notifications',      icon: Bell,          hint: 'Alertes push sur cet appareil' },
+      { id: 'personas',      label: 'Studio de personas', icon: Sparkles,      hint: 'Créer un contradicteur sur mesure' },
+    ],
+  },
+  {
+    id: 'abonnement', label: 'Abonnement & crédits', icon: CreditCard, accent: '#F59E0B',
+    desc: 'Votre plan, vos crédits et votre consommation.',
+    sous: [
+      { id: 'plan',         label: 'Mon plan',     icon: Crown,     hint: 'Formule en cours et recharges' },
+      { id: 'consommation', label: 'Consommation', icon: BarChart2, hint: 'Quotas, historique, empreinte' },
+    ],
+  },
+  {
+    id: 'confidentialite', label: 'Données & confidentialité', icon: ShieldCheck, accent: '#0EA5E9',
+    desc: 'Export, effacement, partages publics et mesure d’audience.',
+  },
+  {
+    id: 'developpeurs', label: 'Développeurs', icon: KeyRound, accent: '#7C3AED',
+    desc: "Clés d'API pour appeler Challenger depuis vos applications.",
+  },
+  {
+    id: 'apropos', label: 'À propos', icon: Info, accent: '#94A3B8',
+    desc: 'Éditeur, version installée et textes contractuels.',
+  },
+];
+
 const FREE_DAILY   = 20;
 const FREE_WEEKLY  = 100;
 const PRO_DAILY    = 150;
@@ -320,8 +387,16 @@ export default function SettingsPage({
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] =
-    useState<'profil' | 'preferences' | 'abonnement' | 'utilisation' | 'compte'>('profil');
+  // Chemin courant : [] = menu racine, [section] = liste des sous-sections,
+  // [section, sousSection] = contenu.
+  const [chemin, setChemin] = useState<string[]>([]);
+  const sectionCourante = ARBORESCENCE.find((s) => s.id === chemin[0]);
+
+  /** Vrai lorsque le contenu désigné doit être affiché. */
+  const ouvert = (section: string, sous?: string) =>
+    chemin[0] === section && (sous === undefined ? !sectionCourante?.sous : chemin[1] === sous);
+
+  const remonter = () => (chemin.length === 0 ? onBack() : setChemin(chemin.slice(0, -1)));
   const [showEco, setShowEco] = useState(false);
 
   // MBTI info modal
@@ -432,11 +507,20 @@ export default function SettingsPage({
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
       >
         <div className="flex items-center gap-4 mb-4">
-          <button onClick={onBack} className="text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0">
+          {/* Remonte d'un niveau, et quitte les réglages depuis la racine. */}
+          <button
+            onClick={remonter}
+            aria-label={chemin.length === 0 ? 'Fermer les paramètres' : 'Revenir au niveau précédent'}
+            className="text-[#5D7BFF] hover:opacity-70 transition-opacity flex-shrink-0"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-[13px] font-black uppercase tracking-widest text-[#141414]">Paramètres</h1>
+            <h1 className="text-[13px] font-black uppercase tracking-widest text-[#141414] truncate">
+              {chemin.length === 0
+                ? 'Paramètres'
+                : sectionCourante?.sous?.find((s) => s.id === chemin[1])?.label ?? sectionCourante?.label}
+            </h1>
             <p className="text-[9px] font-medium text-[#141414]/40 uppercase tracking-widest mt-0.5">
               {subscription === 'pro' ? `✦ Plan Pro · ${userCredits} crédit${userCredits !== 1 ? 's' : ''} supp.` : `${userCredits} crédit${userCredits !== 1 ? 's' : ''} disponible${userCredits !== 1 ? 's' : ''}`}
             </p>
@@ -456,40 +540,94 @@ export default function SettingsPage({
           </AnimatePresence>
         </div>
 
-        {/* Onglets — défilables horizontalement : à cinq entrées, les forcer à
-            tenir dans la largeur d'un mobile rendrait les libellés illisibles. */}
-        <div className="flex border-t border-[#141414]/8 overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0"
-             style={{ scrollbarWidth: 'none' }}>
-          {([
-            { id: 'profil',        label: 'Profil IA',    icon: User },
-            { id: 'preferences',   label: 'Préférences',  icon: SlidersHorizontal },
-            { id: 'abonnement',    label: 'Abonnement',   icon: CreditCard },
-            { id: 'utilisation',   label: 'Utilisation',  icon: BarChart2 },
-            { id: 'compte',        label: 'Compte',       icon: ShieldCheck },
-          ] as const).map(({ id, label, icon: Icon }) => (
+        {/* Fil d'Ariane — chaque segment est cliquable et ramène à son niveau,
+            de sorte qu'on sache toujours où l'on se trouve et comment remonter
+            sans passer par la racine. Masqué à la racine, où il n'apprendrait
+            rien que le titre ne dise déjà. */}
+        {chemin.length > 0 && (
+          <div className="flex items-center gap-1.5 border-t border-[#141414]/8 pt-2.5 overflow-x-auto"
+               style={{ scrollbarWidth: 'none' }}>
             <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={cx(
-                'flex-1 flex-shrink-0 min-w-[92px] flex items-center justify-center gap-1.5 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap',
-                activeTab === id
-                  ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/4'
-                  : 'border-transparent text-[#141414]/35 hover:text-[#141414]/60'
-              )}
+              onClick={() => setChemin([])}
+              className="text-[9px] font-black uppercase tracking-widest text-[#141414]/35 hover:text-[#5D7BFF] transition-colors whitespace-nowrap"
             >
-              <Icon className="w-3 h-3" />
-              {label}
+              Paramètres
             </button>
-          ))}
-        </div>
+            {chemin.map((segment, i) => {
+              const dernier = i === chemin.length - 1;
+              const libelle = i === 0
+                ? sectionCourante?.label
+                : sectionCourante?.sous?.find((s) => s.id === segment)?.label;
+              return (
+                <React.Fragment key={segment}>
+                  <ChevronRight className="w-3 h-3 text-[#141414]/20 flex-shrink-0" />
+                  <button
+                    onClick={() => setChemin(chemin.slice(0, i + 1))}
+                    disabled={dernier}
+                    className={cx(
+                      'text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-colors',
+                      dernier ? 'text-[#5D7BFF]' : 'text-[#141414]/35 hover:text-[#5D7BFF]',
+                    )}
+                  >
+                    {libelle}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto bg-[#F8F9FF]">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
 
-        {/* ═══════════════ ONGLET ABONNEMENT ═══════════════ */}
-        {activeTab === 'abonnement' && (<>
+        {/* ═══════════════ NIVEAU 0 — MENU DES SECTIONS ═══════════════ */}
+        {chemin.length === 0 && (
+          <div className="space-y-2">
+            {ARBORESCENCE.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setChemin([s.id])}
+                className="w-full flex items-center gap-4 px-5 py-4 bg-white border-2 border-[#141414]/10 hover:border-[#141414]/25 transition-colors text-left group"
+              >
+                <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center"
+                     style={{ background: `${s.accent}12`, border: `1.5px solid ${s.accent}30` }}>
+                  <s.icon className="w-4 h-4" style={{ color: s.accent }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#141414]">{s.label}</p>
+                  <p className="text-[10px] text-[#141414]/45 mt-0.5 leading-relaxed">{s.desc}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ═══════════════ NIVEAU 1 — MENU DES SOUS-SECTIONS ═══════════════ */}
+        {chemin.length === 1 && sectionCourante?.sous && (
+          <div className="space-y-2">
+            <p className="text-[10px] text-[#141414]/45 leading-relaxed px-1 pb-1">{sectionCourante.desc}</p>
+            {sectionCourante.sous.map((ss) => (
+              <button
+                key={ss.id}
+                onClick={() => setChemin([sectionCourante.id, ss.id])}
+                className="w-full flex items-center gap-4 px-5 py-3.5 bg-white border-2 border-[#141414]/10 hover:border-[#141414]/25 transition-colors text-left group"
+              >
+                <ss.icon className="w-4 h-4 flex-shrink-0" style={{ color: sectionCourante.accent }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-black text-[#141414]">{ss.label}</p>
+                  <p className="text-[10px] text-[#141414]/45 mt-0.5">{ss.hint}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ═══════════════ ABONNEMENT › MON PLAN ═══════════════ */}
+        {ouvert('abonnement', 'plan') && (<>
 
           {/* Plan actuel */}
           <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
@@ -616,8 +754,8 @@ export default function SettingsPage({
           </div>
         </>)}
 
-        {/* ═══════════════ ONGLET UTILISATION ═══════════════ */}
-        {activeTab === 'utilisation' && (<>
+        {/* ═══════════════ ABONNEMENT › CONSOMMATION ═══════════════ */}
+        {ouvert('abonnement', 'consommation') && (<>
 
           {/* ── 3 indicateurs visuels ── */}
           <div className="border-2 border-[#141414]/10 bg-white" style={{ boxShadow: '4px 4px 0px 0px rgba(20,20,20,0.06)' }}>
@@ -849,7 +987,7 @@ export default function SettingsPage({
         </>)}
 
         {/* ═══════════════ ONGLET COMPTE ═══════════════ */}
-        {activeTab === 'compte' && (<>
+        {ouvert('confidentialite') && (<>
 
           {/* Droits RGPD : partages publics, export, effacement */}
           <PrivacyPanel
@@ -860,8 +998,15 @@ export default function SettingsPage({
             onDeleted={onAccountDeleted}
           />
 
-          {/* Clés d'API développeur */}
+        </>)}
+
+        {/* ═══════════════ DÉVELOPPEURS ═══════════════ */}
+        {ouvert('developpeurs') && (
           <ApiKeysPanel userId={user?.uid ?? null} />
+        )}
+
+        {/* ═══════════════ À PROPOS ═══════════════ */}
+        {ouvert('apropos') && (<>
 
           {/* ── À PROPOS ─────────────────────────────────────────────────────
               Regroupe ce qu'un utilisateur doit pouvoir retrouver seul :
@@ -929,7 +1074,7 @@ export default function SettingsPage({
         </>)}
 
         {/* ═══════════════ ONGLET PRÉFÉRENCES ═══════════════ */}
-        {activeTab === 'preferences' && (<>
+        {ouvert('personnalisation', 'ecran') && (<>
 
           {/* ── ÉCRAN DE CHAT — épure de l'accueil de session */}
           <div className="border-2 border-[#141414]/10">
@@ -981,16 +1126,19 @@ export default function SettingsPage({
             </div>
           </div>
 
-          {/* Notifications push (mobile surtout) */}
-          <PushToggle />
-
         </>)}
 
-        {/* ═══════════════ ONGLET PROFIL ═══════════════ */}
-        {activeTab === 'profil' && (<>
+        {/* ═══════════════ PERSONNALISATION › NOTIFICATIONS ═══════════════ */}
+        {ouvert('personnalisation', 'notifications') && <PushToggle />}
 
-          {/* Profil cognitif évolutif */}
-          <CognitiveCard userId={user?.uid ?? null} />
+        {/* ═══════════════ PERSONNALISATION › STUDIO DE PERSONAS ═══════════════ */}
+        {ouvert('personnalisation', 'personas') && <PersonaStudioSection />}
+
+        {/* ═══════════════ PROGRESSION ═══════════════ */}
+        {ouvert('progression') && <CognitiveCard userId={user?.uid ?? null} />}
+
+        {/* ═══════════════ PROFIL IA › IDENTITÉ ═══════════════ */}
+        {ouvert('profil', 'identite') && (<>
 
           {/* Info banner */}
           <div className="bg-[#5D7BFF]/5 border-2 border-[#5D7BFF]/20 px-4 py-3 flex gap-3 items-start">
@@ -1026,6 +1174,11 @@ export default function SettingsPage({
               />
             </Field>
           </Section>
+
+        </>)}
+
+        {/* ═══════════════ PROFIL IA › PARCOURS PROFESSIONNEL ═══════════════ */}
+        {ouvert('profil', 'parcours') && (<>
 
           {/* ── PROFESSIONNEL */}
           <Section icon={Briefcase} title="Parcours professionnel" accent="#3B82F6">
@@ -1069,6 +1222,11 @@ export default function SettingsPage({
               />
             </Field>
           </Section>
+
+        </>)}
+
+        {/* ═══════════════ PROFIL IA › PERSONNALITÉ ═══════════════ */}
+        {ouvert('profil', 'caractere') && (<>
 
           {/* ── PERSONNALITÉ */}
           <Section icon={Brain} title="Personnalité" accent="#8B5CF6">
@@ -1162,6 +1320,11 @@ export default function SettingsPage({
             </Field>
           </Section>
 
+        </>)}
+
+        {/* ═══════════════ PROFIL IA › PROFIL NEURO ═══════════════ */}
+        {ouvert('profil', 'neuro') && (<>
+
           {/* ── NEURO — données de santé (RGPD art. 9) */}
           <Section icon={Zap} title="Profil neuro" accent="#10B981">
 
@@ -1252,6 +1415,11 @@ export default function SettingsPage({
             </Field>
           </Section>
 
+        </>)}
+
+        {/* ═══════════════ PROFIL IA › CENTRES D'INTÉRÊT ═══════════════ */}
+        {ouvert('profil', 'interets') && (<>
+
           {/* ── INTÉRÊTS */}
           <Section icon={Heart} title="Centres d'intérêt" accent="#F59E0B">
             <Field label="Thèmes & domaines" hint="Tapez un mot-clé et appuyez sur Entrée pour l'ajouter.">
@@ -1294,6 +1462,11 @@ export default function SettingsPage({
               />
             </Field>
           </Section>
+
+        </>)}
+
+        {/* ═══════════════ PROFIL IA › DONNÉES DU PROFIL ═══════════════ */}
+        {ouvert('profil', 'fichier') && (<>
 
           {/* ── DONNÉES */}
           <Section icon={Download} title="Données du profil" accent="#94A3B8">
@@ -1341,10 +1514,9 @@ export default function SettingsPage({
             </div>
           </Section>
 
-          <PersonaStudioSection />
-
-          <div className="pb-8" />
         </>)}
+
+        <div className="pb-8" />
 
         </div>
       </div>

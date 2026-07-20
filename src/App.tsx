@@ -1548,6 +1548,12 @@ export default function App() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false); // guard synchrone — évite les double-envois avant re-render
+  // Message composé pendant que l'IA répond. Il attend la fin du tour en cours
+  // au lieu d'être refusé : couper la génération pour laisser passer la suite
+  // ferait perdre la réponse déjà produite, et la refuser obligerait à retenir
+  // sa pensée le temps que le modèle finisse.
+  const [queuedMessage, setQueuedMessage] =
+    useState<{ text: string; attachments: Attachment[] } | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   const [sidebarExtrasOpen, setSidebarExtrasOpen] = useState(false);
@@ -2851,11 +2857,53 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
   useEffect(() => { sendRef.current = send; }, [send]);
 
+  /**
+   * Envoie immédiatement, ou met en file d'attente si l'IA répond encore.
+   * Un seul message peut attendre à la fois : au-delà, l'utilisateur
+   * empilerait des tours qu'il ne pourrait plus relire avant qu'ils partent.
+   */
+  const submitOrQueue = useCallback((text: string, attachments: Attachment[]) => {
+    if (!text.trim() && attachments.length === 0) return;
+
+    if (sending || sendingRef.current) {
+      if (queuedMessage) return; // une seule place ; le bouton est déjà désactivé
+      setQueuedMessage({ text, attachments });
+      setInput('');
+      setPendingAttachments([]);
+      return;
+    }
+    send(text, attachments);
+  }, [sending, queuedMessage, send]);
+
+  // Le tour en cours est terminé : le message en attente part à son tour et
+  // redevient un message ordinaire.
+  useEffect(() => {
+    if (!queuedMessage || sending || sendingRef.current) return;
+    const enAttente = queuedMessage;
+    setQueuedMessage(null);
+    send(enAttente.text, enAttente.attachments);
+  }, [sending, queuedMessage, send]);
+
+  /**
+   * Annule l'envoi et restitue le texte — et les pièces jointes — à la saisie.
+   *
+   * Les restitutions se font hors de l'updater de `queuedMessage` : React
+   * invoque les updaters deux fois en mode strict, et un effet de bord logé
+   * là-dedans réinsérait le texte en double.
+   */
+  const cancelQueuedMessage = useCallback(() => {
+    if (!queuedMessage) return;
+    setInput((actuel) => (actuel.trim() ? `${queuedMessage.text}\n${actuel}` : queuedMessage.text));
+    setPendingAttachments((actuelles) => [...queuedMessage.attachments, ...actuelles]);
+    setQueuedMessage(null);
+    taRef.current?.focus();
+  }, [queuedMessage]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Retour haptique léger sur mobile (ressenti app native)
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(8);
-    send(input, pendingAttachments);
+    submitOrQueue(input, pendingAttachments);
   };
 
   // ── Slash commands — navigation clavier et exécution
@@ -3443,7 +3491,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      send(input, pendingAttachments);
+      submitOrQueue(input, pendingAttachments);
     }
   };
 
@@ -5381,6 +5429,50 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </motion.div>
               )}
 
+              {/* ── Message en attente ────────────────────────────────────
+                  Rédigé pendant la réponse en cours. Grisé et en pointillés
+                  pour qu'on ne le confonde pas avec un message parti ; la
+                  croix le restitue à la zone de saisie. */}
+              {/* Pas d'AnimatePresence ici : l'animation de sortie laissait le
+                  nœud dans le DOM après le retrait de l'état, si bien que la
+                  bulle grisée survivait à l'envoi du message. Le retrait doit
+                  être immédiat — c'est le signal que le message est parti. */}
+              {queuedMessage && (
+                  <motion.div
+                    key="message-en-attente"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-end"
+                  >
+                    <div className="flex items-start gap-2 max-w-[82%]">
+                      <div className="border-2 border-dashed border-[var(--text-primary)]/20 bg-[var(--text-primary)]/[0.03] min-w-0">
+                        <div className="px-3 py-1 border-b border-dashed border-[var(--text-primary)]/15 flex items-center gap-1.5">
+                          <Clock className="w-2.5 h-2.5 text-[var(--text-primary)]/30" />
+                          <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/30">
+                            En attente de la réponse
+                          </p>
+                        </div>
+                        <p className="px-3 py-2 text-sm text-[var(--text-primary)]/45 whitespace-pre-wrap break-words">
+                          {queuedMessage.text}
+                        </p>
+                        {queuedMessage.attachments.length > 0 && (
+                          <p className="px-3 pb-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/25">
+                            {queuedMessage.attachments.length} pièce{queuedMessage.attachments.length > 1 ? 's' : ''} jointe{queuedMessage.attachments.length > 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={cancelQueuedMessage}
+                        title="Annuler l'envoi et récupérer le texte"
+                        aria-label="Annuler l'envoi et récupérer le texte"
+                        className="flex-shrink-0 mt-1 p-1 text-[var(--text-primary)]/25 hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </motion.div>
+              )}
+
               <div ref={bottomRef} />
             </div>
             </>
@@ -5868,16 +5960,22 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               </div>
 
               {/* Envoyer */}
+              {/* Reste actif pendant la génération : l'envoi met alors le
+                  message en file d'attente. Seule une place déjà occupée le
+                  désactive. */}
               <button
                 type="submit"
-                disabled={sending || (!input.trim() && pendingAttachments.length === 0)}
+                disabled={!!queuedMessage || (!input.trim() && pendingAttachments.length === 0)}
+                title={queuedMessage ? 'Un message attend déjà la fin de la réponse' : undefined}
                 className={cx(
                   'flex-shrink-0 bg-[#5D7BFF] text-white hover:bg-[#4a68e8] disabled:opacity-40 transition-all active:scale-90 flex items-center justify-center',
                   isMobile ? 'w-11 h-11 rounded-full' : 'px-5 py-3 rounded-xl'
                 )}
                 style={{ boxShadow: '0 4px 14px rgba(93,123,255,0.35)' }}
               >
-                {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {sending && !input.trim() && !queuedMessage
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : <Send className="w-5 h-5" />}
               </button>
             </form>
 
