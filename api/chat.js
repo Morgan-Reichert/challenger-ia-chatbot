@@ -17,6 +17,8 @@
 import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
 import { checkAndConsumeQuota } from './_lib/quota.js';
 import { cors } from './_lib/cors.js';
+import { rechercher } from './_lib/recherche.js';
+import { verifierReponse } from './_lib/verifier.js';
 
 // ─── Sources connues et leur niveau de fiabilité ─────────────────────────────
 const SOURCE_TIERS = {
@@ -57,7 +59,7 @@ function getSourceTier(url) {
 }
 
 function tierLabel(tier) {
-  return { high: '✅ Source fiable', medium: '⚠️ Source modérée', low: '🚨 Source peu fiable', unknown: '❓ Source inconnue' }[tier];
+  return { high: 'Source fiable', medium: 'Source modérée', low: 'Source peu fiable', unknown: 'Source inconnue' }[tier];
 }
 
 // ─── Détection automatique du besoin de recherche web ────────────────────────
@@ -95,73 +97,6 @@ function detectSearchNeed(messages) {
 
 function safeDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
-}
-
-// ─── Recherche Tavily + analyse des sources ───────────────────────────────────
-// Renvoie { context, sources } :
-//  - context : texte injecté dans le prompt (sources NUMÉROTÉES à citer en [n])
-//  - sources : liste structurée renvoyée au client pour l'affichage cliquable
-async function searchAndAnalyze(query, mode, tavilyKey) {
-  const isFactcheck = mode === 'factcheck';
-  const tavilyRes = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: tavilyKey,
-      query,
-      search_depth: isFactcheck ? 'advanced' : 'basic',
-      max_results: isFactcheck ? 10 : 5,
-      include_answer: isFactcheck ? 'advanced' : true,
-      include_raw_content: false,
-      exclude_domains: SOURCE_TIERS.low,
-    }),
-  });
-
-  if (!tavilyRes.ok) return null;
-  const data = await tavilyRes.json();
-
-  const TIER_RANK = { high: 0, medium: 1, unknown: 2, low: 3 };
-
-  // Analyser + trier par fiabilité (sources de premier rang en tête)
-  const sources = (data.results ?? [])
-    .map(r => {
-      const tier = getSourceTier(r.url);
-      return {
-        title: r.title || safeDomain(r.url),
-        snippet: (r.content ?? '').slice(0, 280),
-        url: r.url,
-        domain: safeDomain(r.url),
-        date: r.published_date ?? null,
-        tier,
-        tierLabel: tierLabel(tier),
-      };
-    })
-    .sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier])
-    .slice(0, isFactcheck ? 8 : 5)
-    .map((s, i) => ({ ...s, n: i + 1 })); // numérotation après tri
-
-  if (sources.length === 0) return { context: '', sources: [] };
-
-  const highCount = sources.filter(s => s.tier === 'high').length;
-  const mediumCount = sources.filter(s => s.tier === 'medium').length;
-
-  // ── Contexte injecté dans le prompt : sources numérotées ──
-  let context = '';
-  if (data.answer) context += `**Synthèse web automatique :** ${data.answer}\n\n`;
-
-  context += `**Sources numérotées — cite-les dans ta réponse avec [n] (ex : [1], [2]) :**\n`;
-  sources.forEach(s => {
-    context += `[${s.n}] (${s.tierLabel}) ${s.title} — ${s.domain}${s.date ? `, ${s.date}` : ''}\n${s.snippet}\n${s.url}\n\n`;
-  });
-
-  if (isFactcheck) {
-    context += `\n📊 Croisement : ${sources.length} sources (${highCount} de premier rang ✅, ${mediumCount} modérées ⚠️).`;
-    if (highCount === 0) {
-      context += ` Aucune source de premier rang — reste prudent et signale-le explicitement.`;
-    }
-  }
-
-  return { context: context.trim(), sources };
 }
 
 // ─── Handler principal ────────────────────────────────────────────────────────
@@ -215,56 +150,74 @@ export default async function handler(req, res) {
   // ── Recherche web (auto-détection + manuelle) ─────────────────────────────
   let finalMessages = messages;
   let webSources = []; // sources structurées renvoyées au client
-  const tavilyKey = process.env.TAVILY_API_KEY;
+  // ── Recherche documentaire ────────────────────────────────────────────────
+  //
+  // Auparavant conditionnée à la présence d'une clé Tavily : celle-ci étant
+  // expirée, l'application ne disposait d'AUCUNE source, et l'échec était
+  // silencieux. Le module unifié bascule sur une encyclopédie publique à
+  // défaut de clé, et écarte les URL inatteignables avant de les proposer.
+  const detected = detectSearchNeed(messages);
+  const cible = searchQuery
+    ? { query: searchQuery, mode: detected?.mode === 'factcheck' ? 'factcheck' : 'news' }
+    : detected;
 
-  if (tavilyKey) {
-    // On choisit le MODE via la détection (vérification de faits vs actualité),
-    // même quand searchQuery est fourni → l'expérience fact-check vaut pour
-    // n'importe quel persona, pas seulement par auto-détection.
-    const detected = detectSearchNeed(messages);
-    const searchTarget = searchQuery
-      ? { query: searchQuery, mode: detected?.mode === 'factcheck' ? 'factcheck' : 'news' }
-      : detected;
+  let panneRecherche = cible ? null : 'non_declenchee';
 
-    if (searchTarget) {
-      try {
-        const result = await searchAndAnalyze(searchTarget.query, searchTarget.mode, tavilyKey);
+  if (cible) {
+    try {
+      const rech = await rechercher(cible.query);
+      panneRecherche = rech.panne;
+      webSources = rech.sources.map((x) => ({
+        n: x.n, title: x.titre, url: x.url, snippet: x.extrait,
+        domain: safeDomain(x.url), tier: getSourceTier(x.url),
+        tierLabel: tierLabel(getSourceTier(x.url)),
+      }));
 
-        if (result && result.context) {
-          webSources = result.sources;
-          const isFactcheck = searchTarget.mode === 'factcheck';
-          const citationRule = `\n\n## Citation des sources (OBLIGATOIRE)
-Chaque affirmation factuelle que tu tires des sources ci-dessus DOIT être suivie de sa référence entre crochets : [n] (le numéro de la source). Tu peux en cumuler plusieurs : [1][3]. N'invente JAMAIS de numéro qui n'existe pas dans la liste. Ne mets une affirmation sans [n] que si elle ne provient pas des sources.`;
+      if (rech.contexte) {
+        const regleCitation = `\n\n## Citation des sources (OBLIGATOIRE)
+Chaque affirmation factuelle tirée des sources ci-dessus DOIT porter sa référence entre crochets — [n] — dans la MÊME phrase. Plusieurs numéros peuvent se cumuler : [1][3].
+Tu ne renvoies JAMAIS à un numéro absent de la liste : un renvoi inventé imite la rigueur pour mieux tromper, et c'est la faute la plus grave possible ici.
+Tout chiffre, pourcentage ou statistique doit porter un renvoi. Si aucune source ne l'établit, tu ne l'écris pas.
+Ta réponse est vérifiée automatiquement sur ces points.`;
 
-          const factcheckInstruction = isFactcheck
-            ? `\n\n## Instructions vérification des faits
-1. Décompose l'affirmation à vérifier en faits distincts si nécessaire.
-2. Pour chaque fait : CONFIRMÉ / INFIRMÉ / INDÉTERMINÉ selon les sources, avec la référence [n].
-3. Privilégie les sources de premier rang (✅). Ne présente jamais une info comme vraie si seules des sources non vérifiées l'appuient — dis-le explicitement.
-4. Signale toute divergence entre les sources (et entre quelles sources).
-5. Termine par un verdict clair : ✅ CONFIRMÉ / ❌ RÉFUTÉ / ⚠️ NON VÉRIFIÉ / 🔄 PARTIEL.
-6. Termine par un visuel de fiabilité reflétant FIDÈLEMENT les sources, sur sa propre ligne :
-[CIA_VIZ:{"kind":"confidence","level":"solide|etaye|a_confirmer|non_verifie","claim":"l'affirmation vérifiée","note":"ex: 3 sources fiables concordantes"}]
-Paliers : "solide" = plusieurs ✅ concordent ; "etaye" = une ✅ ; "a_confirmer" = seulement ⚠️ ; "non_verifie" = aucune fiable ou sources divergentes. N'invente aucun chiffre dans la note.`
-            : '';
+        const consigneFactcheck = cible.mode === 'factcheck'
+          ? `\n\n## Vérification des faits
+1. Décompose l'affirmation en faits distincts si nécessaire.
+2. Pour chacun : CONFIRMÉ / INFIRMÉ / INDÉTERMINÉ, avec sa référence [n].
+3. Ne présente jamais une information comme établie si aucune source ne l'appuie — dis-le.
+4. Signale les divergences entre sources, en nommant lesquelles.
+5. Sur une question réellement débattue, NE TRANCHE PAS : expose les positions et ce qui les sépare. Fabriquer une certitude est plus dommageable que se tromper sur un fait.`
+          : '';
 
-          finalMessages = finalMessages.map((m, i) =>
-            i === 0 && m.role === 'system'
-              ? {
-                  ...m,
-                  content: m.content
-                    + `\n\n## Données web en temps réel (${new Date().toLocaleDateString('fr-FR')})\n`
-                    + result.context
-                    + citationRule
-                    + factcheckInstruction,
-                }
-              : m
-          );
-        }
-      } catch {
-        // Fail silencieux — le chat fonctionne sans recherche web
+        finalMessages = finalMessages.map((m, i) =>
+          i === 0 && m.role === 'system'
+            ? { ...m, content: m.content
+                + `\n\n## Sources vérifiées (${new Date().toLocaleDateString('fr-FR')})\n`
+                + `Chacune a été atteinte et vérifiée publiquement consultable.\n\n`
+                + rech.contexte + regleCitation + consigneFactcheck }
+            : m);
       }
+    } catch (e) {
+      console.error('[chat] recherche en echec —', e?.message ?? e);
+      panneRecherche = 'exception';
     }
+  }
+
+  // Aucune source disponible : on l'indique EXPLICITEMENT au modèle. Sans cette
+  // consigne, il produisait des renvois [1] pointant vers une liste vide —
+  // 80 citations fantômes relevées sur 148 réponses lors d'une campagne de
+  // mesure, ramenées à zéro par cette seule clause.
+  if (webSources.length === 0) {
+    finalMessages = finalMessages.map((m, i) =>
+      i === 0 && m.role === 'system'
+        ? { ...m, content: m.content + `\n\n## Sources — AUCUNE
+Aucune source n'a pu être obtenue. En conséquence :
+- Tu n'avances AUCUN chiffre, pourcentage ni statistique.
+- Tu n'emploies AUCUN renvoi de la forme [1] : il n'existe rien vers quoi renvoyer, et un renvoi sans source est un mensonge de forme.
+- Tu ne cites aucune étude, aucun auteur, aucune institution par son nom.
+- Tu raisonnes sur la STRUCTURE de l'argument, ce qui suffit à repérer un faux dilemme, une généralisation abusive ou une confusion entre corrélation et causalité.
+- Tu signales cette limite en une phrase, sans t'en excuser.` }
+        : m);
   }
 
   // ── Appel Mistral ────────────────────────────────────────────────────────────
@@ -302,10 +255,41 @@ Paliers : "solide" = plusieurs ✅ concordent ; "etaye" = une ✅ ; "a_confirmer
     const reader = mistralRes.body.getReader();
     const decoder = new TextDecoder();
 
+    // Le texte est accumulé au fil de la diffusion pour être vérifié à la fin.
+    // La vérification ne peut pas précéder l'envoi — le flux est justement là
+    // pour que l'utilisateur lise pendant la génération — mais elle peut le
+    // suivre, et le client affiche alors un avertissement si besoin.
+    let accumule = '';
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      res.write(decoder.decode(value, { stream: true }));
+      const morceau = decoder.decode(value, { stream: true });
+      accumule += morceau;
+      res.write(morceau);
+    }
+
+    try {
+      // Reconstitue le texte utile depuis les deltas SSE de Mistral.
+      const texte = accumule.split('\n')
+        .filter((l) => l.startsWith('data: ') && !l.includes('[DONE]'))
+        .map((l) => { try { return JSON.parse(l.slice(6))?.choices?.[0]?.delta?.content ?? ''; } catch { return ''; } })
+        .join('');
+
+      if (texte) {
+        const controle = verifierReponse(texte, { sources: webSources });
+        if (!controle.conforme || panneRecherche) {
+          res.write(`data: ${JSON.stringify({ cia_verif: {
+            conforme: controle.conforme,
+            atteintes: controle.atteintes,
+            chiffres_non_sources: controle.chiffres.nonCites.length,
+            citations_fantomes: controle.chiffres.fantomes.length,
+            recherche: panneRecherche,
+          } })}\n\n`);
+        }
+      }
+    } catch (e) {
+      console.error('[chat] verification en echec —', e?.message ?? e);
     }
 
     res.end();

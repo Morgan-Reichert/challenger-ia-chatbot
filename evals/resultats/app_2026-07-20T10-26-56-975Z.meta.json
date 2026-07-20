@@ -1,0 +1,13 @@
+{
+  "banc": "application",
+  "modele": "mistral-small-latest",
+  "debutSerie": "2026-07-20T10:26:56.977Z",
+  "finSerie": "2026-07-20T10:32:59.343Z",
+  "dureeMs": 362366,
+  "appels": 88,
+  "echecs": 0,
+  "concurrence": 3,
+  "repetitions": 1,
+  "codeExerce": "src/systemPrompt.js + api/_lib/recherche.js + api/_lib/verifier.js",
+  "versionNode": "v24.14.1"
+}
