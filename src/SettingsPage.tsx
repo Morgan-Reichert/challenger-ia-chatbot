@@ -8,7 +8,7 @@ import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
   CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
-  SlidersHorizontal,
+  SlidersHorizontal, Info,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
@@ -862,6 +862,69 @@ export default function SettingsPage({
 
           {/* Clés d'API développeur */}
           <ApiKeysPanel userId={user?.uid ?? null} />
+
+          {/* ── À PROPOS ─────────────────────────────────────────────────────
+              Regroupe ce qu'un utilisateur doit pouvoir retrouver seul :
+              l'éditeur, la version exacte qu'il exécute, et les textes
+              contractuels. Sans le numéro de build, un signalement d'anomalie
+              n'est pas exploitable par le support. */}
+          <div className="border-2 border-[#141414]/10 bg-white">
+            <div className="flex items-center gap-2.5 px-5 py-3 border-b-2 border-[#141414]/10">
+              <div className="w-8 h-8 flex items-center justify-center"
+                   style={{ background: '#5D7BFF12', border: '1.5px solid #5D7BFF30' }}>
+                <Info className="w-4 h-4 text-[#5D7BFF]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">À propos</h2>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              {/* Éditeur — le logotype STARIAX signe la maison d'édition ; le
+                  logo Challenger reste seul à identifier le produit. */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/35">Édité par</p>
+                  <img
+                    src="/stariax-wordmark.png"
+                    alt="STARIAX GROUP"
+                    className="h-3 w-auto mt-1.5"
+                  />
+                </div>
+                <p className="text-[9px] text-[#141414]/35 uppercase tracking-widest text-right flex-shrink-0">
+                  European<br />Tech Group
+                </p>
+              </div>
+
+              <dl className="border-t border-[#141414]/8 pt-3 space-y-1.5">
+                {[
+                  ['Version', __APP_VERSION__],
+                  ['Build', `${__APP_BUILD__} · ${__APP_BUILD_DATE__}`],
+                ].map(([cle, valeur]) => (
+                  <div key={cle} className="flex items-baseline justify-between gap-4">
+                    <dt className="text-[10px] text-[#141414]/45">{cle}</dt>
+                    <dd className="text-[10px] font-mono text-[#141414]/70">{valeur}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <div className="border-t border-[#141414]/8 pt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                {[
+                  ['Conditions générales', 'https://challenger-ia-nine.vercel.app/cgu'],
+                  ['Confidentialité',      'https://challenger-ia-nine.vercel.app/confidentialite'],
+                  ['Mentions légales',     'https://challenger-ia-nine.vercel.app/mentions-legales'],
+                ].map(([libelle, href]) => (
+                  <a
+                    key={href}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-bold text-[#5D7BFF] underline underline-offset-2 hover:opacity-70 transition-opacity"
+                  >
+                    {libelle}
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
 
         </>)}
 

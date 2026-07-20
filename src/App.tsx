@@ -4439,11 +4439,24 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     </span>
                   </button>
                 </div>
-              ) : (
-                <p className="text-center text-[10px] font-black uppercase tracking-widest text-white/15">
-                  Stariax Group © 2026
-                </p>
-              )}
+              ) : null}
+
+              {/* Éditeur. Le logotype STARIAX signe la maison qui publie
+                  l'application ; il ne se substitue jamais au logo Challenger,
+                  qui reste seul à identifier le produit. */}
+              <div className={cx(
+                'flex items-center justify-center gap-2',
+                user && 'mt-4 pt-3 border-t border-white/5',
+              )}>
+                <span className="text-[8px] font-black uppercase tracking-widest text-white/20">
+                  Un produit
+                </span>
+                <img
+                  src="/stariax-wordmark-blanc.png"
+                  alt="STARIAX GROUP"
+                  className="h-[9px] w-auto opacity-25"
+                />
+              </div>
             </div>
           </motion.aside>
         )}
