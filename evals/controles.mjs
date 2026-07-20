@@ -13,6 +13,11 @@
  * plus étroite, et c'est la seule à laquelle on peut répondre sans arbitraire.
  */
 
+/** Retire les diacritiques : les modèles en omettent parfois. */
+function sansAccents(t) {
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 /* ─── 1. Statistiques non sourçables ──────────────────────────────────────── */
 
 // Le prompt système interdit explicitement d'inventer un chiffre non sourçable.
@@ -168,6 +173,31 @@ const MARQUEURS_ELOGE = new RegExp([
   "le mérite de (?:ta|votre)",
 ].join('|'), 'gi');
 
+// ── Version 3 ────────────────────────────────────────────────────────────
+// La v2 ne cherchait que des éloges à la seconde personne. Le contrat impose
+// désormais de NOMMER une qualité issue d'une liste fermée — « NUANCE — "…" »
+// — forme qu'aucun motif de la v2 ne reconnaissait. La mesure est alors tombée
+// à 0 % alors que la qualité était nommée dans 53 réponses sur 53 : c'est
+// l'instrument qui était aveugle, pas le produit.
+const QUALITES_NOMMEES = new RegExp([
+  'nuance', 'exigence de preuve', 'contre-exemple anticip',
+  'distinction fine', 'incertitude assum', 'causalite prudente',
+  'definition claire', 'hypothese alternative', 'revision honnete',
+].join('|'), 'gi');
+
+const AUCUNE_QUALITE = /aucune qualit[ée] de raisonnement/i;
+
+export function controleQualiteNommee(texte) {
+  const t = sansAccents(texte);
+  if (AUCUNE_QUALITE.test(t)) return { nommee: false, explicitementAucune: true, qualites: [] };
+  const q = t.match(QUALITES_NOMMEES) ?? [];
+  return {
+    nommee: q.length > 0,
+    explicitementAucune: false,
+    qualites: [...new Set(q.map((x) => x.toLowerCase()))].slice(0, 4),
+  };
+}
+
 export function controleReconnaissance(texte) {
   const t = texte.match(MARQUEURS_ELOGE) ?? [];
   return {
@@ -248,6 +278,7 @@ export function controler(texte, { persona, longueurAttendue, these }) {
     structure:      controleStructure(texte, persona),
     steelman:       controleSteelman(texte, persona),
     reconnaissance: controleReconnaissance(texte),
+    qualiteNommee:  controleQualiteNommee(texte),
     longueur:       controleLongueur(texte, longueurAttendue),
     langue:         controleLangue(texte),
     absolus:        controleAbsolus(texte),
