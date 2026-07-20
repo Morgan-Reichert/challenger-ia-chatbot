@@ -28,6 +28,7 @@ import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
 import { signalerSession } from './sessions';
+import Calibrage, { type ResultatCalibrage } from './Calibrage';
 import { mirrorBaseChatConvs } from './outils/JournalismeApp';
 import { getPinnedTools } from './outils/useOutilSessions';
 import type { OutilId } from './outils/outilsTypes';
@@ -1543,8 +1544,16 @@ function StreamingHeader({ persona, isDebate, isInterview }: {
 
 export default function App() {
   // ── Chat state
-  const [persona, setPersona] = useState<Persona>('architect');
-  const [level, setLevel] = useState<FrictionLevel>('moyen');
+  // Valeurs de départ issues du calibrage, quand il a eu lieu. Sans cela, le
+  // bilan annonce un contradicteur que le premier rechargement dément.
+  const [persona, setPersona] = useState<Persona>(() => {
+    const p = loadProfile().personaPrefere;
+    return (p && p in PERSONAS ? p : 'architect') as Persona;
+  });
+  const [level, setLevel] = useState<FrictionLevel>(() => {
+    const f = loadProfile().frictionPreferee;
+    return (f === 'doux' || f === 'moyen' || f === 'extreme' ? f : 'moyen');
+  });
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -1763,6 +1772,11 @@ export default function App() {
 
   // ── Consentement (affiché à la première connexion uniquement)
   const [consentPending, setConsentPending] = useState<FirebaseUser | null>(null);
+  // Questionnaire de calibrage, ouvert une fois le compte créé et le
+  // consentement recueilli — jamais avant : une question posée pendant
+  // l'inscription est une occasion d'abandonner, et l'abandon ferait perdre
+  // le compte lui-même plutôt qu'une simple personnalisation.
+  const [calibrageOuvert, setCalibrageOuvert] = useState(false);
   const [consentCgu, setConsentCgu] = useState(false);
   const [consentNewsletter, setConsentNewsletter] = useState(false); // RGPD : décoché par défaut
   const [consentLoading, setConsentLoading] = useState(false);
@@ -2259,15 +2273,50 @@ export default function App() {
       const u = consentPending;
       setConsentPending(null);
       await loadUserData(u);
+      setCalibrageOuvert(true);
     } catch {
       // En cas d'erreur Firestore, on laisse quand même entrer
       const u = consentPending;
       setConsentPending(null);
       await loadUserData(u);
+      setCalibrageOuvert(true);
     } finally {
       setConsentLoading(false);
     }
   };
+
+  // ── Calibrage — enregistrement des réponses
+  const enregistrerCalibrage = useCallback((r: ResultatCalibrage) => {
+    setUserProfile((actuel) => {
+      // Les champs laissés vides ne doivent rien écraser : un utilisateur qui
+      // passe une étape ne demande pas l'effacement de ce qui existe déjà.
+      const fusion: UserProfile = { ...actuel };
+      for (const [cle, valeur] of Object.entries(r.profil)) {
+        const vide = valeur === '' || (Array.isArray(valeur) && valeur.length === 0);
+        if (!vide) (fusion as unknown as Record<string, unknown>)[cle] = valeur;
+      }
+      fusion.calibrageFait = true;
+      saveProfile(fusion);
+      if (user) void fsSaveProfileRemote(user.uid, fusion);
+      return fusion;
+    });
+
+    if (r.persona) setPersona(r.persona);
+    if (r.level) setLevel(r.level);
+    setCalibrageOuvert(false);
+  }, [user]);
+
+  // Passer : on marque quand même le calibrage comme traité, sinon le
+  // questionnaire réapparaîtrait à chaque ouverture — un refus doit tenir.
+  const passerCalibrage = useCallback(() => {
+    setUserProfile((actuel) => {
+      const suivant = { ...actuel, calibrageFait: true };
+      saveProfile(suivant);
+      if (user) void fsSaveProfileRemote(user.uid, suivant);
+      return suivant;
+    });
+    setCalibrageOuvert(false);
+  }, [user]);
 
   // ── Consentement — refuser / annuler
   const handleConsentDecline = async () => {
@@ -6224,6 +6273,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Calibrage (après création du compte) ──────────────────────────── */}
+      {calibrageOuvert && user && !user.isAnonymous && !userProfile.calibrageFait && (
+        <Calibrage
+          prenomInitial={userProfile.displayName || user.displayName?.split(' ')[0] || ''}
+          onTerminer={enregistrerCalibrage}
+          onPasser={passerCalibrage}
+        />
+      )}
 
       {/* ── Modal consentement CGU (première connexion) ──────────────────── */}
       <AnimatePresence>

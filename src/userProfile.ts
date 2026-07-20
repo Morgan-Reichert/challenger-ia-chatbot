@@ -57,6 +57,12 @@ export type UserProfile = {
   // Intérêts
   interests: string[];
   interestNotes: string;
+  // Calibrage — renseigné à l'inscription, modifiable ensuite
+  objectif: string;          // ce que l'utilisateur vient chercher
+  personaPrefere: string;    // contradicteur de départ
+  frictionPreferee: string;  // ton de départ
+  rapportContradiction: string; // comment il souhaite être contredit
+  calibrageFait: boolean;    // évite de reproposer le questionnaire
 };
 
 export const EMPTY_PROFILE: UserProfile = {
@@ -76,6 +82,11 @@ export const EMPTY_PROFILE: UserProfile = {
   neuroNotes: '',
   interests: [],
   interestNotes: '',
+  objectif: '',
+  personaPrefere: '',
+  frictionPreferee: '',
+  rapportContradiction: '',
+  calibrageFait: false,
 };
 
 const STORAGE_KEY = 'challenger_user_profile';
@@ -140,6 +151,12 @@ export function buildProfileContext(profile: UserProfile): string {
     if (profile.neuroTags.length > 0) lines.push(`Profil neuro-atypique : ${profile.neuroTags.join(', ')}`);
     if (profile.neuroNotes) lines.push(`Notes neuro : ${profile.neuroNotes}`);
   }
+  // L'objectif est placé en tête : c'est l'information qui oriente le plus
+  // fortement une réponse — bien avant le profil de personnalité.
+  if (profile.objectif) lines.unshift(`Ce que l'utilisateur vient chercher : ${profile.objectif}`);
+  if (profile.rapportContradiction) {
+    lines.push(`Rapport à la contradiction : ${profile.rapportContradiction}`);
+  }
   if (profile.interests.length > 0) lines.push(`Centres d'intérêt : ${profile.interests.join(', ')}`);
   if (profile.interestNotes) lines.push(`Détail intérêts : ${profile.interestNotes}`);
 
@@ -160,6 +177,6 @@ export function isProfileFilled(profile: UserProfile): boolean {
     profile.displayName || profile.background || profile.linkedin ||
     profile.cvText || profile.mbti || profile.bigFive ||
     profile.personalityNotes || profile.neuroTags.length > 0 ||
-    profile.interests.length > 0
+    profile.interests.length > 0 || profile.objectif
   );
 }
