@@ -46,7 +46,14 @@ export async function verifyIdToken(req) {
     // `email` est ajouté en plus de `uid` (ajout rétro-compatible) : STARIAX
     // rapproche ses bêta-testeurs sur l'UID **ou** l'email, car côté admin on
     // les inscrit naturellement par email.
-    return { uid: decoded.uid, email: decoded.email ?? null };
+    // `fournisseur` distingue un compte créé d'une session anonyme : certains
+    // contenus sont réservés aux comptes véritables, et l'UID seul ne permet
+    // pas de faire la différence.
+    return {
+      uid: decoded.uid,
+      email: decoded.email ?? null,
+      fournisseur: decoded.firebase?.sign_in_provider ?? null,
+    };
   } catch {
     return { uid: null, error: 'invalid_token' };
   }
