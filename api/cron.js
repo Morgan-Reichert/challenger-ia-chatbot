@@ -110,6 +110,17 @@ async function relancerInactifs(req, res) {
 
   const byId = new Map(contacts.map((c) => [c.user_id, c]));
 
+  // 1 bis. Le consentement marketing ne suffit plus : la catégorie « relances »
+  // peut être coupée séparément depuis les réglages. Sans ce filtre, un refus
+  // exprimé dans l'application resterait sans effet sur les envois.
+  // Le filtre porte sur la clé JSON elle-même : seuls les refus remontent,
+  // plutôt que toute la table pour être triée en mémoire.
+  const { data: prefs } = await supa
+    .from('user_preferences')
+    .select('user_id')
+    .eq('notifications->>relances', 'false');
+  const relancesRefusees = new Set((prefs ?? []).map((p) => p.user_id));
+
   const now = Date.now();
   const inactiveMs = INACTIVE_DAYS * 86400000;
   const cooldownMs = COOLDOWN_DAYS * 86400000;
@@ -121,6 +132,7 @@ async function relancerInactifs(req, res) {
       for (const u of list.users) {
         const c = byId.get(u.uid);
         if (!c || !u.email) continue;
+        if (relancesRefusees.has(u.uid)) continue;                 // catégorie refusée
         checked++;
         const last = u.metadata?.lastSignInTime ? new Date(u.metadata.lastSignInTime).getTime() : 0;
         if (now - last < inactiveMs) continue;                     // encore actif
@@ -133,7 +145,7 @@ async function relancerInactifs(req, res) {
           body: JSON.stringify({
             from,
             to: u.email,
-            subject: 'On ne vous a pas vu depuis un moment 👀',
+            subject: "On ne vous a pas vu depuis un moment",
             html: emailHtml(appUrl, logoUrl, unsubUrl),
           }),
         });

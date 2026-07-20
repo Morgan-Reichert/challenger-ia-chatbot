@@ -7,7 +7,13 @@ import ConsentBanner from './ConsentBanner';
 import { registerServiceWorker } from './push';
 import { initStariaxErrors } from './stariaxErrors';
 import { mesureAutorisee, surChangementConsentement } from './consent';
+import { chargerA11y, appliquerA11y } from './accessibilite';
 import './index.css';
+
+// Le script en tête de index.html a déjà posé les préférences avant le premier
+// rendu ; on les réapplique ici pour que le code TypeScript reste la référence
+// unique et que les deux implémentations ne puissent pas diverger en silence.
+appliquerA11y(chargerA11y());
 
 // Le service worker est nécessaire au fonctionnement de l'application
 // (installation, notifications) : il ne relève pas du consentement optionnel.

@@ -176,13 +176,16 @@ export function progression(c: Cognitive | null): {
 }
 
 // ─── Rangs / titres (fierté + appartenance) ─────────────────────────────────────
-export const RANKS: { min: number; title: string; emoji: string }[] = [
-  { min: 0,   title: 'Apprenti du doute',    emoji: '🌱' },
-  { min: 10,  title: 'Esprit curieux',       emoji: '🔍' },
-  { min: 30,  title: 'Sceptique aguerri',    emoji: '⚖️' },
-  { min: 75,  title: 'Esprit affûté',        emoji: '🗡️' },
-  { min: 150, title: 'Maître de la nuance',  emoji: '🧠' },
-  { min: 300, title: "Challenger d'élite",   emoji: '👑' },
+// Chaque rang porte le NOM d'une icône lucide plutôt qu'un emoji : le rendu des
+// emojis dépend de la police du système, ce qui donne six pictogrammes de
+// styles différents selon la machine.
+export const RANKS: { min: number; title: string; icone: string }[] = [
+  { min: 0,   title: 'Apprenti du doute',    icone: 'Sprout' },
+  { min: 10,  title: 'Esprit curieux',       icone: 'Search' },
+  { min: 30,  title: 'Sceptique aguerri',    icone: 'Scale' },
+  { min: 75,  title: 'Esprit affûté',        icone: 'Swords' },
+  { min: 150, title: 'Maître de la nuance',  icone: 'Brain' },
+  { min: 300, title: "Challenger d'élite",   icone: 'Crown' },
 ];
 
 /** Rang courant + progression vers le suivant, selon le nombre de messages analysés. */

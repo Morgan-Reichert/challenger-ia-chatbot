@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  ArrowLeft, Loader2, X, Mic2, Sparkles,
+  ArrowLeft, Loader2, X, Mic2, Sparkles, Wand2,
 } from 'lucide-react';
 import { INTERVIEW_TYPES_LIST, type InterviewTypeConfig } from './interviewTypes';
 import { buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
@@ -388,7 +388,7 @@ export default function LibraryPage({ onBack, onStartInterview, userProfile }: P
                     {interviewAutofilling ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
-                      <span className="text-[13px] leading-none">🪄</span>
+                      <Wand2 className="w-3.5 h-3.5" />
                     )}
                     {interviewAutofilling ? 'Remplissage en cours…' : 'Remplir depuis mon profil'}
                   </button>
@@ -442,7 +442,7 @@ export default function LibraryPage({ onBack, onStartInterview, userProfile }: P
                   />
                 </div>
 
-                {/* ✨ Refine button */}
+                {/* Bouton de reformulation */}
                 <button
                   onClick={handleRefine}
                   disabled={interviewRefining || !hasAnyField}
@@ -458,7 +458,7 @@ export default function LibraryPage({ onBack, onStartInterview, userProfile }: P
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {interviewRefining ? 'Reformulation en cours…' : interviewRefineDone ? '✓ Reformuler à nouveau' : '✨ Reformuler avec l\'IA'}
+                  {interviewRefining ? 'Reformulation en cours…' : interviewRefineDone ? 'Reformuler à nouveau' : 'Reformuler avec l\'IA'}
                 </button>
 
                 {/* Refined context (editable) */}

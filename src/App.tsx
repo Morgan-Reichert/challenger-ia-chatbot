@@ -14,6 +14,7 @@ import {
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
   HelpCircle, Compass, Gavel,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { RichContent, stripViz } from './viz/VizBlocks';
@@ -26,6 +27,7 @@ import { getDailyChallenge, fetchDailyChallenge, getChallengeProgress, increment
 import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
+import { signalerSession } from './sessions';
 import { mirrorBaseChatConvs } from './outils/JournalismeApp';
 import { getPinnedTools } from './outils/useOutilSessions';
 import type { OutilId } from './outils/outilsTypes';
@@ -1274,11 +1276,11 @@ async function callChat(payload: {
 
 // ─── Onboarding ──────────────────────────────────────────────────────────────
 
-const ONBOARDING_PERSONAS: { key: Persona; emoji: string; title: string; desc: string; color: string }[] = [
-  { key: 'architect',   emoji: '⚖️', title: "L'Architecte",    desc: "Déconstruit ta thèse, en teste la cohérence logique et les prémisses.",  color: '#5D7BFF' },
-  { key: 'factchecker', emoji: '🔍', title: "Le Fact-Checker", desc: "Vérifie tes données, cite des contre-exemples et exige des sources.",    color: '#10B981' },
-  { key: 'opponent',    emoji: '⚔️', title: "L'Opposant",      desc: "Attaque ta position frontalement et force à la défendre sous pression.",  color: '#EF4444' },
-  { key: 'strategist',  emoji: '🧭', title: "Le Stratège",     desc: "Construit avec toi : transforme ton idée en plan et mène le projet de A à Z.", color: '#F59E0B' },
+const ONBOARDING_PERSONAS: { key: Persona; icone: LucideIcon; title: string; desc: string; color: string }[] = [
+  { key: 'architect',   icone: Scale,  title: "L'Architecte",    desc: "Déconstruit ta thèse, en teste la cohérence logique et les prémisses.",  color: '#5D7BFF' },
+  { key: 'factchecker', icone: Search, title: "Le Fact-Checker", desc: "Vérifie tes données, cite des contre-exemples et exige des sources.",    color: '#10B981' },
+  { key: 'opponent',    icone: Swords, title: "L'Opposant",      desc: "Attaque ta position frontalement et force à la défendre sous pression.",  color: '#EF4444' },
+  { key: 'strategist',  icone: Compass,title: "Le Stratège",     desc: "Construit avec toi : transforme ton idée en plan et mène le projet de A à Z.", color: '#F59E0B' },
 ];
 
 const ONBOARDING_SUGGESTIONS = [
@@ -1398,7 +1400,7 @@ function OnboardingOverlay({
                   )}
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-2xl">{p.emoji}</span>
+                    <p.icone className="w-6 h-6" style={{ color: p.color }} />
                     <div>
                       <p className="font-black text-[var(--text-primary)] text-sm uppercase tracking-wide">{p.title}</p>
                       <p className="text-[11px] text-[var(--text-primary)]/50 mt-0.5 leading-snug">{p.desc}</p>
@@ -1440,7 +1442,7 @@ function OnboardingOverlay({
               onClick={onClose}
               className="block mx-auto mt-5 text-[9px] text-[var(--text-primary)]/40 hover:text-[#5D7BFF] font-black uppercase tracking-widest transition-colors"
             >
-              ✏️ Écrire moi-même
+              Écrire moi-même
             </button>
           </motion.div>
         )}
@@ -2036,6 +2038,12 @@ export default function App() {
       // Utilisateur présent → garder le loading screen le temps de vérifier le consentement
       // (évite le flash de l'écran de connexion entre la création de compte et le modal CGU)
       setAuthLoading(true);
+
+      // Registre des appareils connectés. Volontairement hors du `await` qui
+      // suit : c'est un confort de la page Sécurité, il ne doit pas retarder
+      // l'ouverture de l'application ni la faire échouer.
+      if (!firebaseUser.isAnonymous) void signalerSession();
+
       try {
         // Mode invité (anonyme) : pas de modal de consentement, accès direct
         if (firebaseUser.isAnonymous) {
@@ -2536,7 +2544,7 @@ export default function App() {
           const pct = newDaily / dailyLimit;
           const left = dailyLimit - newDaily;
           if (pct >= 0.8 && pct < 1) {
-            setChatNotif({ type: 'warning', msg: `🧠 Votre élan intellectuel est impressionnant — encore ${left} échange${left > 1 ? 's' : ''} dans votre arsenal aujourd'hui` });
+            setChatNotif({ type: 'warning', msg: `Votre élan intellectuel est impressionnant — encore ${left} échange${left > 1 ? 's' : ''} dans votre arsenal aujourd'hui` });
           } else if (newDaily >= dailyLimit) {
             if (userCredits > 0) {
               setChatNotif({ type: 'info', msg: `Votre cerveau a besoin de repos (et nos serveurs aussi) — vos crédits prennent le relais automatiquement` });
@@ -2563,11 +2571,11 @@ export default function App() {
           if (remaining === 0) {
             setChatNotif({ type: 'error', msg: `Dernier crédit consommé. La joute s'arrête ici — à moins de renflouer l'arsenal.`, action: { label: 'Recharger →', page: 'settings' } });
           } else if (remaining <= 5) {
-            setChatNotif({ type: 'error', msg: `⚠️ Arsenal critique : ${remaining} crédit${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}. Ne laissez pas Challenger sans réponse.`, action: { label: 'Recharger →', page: 'settings' } });
+            setChatNotif({ type: 'error', msg: `Arsenal critique : ${remaining} crédit${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''}. Ne laissez pas Challenger sans réponse.`, action: { label: 'Recharger →', page: 'settings' } });
           } else if (remaining <= 10) {
-            setChatNotif({ type: 'warning', msg: `⚠️ Munitions limitées — ${remaining} crédits restants. Rechargez avant la prochaine grande thèse.`, action: { label: 'Recharger →', page: 'settings' } });
+            setChatNotif({ type: 'warning', msg: `Munitions limitées — ${remaining} crédits restants. Rechargez avant la prochaine grande thèse.`, action: { label: 'Recharger →', page: 'settings' } });
           } else {
-            setChatNotif({ type: 'info', msg: `💳 ${cost} crédit${cost > 1 ? 's' : ''} consommé${cost > 1 ? 's' : ''} — ${remaining} munition${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''}` });
+            setChatNotif({ type: 'info', msg: `${cost} crédit${cost > 1 ? 's' : ''} consommé${cost > 1 ? 's' : ''} — ${remaining} munition${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''}` });
           }
         } else {
           // ── Bloqué — plus de quota ni de crédits
@@ -2587,7 +2595,7 @@ export default function App() {
           addCredits(user.uid, 1).then(ok => {
             if (ok) {
               setUserCredits(c => c + 1);
-              setChatNotif({ type: 'info', msg: '🏆 Défi du jour complété ! +1 crédit offert.' });
+              setChatNotif({ type: 'info', msg: 'Défi du jour complété ! +1 crédit offert.' });
             }
           });
         }
@@ -3013,7 +3021,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
       setConversations((p) =>
         p.map((c) => c.id !== activeId ? c : {
           ...c,
-          messages: c.messages.map((m) => m.id === asstId ? { ...m, content: '⚠️ Erreur lors de l\'analyse. Réessaie.' } : m),
+          messages: c.messages.map((m) => m.id === asstId ? { ...m, content: 'Erreur lors de l\'analyse. Réessaie.' } : m),
         })
       );
     } finally {
@@ -3168,7 +3176,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
 
           showSlashNotif('PDF téléchargé avec succès !');
           addCommandMsg('Résumé PDF généré et téléchargé.');
-          notifyLocal('PDF prêt ✅', 'Ton résumé de conversation a été généré et téléchargé.');
+          notifyLocal('PDF prêt', 'Ton résumé de conversation a été généré et téléchargé.');
         } catch (err) {
           console.error('PDF error:', err);
           showSlashNotif('Erreur lors de la génération du PDF.', false);
@@ -3205,7 +3213,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           const md = generateMarkdown(conv.title, conv.messages.map(m => ({ ...m, content: stripViz(m.content) })), PERSONAS[conv.persona]?.name);
           downloadTextFile(md, `${conv.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`);
           showSlashNotif('Export Markdown téléchargé !');
-          addCommandMsg('📥 Export Markdown téléchargé !');
+          addCommandMsg('Export Markdown téléchargé !');
         } else {
           showSlashNotif('Aucune conversation à exporter.', false);
         }
@@ -3219,7 +3227,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           copyToClipboard(md).then(success => {
             if (success) {
               showSlashNotif('Conversation copiée pour Notion !');
-              addCommandMsg('📋 Conversation copiée pour Notion !');
+              addCommandMsg('Conversation copiée pour Notion !');
             } else {
               showSlashNotif('Impossible de copier dans le presse-papier.', false);
             }
@@ -3243,7 +3251,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         const safeName = conv.title.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 60);
         downloadTextFile(md, `${safeName || 'challenger-session'}.md`);
         showSlashNotif('Note Obsidian téléchargée !');
-        addCommandMsg('📥 Note Obsidian téléchargée — frontmatter YAML + wikilinks inclus.');
+        addCommandMsg('Note Obsidian téléchargée — frontmatter YAML + wikilinks inclus.');
         return;
       }
 
@@ -3271,7 +3279,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           'Si aucun biais n\'est détecté, dis-le franchement et explique pourquoi mes arguments sont rigoureux.\n' +
           'Ne flatte pas. Sois sévère mais juste.';
         showSlashNotif('Analyse des biais en cours…');
-        runHiddenAnalysis(biasPrompt, '🔍 Détection de biais demandée — analyse en cours…');
+        runHiddenAnalysis(biasPrompt, 'Détection de biais demandée — analyse en cours…');
         return;
       }
 
@@ -3303,7 +3311,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           "UNE seule question — la plus tranchante — que tu devrais pouvoir traiter pour rendre ta position imparable.\n\n" +
           "Sois rigoureux. Ne flatte pas. L'objectif est de te faire progresser, pas de te rassurer. Tu peux ensuite reprendre ton rôle.";
         showSlashNotif('Steelman en construction…');
-        runHiddenAnalysis(steelmanPrompt, '🛡️ Steelman demandé — l\'IA forge la version la plus solide…');
+        runHiddenAnalysis(steelmanPrompt, 'Steelman demandé — l\'IA forge la version la plus solide…');
         return;
       }
 
@@ -3333,7 +3341,7 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           'En une phrase, l\'argument ou la posture qui m\'aurait fait basculer (ou enfoncer le clou).\n\n' +
           'Sois honnête et sec. Ne flatte pas. Tu peux être dur si l\'échange était faible.';
         showSlashNotif('Vote en cours…');
-        runHiddenAnalysis(votePrompt, `🗳️ ${personaLabel} rend son verdict — calcul en cours…`);
+        runHiddenAnalysis(votePrompt, `${personaLabel} rend son verdict — calcul en cours…`);
         return;
       }
 
@@ -3351,8 +3359,8 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           )
         );
         const msg = willActivate
-          ? '⚔️ Mode avocat du diable ACTIVÉ — l\'IA prendra systématiquement le contre-pied.'
-          : '⚔️ Mode avocat du diable DÉSACTIVÉ — retour au comportement normal.';
+          ? 'Mode avocat du diable ACTIVÉ — l\'IA prendra systématiquement le contre-pied.'
+          : 'Mode avocat du diable DÉSACTIVÉ — retour au comportement normal.';
         showSlashNotif(msg);
         addCommandMsg(msg);
         return;
@@ -3376,10 +3384,10 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
         );
         if (willActivate) {
           showSlashNotif('Contradiction historique ACTIVÉE — donne le sujet anachronique dans ton prochain message.');
-          addCommandMsg('🕰️ Mode contradiction historique ACTIVÉ. Écris ton sujet anachronique dans le prochain message (ex : « Rousseau face aux réseaux sociaux », « Marx face aux GAFA »). Le persona transposera sa pensée à ce contexte.');
+          addCommandMsg('Mode contradiction historique ACTIVÉ. Écris ton sujet anachronique dans le prochain message (ex : « Rousseau face aux réseaux sociaux », « Marx face aux GAFA »). Le persona transposera sa pensée à ce contexte.');
         } else {
           showSlashNotif('Contradiction historique DÉSACTIVÉE.');
-          addCommandMsg('🕰️ Mode contradiction historique DÉSACTIVÉ.');
+          addCommandMsg('Mode contradiction historique DÉSACTIVÉ.');
         }
         return;
       }
@@ -4179,7 +4187,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-[#5D7BFF]/25 bg-[#5D7BFF]/10 hover:bg-[#5D7BFF]/20 transition-all text-left"
                   >
-                    <span className="text-sm flex-shrink-0">🎯</span>
+                    <Target className="w-3.5 h-3.5 flex-shrink-0 text-[#F59E0B]" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] leading-none">
                         Défi du jour
@@ -5022,7 +5030,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   className="w-full text-left p-3 md:p-5 rounded-2xl border border-[#5D7BFF]/20 bg-[#5D7BFF]/5 hover:bg-[#5D7BFF]/10 transition-all"
                 >
                   <div className="flex items-center gap-2.5 md:gap-4">
-                    <span className="text-base md:text-2xl flex-shrink-0">🎯</span>
+                    <Target className="w-4 h-4 md:w-6 md:h-6 flex-shrink-0 text-[#F59E0B]" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5 md:mb-1">
                         <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#5D7BFF]">Défi du jour</span>
@@ -5056,7 +5064,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </div>
               ) : (
                 <div className="mb-3 md:mb-6 p-2.5 md:p-4 border border-[#10B981]/20 bg-[#10B981]/5 flex items-center gap-2.5">
-                  <span className="text-sm md:text-xl">🏆</span>
+                  <Trophy className="w-4 h-4 md:w-5 md:h-5 text-[#10B981]" />
                   <div>
                     <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-[#10B981]">Défi complété !</p>
                     <p className="text-[9px] md:text-[10px] text-[var(--text-primary)]/40">Revenez demain pour un nouveau défi.</p>

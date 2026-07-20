@@ -11,7 +11,6 @@ export interface OutilConfig {
   description: string;
   accentColor: string;
   bgColor: string;
-  icon: string;
   logoSrc: string; // path to PNG logo in /public/logos/
   status: OutilStatus;
   features: string[];
@@ -27,7 +26,6 @@ export const OUTILS_LIST: OutilConfig[] = [
     description: 'Suite complète pour les journalistes et communicants : vérification des faits, détection de biais, analyse de sources, préparation d\'interviews, décryptage de communiqués de presse, détecteur de spin et critique de rédaction.',
     accentColor: '#E85D04',
     bgColor: 'rgba(232,93,4,0.06)',
-    icon: '📰',
     logoSrc: '/logos/reporter.png',
     status: 'available',
     category: 'Médias & Communication',
@@ -50,7 +48,6 @@ export const OUTILS_LIST: OutilConfig[] = [
     description: 'Conçu pour les enseignants, formateurs et apprenants exigeants. Détecte les lacunes, challenge les raisonnements, adapte le niveau et forge une pensée critique durable.',
     accentColor: '#0AADBB',
     bgColor: 'rgba(10,173,187,0.06)',
-    icon: '🎓',
     logoSrc: '/logos/education.png',
     status: 'coming_soon',
     category: 'Éducation & Formation',
@@ -70,7 +67,6 @@ export const OUTILS_LIST: OutilConfig[] = [
     description: 'Pour les citoyens éclairés, militants et analystes politiques. Décryptage des discours, détection des contradictions, analyse des programmes, veille électorale et fact-checking politique.',
     accentColor: '#8FB339',
     bgColor: 'rgba(143,179,57,0.06)',
-    icon: '🌐',
     logoSrc: '/logos/politique.png',
     status: 'coming_soon',
     category: 'Politique & Société',
@@ -90,7 +86,6 @@ export const OUTILS_LIST: OutilConfig[] = [
     description: 'Pour les professionnels de santé et patients informés. Analyse critique des études, détection des fake news médicales, aide à la décision basée sur les preuves.',
     accentColor: '#E53E3E',
     bgColor: 'rgba(229,62,62,0.06)',
-    icon: '⚕️',
     logoSrc: '/logos/sante.png',
     status: 'coming_soon',
     category: 'Santé & Sciences',
@@ -109,7 +104,6 @@ export const OUTILS_LIST: OutilConfig[] = [
     description: 'Pour les entrepreneurs, managers et investisseurs exigeants. Analyse de business plans, audit stratégique, détection des angles morts, préparation aux objections et aide à la décision.',
     accentColor: '#6B7FD4',
     bgColor: 'rgba(107,127,212,0.06)',
-    icon: '💼',
     logoSrc: '/logos/entreprise.png',
     status: 'coming_soon',
     category: 'Entreprise & Gestion',
@@ -129,7 +123,6 @@ export const OUTILS_LIST: OutilConfig[] = [
     description: 'Pour les créateurs de contenu, community managers et marketeurs. Optimisation éditoriale, analyse d\'engagement, détection des tendances et critique de stratégie de contenu.',
     accentColor: '#7C3AED',
     bgColor: 'rgba(124,58,237,0.06)',
-    icon: '📱',
     logoSrc: '/logos/contenu.png',
     status: 'coming_soon',
     category: 'Création de Contenu',

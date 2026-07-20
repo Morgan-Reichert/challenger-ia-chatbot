@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Brain, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { Brain, TrendingDown, TrendingUp, Minus, Sprout, Search, Scale, Swords, Crown } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { loadCognitive, summarize, rank, progression, type Cognitive } from './cognitive';
 
 /** Carte "Profil cognitif" : faiblesses de raisonnement récurrentes + progression. */
@@ -13,6 +14,10 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
     loadCognitive(userId).then((d) => { if (on) { setData(d); setLoading(false); } });
     return () => { on = false; };
   }, [userId]);
+
+  // Les rangs désignent leur icône par son nom : la table les résout ici, ce
+  // qui évite d'importer tout lucide-react pour six pictogrammes.
+  const ICONES_RANG: Record<string, LucideIcon> = { Sprout, Search, Scale, Swords, Brain, Crown };
 
   const s = summarize(data);
   const maxCount = s ? Math.max(...s.top.map((t) => t.count), 1) : 1;
@@ -35,14 +40,21 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
       {/* Rang (titre + progression) */}
       {!loading && (
         <div className="mt-4 flex items-center gap-3">
-          <div className="text-3xl leading-none flex-shrink-0">{r.cur.emoji}</div>
+          {(() => {
+            const IconeRang = ICONES_RANG[r.cur.icone] ?? Sprout;
+            return (
+              <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-[#5D7BFF]/10 flex items-center justify-center">
+                <IconeRang className="w-5 h-5 text-[#5D7BFF]" />
+              </div>
+            );
+          })()}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-black text-[var(--text-primary)]">{r.cur.title}</p>
             <div className="h-1.5 rounded-full bg-[var(--text-primary)]/[0.08] overflow-hidden mt-1.5">
               <div className="h-full rounded-full bg-[#5D7BFF] transition-all" style={{ width: `${Math.round(r.progress * 100)}%` }} />
             </div>
             <p className="text-[10px] text-[var(--text-primary)]/40 mt-1">
-              {r.next ? `Encore ${r.next.min - r.total} pour « ${r.next.title} »` : 'Rang maximal atteint 👑'}
+              {r.next ? `Encore ${r.next.min - r.total} pour « ${r.next.title} »` : 'Rang maximal atteint'}
             </p>
           </div>
         </div>
@@ -92,7 +104,7 @@ export default function CognitiveCard({ userId }: { userId: string | null }) {
           {s.trend && (
             <div className="flex items-center gap-2 text-xs">
               {s.trend === 'down' ? (
-                <><TrendingDown className="w-4 h-4 text-emerald-500" /><span className="text-emerald-600 font-semibold">En progrès — moins de failles récemment 💪</span></>
+                <><TrendingDown className="w-4 h-4 text-emerald-500" /><span className="text-emerald-600 font-semibold">En progrès — moins de failles récemment</span></>
               ) : s.trend === 'up' ? (
                 <><TrendingUp className="w-4 h-4 text-orange-500" /><span className="text-orange-600 font-semibold">Vigilance — plus de failles ces derniers temps</span></>
               ) : (

@@ -4,11 +4,19 @@ import PushToggle from './PushToggle';
 import CognitiveCard from './CognitiveCard';
 import PrivacyPanel from './PrivacyPanel';
 import ApiKeysPanel from './ApiKeysPanel';
+import AccessibilitePanel from './AccessibilitePanel';
+import SecurityPanel from './SecurityPanel';
+import FacturationPanel from './FacturationPanel';
+import ReutilisationPanel from './ReutilisationPanel';
+import SupportPanel from './SupportPanel';
 import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
   CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
   SlidersHorizontal, Info, Bell, KeyRound, ChevronRight,
+  Leaf, Car, Mail, Smartphone, PenLine, Image as ImageIcon, Package, Moon, RotateCcw,
+  BookLock,
+  Accessibility, LifeBuoy,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -338,16 +346,21 @@ const ARBORESCENCE: SectionReglages[] = [
     ],
   },
   {
+    id: 'securite', label: 'Sécurité du compte', icon: ShieldCheck, accent: '#EF4444',
+    desc: 'Mot de passe, adresse vérifiée et appareils connectés.',
+  },
+  {
     id: 'progression', label: 'Progression', icon: TrendingUp, accent: '#10B981',
     desc: 'Votre rang, vos forces repérées et ce qui reste à travailler.',
   },
   {
     id: 'personnalisation', label: 'Personnalisation', icon: SlidersHorizontal, accent: '#8B5CF6',
-    desc: 'Affichage du chat, notifications et personas sur mesure.',
+    desc: 'Affichage du chat, notifications, personas et accessibilité.',
     sous: [
       { id: 'ecran',         label: 'Écran de chat',      icon: MessageSquare, hint: 'Suggestions et défi du jour' },
       { id: 'notifications', label: 'Notifications',      icon: Bell,          hint: 'Alertes push sur cet appareil' },
       { id: 'personas',      label: 'Studio de personas', icon: Sparkles,      hint: 'Créer un contradicteur sur mesure' },
+      { id: 'a11y',          label: 'Accessibilité',      icon: Accessibility, hint: 'Taille du texte, contraste, animations' },
     ],
   },
   {
@@ -356,15 +369,24 @@ const ARBORESCENCE: SectionReglages[] = [
     sous: [
       { id: 'plan',         label: 'Mon plan',     icon: Crown,     hint: 'Formule en cours et recharges' },
       { id: 'consommation', label: 'Consommation', icon: BarChart2, hint: 'Quotas, historique, empreinte' },
+      { id: 'facturation',  label: 'Facturation',  icon: FileText,  hint: 'Factures, moyen de paiement, résiliation' },
     ],
   },
   {
     id: 'confidentialite', label: 'Données & confidentialité', icon: ShieldCheck, accent: '#0EA5E9',
-    desc: 'Export, effacement, partages publics et mesure d’audience.',
+    desc: 'Export, effacement, partages publics et usage de vos échanges.',
+    sous: [
+      { id: 'mes-donnees',   label: 'Mes données',    icon: Download, hint: 'Export, effacement, partages publics' },
+      { id: 'reutilisation', label: 'Réutilisation',  icon: BookLock, hint: 'Analyse de vos conversations' },
+    ],
   },
   {
     id: 'developpeurs', label: 'Développeurs', icon: KeyRound, accent: '#7C3AED',
     desc: "Clés d'API pour appeler Challenger depuis vos applications.",
+  },
+  {
+    id: 'aide', label: 'Aide & nouveautés', icon: LifeBuoy, accent: '#EF4444',
+    desc: 'Signaler un problème et consulter le journal des versions.',
   },
   {
     id: 'apropos', label: 'À propos', icon: Info, accent: '#94A3B8',
@@ -397,6 +419,12 @@ export default function SettingsPage({
     chemin[0] === section && (sous === undefined ? !sectionCourante?.sous : chemin[1] === sous);
 
   const remonter = () => (chemin.length === 0 ? onBack() : setChemin(chemin.slice(0, -1)));
+
+  // Un compte invité porte un identifiant éphémère : des préférences liées au
+  // compte y seraient perdues dès la déconnexion. On le considère donc absent
+  // pour tout ce qui se conserve côté serveur.
+  const idCompteDurable = user && !user.isAnonymous ? user.uid : null;
+
   const [showEco, setShowEco] = useState(false);
 
   // MBTI info modal
@@ -849,12 +877,12 @@ export default function SettingsPage({
             <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 mb-3">Comment ça marche</p>
             <div className="space-y-2.5">
               {[
-                { icon: '🟢', label: 'Plan Free',  desc: `${FREE_DAILY} msg/jour · ${FREE_WEEKLY} msg/semaine inclus` },
-                { icon: '🔵', label: 'Plan Pro',   desc: `${PRO_DAILY} msg/jour · ${PRO_WEEKLY} msg/semaine · toutes les features` },
-                { icon: '🟡', label: 'Crédits +',  desc: 'S\'activent automatiquement quand le quota est épuisé · 1 crédit = 1 msg · n\'expirent jamais' },
+                { couleur: '#10B981', label: 'Plan Free',  desc: `${FREE_DAILY} msg/jour · ${FREE_WEEKLY} msg/semaine inclus` },
+                { couleur: '#5D7BFF', label: 'Plan Pro',   desc: `${PRO_DAILY} msg/jour · ${PRO_WEEKLY} msg/semaine · toutes les features` },
+                { couleur: '#F59E0B', label: 'Crédits +',  desc: 'S\'activent automatiquement quand le quota est épuisé · 1 crédit = 1 msg · n\'expirent jamais' },
               ].map(r => (
                 <div key={r.label} className="flex items-start gap-3">
-                  <span className="text-base">{r.icon}</span>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: r.couleur }} />
                   <div>
                     <p className="text-[10px] font-black text-[#141414]">{r.label}</p>
                     <p className="text-[10px] text-[#141414]/45">{r.desc}</p>
@@ -894,7 +922,7 @@ export default function SettingsPage({
                   className="w-full px-5 py-3 flex items-center gap-3 hover:bg-[#141414]/2 transition-colors text-left"
                 >
                   <div className="w-8 h-8 flex items-center justify-center flex-shrink-0" style={{ background: '#10B98112', border: '1.5px solid #10B98130' }}>
-                    <span className="text-sm">🌿</span>
+                    <Leaf className="w-4 h-4 text-[#10B981]" />
                   </div>
                   <div className="flex-1">
                     <h2 className="text-[11px] font-black uppercase tracking-widest text-[#10B981]">Empreinte environnementale</h2>
@@ -945,12 +973,12 @@ export default function SettingsPage({
                     <div className="bg-[#141414]/3 px-4 py-3 space-y-1.5">
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#141414]/30 mb-2">Équivalences cette semaine</p>
                       {[
-                        { icon: '🚗', text: `${kmVoiture.toFixed(2)} km en voiture essence` },
-                        { icon: '📧', text: `${emails} emails envoyés` },
-                        { icon: '📱', text: `${chargePhone} charges de smartphone` },
+                        { icone: Car, text: `${kmVoiture.toFixed(2)} km en voiture essence` },
+                        { icone: Mail, text: `${emails} emails envoyés` },
+                        { icone: Smartphone, text: `${chargePhone} charges de smartphone` },
                       ].map(eq => (
-                        <div key={eq.icon} className="flex items-center gap-2">
-                          <span className="text-sm">{eq.icon}</span>
+                        <div key={eq.text} className="flex items-center gap-2">
+                          <eq.icone className="w-3.5 h-3.5 flex-shrink-0 text-[#10B981]" />
                           <span className="text-[9px] text-[#141414]/55">{eq.text}</span>
                         </div>
                       ))}
@@ -961,14 +989,14 @@ export default function SettingsPage({
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#10B981]/70 mb-2.5">Utiliser Challenger de façon + responsable</p>
                       <div className="space-y-2">
                         {[
-                          { icon: '✍️', tip: 'Posez des questions précises — moins d\'allers-retours = moins de CO₂' },
-                          { icon: '🖼️', tip: 'Évitez les images inutiles — elles consomment 3× plus d\'énergie' },
-                          { icon: '📦', tip: 'Groupez vos questions en un seul message quand c\'est possible' },
-                          { icon: '🌙', tip: 'Utilisez l\'app aux heures creuses — le réseau électrique est plus vert la nuit' },
-                          { icon: '🔁', tip: 'Relisez les réponses avant de redemander — évitez les doublons' },
+                          { icone: PenLine, tip: 'Posez des questions précises — moins d\'allers-retours = moins de CO₂' },
+                          { icone: ImageIcon, tip: 'Évitez les images inutiles — elles consomment 3× plus d\'énergie' },
+                          { icone: Package, tip: 'Groupez vos questions en un seul message quand c\'est possible' },
+                          { icone: Moon, tip: 'Utilisez l\'app aux heures creuses — le réseau électrique est plus vert la nuit' },
+                          { icone: RotateCcw, tip: 'Relisez les réponses avant de redemander — évitez les doublons' },
                         ].map(t => (
-                          <div key={t.icon} className="flex items-start gap-2.5">
-                            <span className="text-sm flex-shrink-0">{t.icon}</span>
+                          <div key={t.tip} className="flex items-start gap-2.5">
+                            <t.icone className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#10B981]" />
                             <p className="text-[9px] text-[#141414]/50 leading-relaxed">{t.tip}</p>
                           </div>
                         ))}
@@ -987,7 +1015,7 @@ export default function SettingsPage({
         </>)}
 
         {/* ═══════════════ ONGLET COMPTE ═══════════════ */}
-        {ouvert('confidentialite') && (<>
+        {ouvert('confidentialite', 'mes-donnees') && (<>
 
           {/* Droits RGPD : partages publics, export, effacement */}
           <PrivacyPanel
@@ -1000,9 +1028,25 @@ export default function SettingsPage({
 
         </>)}
 
+        {/* ═══════════════ DONNÉES › RÉUTILISATION ═══════════════ */}
+        {ouvert('confidentialite', 'reutilisation') && (
+          <ReutilisationPanel userId={idCompteDurable} />
+        )}
+
+        {/* ═══════════════ SÉCURITÉ DU COMPTE ═══════════════ */}
+        {ouvert('securite') && <SecurityPanel user={user ?? null} />}
+
+        {/* ═══════════════ ABONNEMENT › FACTURATION ═══════════════ */}
+        {ouvert('abonnement', 'facturation') && (
+          <FacturationPanel userId={idCompteDurable} subscription={subscription} />
+        )}
+
+        {/* ═══════════════ AIDE & NOUVEAUTÉS ═══════════════ */}
+        {ouvert('aide') && <SupportPanel />}
+
         {/* ═══════════════ DÉVELOPPEURS ═══════════════ */}
         {ouvert('developpeurs') && (
-          <ApiKeysPanel userId={user?.uid ?? null} />
+          <ApiKeysPanel userId={idCompteDurable} />
         )}
 
         {/* ═══════════════ À PROPOS ═══════════════ */}
@@ -1129,10 +1173,13 @@ export default function SettingsPage({
         </>)}
 
         {/* ═══════════════ PERSONNALISATION › NOTIFICATIONS ═══════════════ */}
-        {ouvert('personnalisation', 'notifications') && <PushToggle />}
+        {ouvert('personnalisation', 'notifications') && <PushToggle userId={idCompteDurable} />}
 
         {/* ═══════════════ PERSONNALISATION › STUDIO DE PERSONAS ═══════════════ */}
         {ouvert('personnalisation', 'personas') && <PersonaStudioSection />}
+
+        {/* ═══════════════ PERSONNALISATION › ACCESSIBILITÉ ═══════════════ */}
+        {ouvert('personnalisation', 'a11y') && <AccessibilitePanel />}
 
         {/* ═══════════════ PROGRESSION ═══════════════ */}
         {ouvert('progression') && <CognitiveCard userId={user?.uid ?? null} />}
@@ -1203,7 +1250,7 @@ export default function SettingsPage({
               >
                 <FileText className="w-5 h-5 text-[#141414]/20 mx-auto mb-1" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-[#141414]/30">
-                  {profile.cvFileName ? `📄 ${profile.cvFileName}` : 'Déposer un .txt ou .md — ou cliquer'}
+                  {profile.cvFileName ? profile.cvFileName : 'Déposer un .txt ou .md — ou cliquer'}
                 </p>
                 <input
                   ref={cvRef}

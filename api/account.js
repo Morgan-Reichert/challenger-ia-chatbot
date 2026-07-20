@@ -31,6 +31,8 @@ const TABLES_UTILISATEUR = [
   'daily_rewards',
   'user_contacts',
   'push_subscriptions',
+  'user_sessions',
+  'user_preferences',
 ];
 
 function getSupabase() {
@@ -137,6 +139,150 @@ export default async function handler(req, res) {
     }
 
     return res.status(405).json({ erreur: 'methode_non_autorisee' });
+  }
+
+  // ── Sessions / appareils connectés (?resource=sessions) ───────────────────
+  //
+  // Firebase n'expose aucune liste de sessions : ce registre est tenu par
+  // l'application, alimenté à chaque connexion et rafraîchi à l'ouverture.
+  // La révocation passe en revanche par l'API Admin, seule capable
+  // d'invalider les jetons déjà émis.
+  if (req.query?.resource === 'sessions') {
+    if (!supa) return res.status(503).json({ erreur: 'service_indisponible' });
+
+    if (req.method === 'GET') {
+      const { data, error } = await supa
+        .from('user_sessions')
+        .select('id, jeton, appareil, cree_le, vu_le')
+        .eq('user_id', uid)
+        .order('vu_le', { ascending: false });
+      if (error) return res.status(500).json({ erreur: 'erreur_interne' });
+      return res.status(200).json({ sessions: data ?? [] });
+    }
+
+    // Enregistrement / rafraîchissement de la session courante.
+    if (req.method === 'POST') {
+      const jeton = String(req.body?.jeton ?? '').slice(0, 64);
+      if (!jeton) return res.status(400).json({ erreur: 'parametre_invalide', message: 'Jeton requis.' });
+      const appareil = String(req.body?.appareil ?? 'Appareil inconnu').slice(0, 80);
+
+      const { error } = await supa
+        .from('user_sessions')
+        .upsert({ user_id: uid, jeton, appareil, vu_le: new Date().toISOString() },
+                { onConflict: 'user_id,jeton' });
+      if (error) return res.status(500).json({ erreur: 'erreur_interne' });
+      return res.status(200).json({ ok: true });
+    }
+
+    // Révocation globale. Firebase ne sait pas révoquer un appareil en
+    // particulier : `revokeRefreshTokens` invalide tous les jetons du compte,
+    // y compris celui de l'appareil courant. L'interface le dit explicitement.
+    if (req.method === 'DELETE') {
+      try {
+        await getAdminAuth().revokeRefreshTokens(uid);
+      } catch (e) {
+        return res.status(500).json({ erreur: 'revocation_impossible', message: String(e?.message ?? e) });
+      }
+      await supa.from('user_sessions').delete().eq('user_id', uid);
+      return res.status(200).json({ ok: true });
+    }
+
+    return res.status(405).json({ erreur: 'methode_non_autorisee' });
+  }
+
+  // ── Préférences de compte (?resource=preferences) ─────────────────────────
+  if (req.query?.resource === 'preferences') {
+    if (!supa) return res.status(503).json({ erreur: 'service_indisponible' });
+
+    if (req.method === 'GET') {
+      const { data, error } = await supa
+        .from('user_preferences')
+        .select('notifications, reutilisation_conversations')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (error) return res.status(500).json({ erreur: 'erreur_interne' });
+      // Absence de ligne = préférences par défaut, pas une erreur : la ligne
+      // n'est créée qu'au premier réglage modifié.
+      return res.status(200).json(data ?? {
+        notifications: { defi_du_jour: true, relances: true, nouveautes: true },
+        reutilisation_conversations: false,
+      });
+    }
+
+    if (req.method === 'PUT') {
+      const patch = { user_id: uid, maj_le: new Date().toISOString() };
+      if (req.body?.notifications && typeof req.body.notifications === 'object') {
+        // Liste blanche : un client modifié ne doit pas pouvoir écrire de
+        // clés arbitraires dans la colonne jsonb.
+        const n = req.body.notifications;
+        patch.notifications = {
+          defi_du_jour: n.defi_du_jour !== false,
+          relances:     n.relances     !== false,
+          nouveautes:   n.nouveautes   !== false,
+        };
+      }
+      if (typeof req.body?.reutilisation_conversations === 'boolean') {
+        patch.reutilisation_conversations = req.body.reutilisation_conversations;
+      }
+
+      const { error } = await supa.from('user_preferences').upsert(patch, { onConflict: 'user_id' });
+      if (error) return res.status(500).json({ erreur: 'erreur_interne' });
+      return res.status(200).json({ ok: true });
+    }
+
+    return res.status(405).json({ erreur: 'methode_non_autorisee' });
+  }
+
+  // ── Facturation (?resource=billing) ───────────────────────────────────────
+  //
+  // Renvoie une URL vers le portail client Stripe : factures téléchargeables,
+  // moyen de paiement et résiliation immédiate. On ne réimplémente rien de
+  // tout cela — un portail maison serait moins fiable sur les factures, qui
+  // sont des pièces comptables.
+  //
+  // L'article L215-1-1 du code de la consommation impose depuis le 1er juin
+  // 2023 que résilier un contrat souscrit en ligne soit possible en ligne,
+  // par un moyen aussi simple que la souscription. Un lien direct depuis les
+  // réglages satisfait cette exigence ; un formulaire de contact, non.
+  if (req.query?.resource === 'billing') {
+    if (req.method !== 'POST') return res.status(405).json({ erreur: 'methode_non_autorisee' });
+    if (!supa) return res.status(503).json({ erreur: 'service_indisponible' });
+
+    const cle = process.env.STRIPE_SECRET_KEY;
+    if (!cle) return res.status(503).json({ erreur: 'service_indisponible', message: 'Facturation non configurée.' });
+
+    const { data: abo } = await supa
+      .from('subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (!abo?.stripe_customer_id) {
+      return res.status(404).json({
+        erreur: 'aucun_client',
+        message: "Aucun paiement n'est encore rattaché à ce compte.",
+      });
+    }
+
+    try {
+      const { default: Stripe } = await import('stripe');
+      const stripe = new Stripe(cle);
+      const retour = req.headers.origin
+        ?? process.env.VITE_APP_URL
+        ?? 'https://challenger-ia-chatbot.vercel.app';
+
+      const portail = await stripe.billingPortal.sessions.create({
+        customer: abo.stripe_customer_id,
+        return_url: retour,
+      });
+      return res.status(200).json({ url: portail.url });
+    } catch (e) {
+      console.error('[account/billing]', e?.message ?? e);
+      return res.status(502).json({
+        erreur: 'portail_indisponible',
+        message: "Le portail de facturation n'a pas pu être ouvert. Réessayez dans un instant.",
+      });
+    }
   }
 
   // ── Export (art. 15 et 20) ────────────────────────────────────────────────

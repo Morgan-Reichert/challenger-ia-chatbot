@@ -9,6 +9,7 @@
  * - linkifyCitations   : transforme les [n] du texte en liens #cia-src-n
  */
 import React, { useState } from 'react';
+import { Globe } from 'lucide-react';
 
 export type SourceTier = 'high' | 'medium' | 'low' | 'unknown';
 
@@ -74,7 +75,7 @@ export function SourcesPanel({ sources }: { sources: SourceRef[] }) {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5 transition-colors"
       >
-        <span className="text-[10px]">🌐</span>
+        <Globe className="w-2.5 h-2.5" />
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
           Sources · {sources.length}
         </span>

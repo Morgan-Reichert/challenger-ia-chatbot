@@ -23,6 +23,7 @@ import type {
   VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel,
   VerdictSpec, FactVerdict, RiskLevel, ConsensusLevel, ConfidenceBand,
 } from './vizParse';
+import { Scale, Puzzle, AlertTriangle } from 'lucide-react';
 
 export { splitViz, stripViz, normalizeMd } from './vizParse';
 export type { VizSpec } from './vizParse';
@@ -48,7 +49,7 @@ function Balance({ spec }: { spec: BalanceSpec }) {
   return (
     <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
-        <span className="text-sm">⚖️</span>
+        <Scale className="w-3.5 h-3.5" />
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
           {spec.title || 'Balance'}
         </span>
@@ -98,7 +99,7 @@ function ArgMap({ spec }: { spec: ArgMapSpec }) {
   return (
     <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
-        <span className="text-sm">🧩</span>
+        <Puzzle className="w-3.5 h-3.5" />
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
           {spec.title || "Structure de l'argument"}
         </span>
@@ -118,7 +119,7 @@ function ArgMap({ spec }: { spec: ArgMapSpec }) {
               <p className="text-[11px] text-white/85 leading-snug">{p.text}</p>
               {p.flaw && (
                 <p className="text-[10px] text-[#EF4444]/90 mt-1 flex gap-1">
-                  <span className="flex-shrink-0">⚠</span><span>{p.flaw}</span>
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" /><span>{p.flaw}</span>
                 </p>
               )}
             </div>
@@ -142,11 +143,11 @@ function ArgMap({ spec }: { spec: ArgMapSpec }) {
 }
 
 // ─── Fiabilité par paliers ──────────────────────────────────────────────────────
-const CONF_STEPS: { level: ConfidenceLevel; label: string; emoji: string; color: string }[] = [
-  { level: 'non_verifie', label: 'Non vérifié', emoji: '❓', color: '#9CA3AF' },
-  { level: 'a_confirmer', label: 'À confirmer', emoji: '⚠️', color: '#EF4444' },
-  { level: 'etaye',       label: 'Étayé',       emoji: '✅', color: '#FBBF24' },
-  { level: 'solide',      label: 'Solide',      emoji: '✅✅', color: '#10B981' },
+const CONF_STEPS: { level: ConfidenceLevel; label: string; color: string }[] = [
+  { level: 'non_verifie', label: 'Non vérifié', color: '#9CA3AF' },
+  { level: 'a_confirmer', label: 'À confirmer', color: '#EF4444' },
+  { level: 'etaye',       label: 'Étayé',       color: '#FBBF24' },
+  { level: 'solide',      label: 'Solide',      color: '#10B981' },
 ];
 
 function Confidence({ spec }: { spec: ConfidenceSpec }) {
@@ -158,7 +159,7 @@ function Confidence({ spec }: { spec: ConfidenceSpec }) {
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[9px] font-black uppercase tracking-widest text-white/60">Fiabilité</span>
         <span className="ml-auto text-[10px] font-black" style={{ color: active.color }}>
-          {active.emoji} {active.label}
+          {active.label}
         </span>
       </div>
 
@@ -312,7 +313,7 @@ function VizFail() {
   return (
     <div className="my-3 border border-[#FBBF24]/30 bg-[#FBBF24]/5 px-3 py-2">
       <p className="text-[9px] text-[#FBBF24]/80 leading-snug">
-        ⚠️ Un visuel était prévu ici mais son format n'a pas pu être affiché.
+        Un visuel était prévu ici mais son format n'a pas pu être affiché.
       </p>
     </div>
   );

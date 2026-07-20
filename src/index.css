@@ -25,6 +25,50 @@ html.dark {
   --border:       rgba(232,234,240,0.08);
 }
 
+/* ── Accessibilité ──────────────────────────────────────────────────────────
+   Les préférences sont posées sur <html> par src/accessibilite.ts. On agit ici
+   sur la police racine et sur les variables de thème plutôt que sur des règles
+   ciblées : l'interface est dimensionnée en rem et colorée par ces variables,
+   si bien qu'un seul point d'entrée suffit à faire porter le réglage partout.
+   Directive (UE) 2019/882, applicable depuis le 28 juin 2025.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root { --echelle-texte: 1; }
+
+html {
+  font-size: calc(16px * var(--echelle-texte));
+}
+
+/* Contraste renforcé : texte porté au noir/blanc pur et bordures densifiées.
+   Les teintes sourdes (opacité 0.4-0.5) passaient sous le seuil AA de 4,5:1. */
+html[data-contraste='renforce'] {
+  --text-primary: #000000;
+  --text-muted:   rgba(0,0,0,0.75);
+  --border:       rgba(0,0,0,0.35);
+}
+html.dark[data-contraste='renforce'] {
+  --text-primary: #FFFFFF;
+  --text-muted:   rgba(255,255,255,0.8);
+  --border:       rgba(255,255,255,0.35);
+}
+html[data-contraste='renforce'] :is(a, button):focus-visible {
+  outline: 3px solid var(--color-primary-blue);
+  outline-offset: 2px;
+}
+
+/* Mouvement réduit. `!important` est nécessaire : les animations viennent de
+   styles en ligne posés par Motion, qu'une règle ordinaire ne peut pas primer.
+   La durée est ramenée à 1 ms plutôt qu'à 0 pour que les événements de fin
+   d'animation continuent d'être émis — les composants qui les attendent
+   resteraient sinon bloqués dans un état intermédiaire. */
+html[data-mouvement='reduit'] *,
+html[data-mouvement='reduit'] *::before,
+html[data-mouvement='reduit'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* ── Animation logo CR — streaming réponse ──────────────────────────────────── */
 @keyframes cr-shimmer {
   0%   { transform: translateX(-130%) skewX(-12deg); }

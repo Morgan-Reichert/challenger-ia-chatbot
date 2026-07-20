@@ -38,12 +38,12 @@ export function generateMarkdown(
   for (const msg of filtered) {
     const time = msg.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     if (msg.role === 'user') {
-      lines.push(`### 🧠 Vous — ${time}`);
+      lines.push(`### Vous — ${time}`);
       lines.push(``);
       lines.push(msg.content);
       lines.push(``);
     } else {
-      lines.push(`### ⚔️ Challenger — ${time}`);
+      lines.push(`### Challenger — ${time}`);
       lines.push(``);
       lines.push(msg.content);
       lines.push(``);
@@ -141,7 +141,7 @@ export function generateNotionMarkdown(
   const lines: string[] = [
     `# ${title}`,
     ``,
-    `> 📅 **${date}** | ⚔️ **${personaName ?? 'Challenger IA'}** | 🔗 challengeria.com`,
+    `> **${date}** | **${personaName ?? 'Challenger IA'}** | challengeria.com`,
     ``,
   ];
 
@@ -150,12 +150,12 @@ export function generateNotionMarkdown(
   for (const msg of filtered) {
     const time = msg.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     if (msg.role === 'user') {
-      lines.push(`## 🧠 ${time}`);
+      lines.push(`## Vous — ${time}`);
       lines.push(``);
       lines.push(`> ${msg.content.replace(/\n/g, '\n> ')}`);
       lines.push(``);
     } else {
-      lines.push(`## ⚔️ ${time}`);
+      lines.push(`## Challenger — ${time}`);
       lines.push(``);
       lines.push(msg.content);
       lines.push(``);
