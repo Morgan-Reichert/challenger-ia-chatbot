@@ -61,6 +61,11 @@ export type UserProfile = {
   objectif: string;          // ce que l'utilisateur vient chercher
   personaPrefere: string;    // contradicteur de départ
   frictionPreferee: string;  // ton de départ
+  // Déduits des réponses, et MONTRÉS à l'utilisateur au dernier écran.
+  // Déduire sans le dire relèverait du profilage dissimulé — contraire à
+  // l'article 13 du RGPD, et surtout à ce que ce produit prétend défendre.
+  usage: '' | 'pro' | 'perso' | 'etudes';
+  longueurReponse: '' | 'concise' | 'standard' | 'approfondie';
   rapportContradiction: string; // comment il souhaite être contredit
   calibrageFait: boolean;    // évite de reproposer le questionnaire
 };
@@ -85,6 +90,8 @@ export const EMPTY_PROFILE: UserProfile = {
   objectif: '',
   personaPrefere: '',
   frictionPreferee: '',
+  usage: '',
+  longueurReponse: '',
   rapportContradiction: '',
   calibrageFait: false,
 };
@@ -160,8 +167,19 @@ export function buildProfileContext(profile: UserProfile): string {
   if (profile.interests.length > 0) lines.push(`Centres d'intérêt : ${profile.interests.join(', ')}`);
   if (profile.interestNotes) lines.push(`Détail intérêts : ${profile.interestNotes}`);
 
-  if (lines.length === 0) return '';
+  // Longueur attendue : directive de format, pas information de profil. Elle
+  // sort donc du bloc « profil », dont la consigne est d'user des informations
+  // « avec subtilité » — ce qui affaiblirait une contrainte de format.
+  const format = {
+    concise:     "## Format\nRéponds court : l'essentiel en quelques phrases, sans développement superflu. L'utilisateur a peu de temps.",
+    approfondie: '## Format\nDéveloppe : nuances, contre-exemples et implications sont bienvenus. L\'utilisateur veut creuser.',
+    standard:    '',
+    '':          '',
+  }[profile.longueurReponse] ?? '';
+
+  if (lines.length === 0) return format;
   return (
+    (format ? format + '\n\n' : '') +
     `## Profil de l'utilisateur\n` +
     `Utilise ces informations de façon subtile et bienveillante :\n` +
     `- Seulement quand c'est pertinent pour la session en cours — pas de façon systématique.\n` +

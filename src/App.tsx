@@ -2303,6 +2303,10 @@ export default function App() {
 
     if (r.persona) setPersona(r.persona);
     if (r.level) setLevel(r.level);
+    // Un usage professionnel n'a que faire d'un défi quotidien et d'un crédit
+    // offert : l'accueil s'épure sans que l'utilisateur ait à chercher le
+    // réglage — qui reste disponible s'il veut revenir dessus.
+    if (r.masquerDefiDuJour) setShowDailyChallenge(false);
     setCalibrageOuvert(false);
   }, [user]);
 
@@ -5490,10 +5494,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   Rédigé pendant la réponse en cours. Grisé et en pointillés
                   pour qu'on ne le confonde pas avec un message parti ; la
                   croix le restitue à la zone de saisie. */}
-              {/* Pas d'AnimatePresence ici : l'animation de sortie laissait le
-                  nœud dans le DOM après le retrait de l'état, si bien que la
-                  bulle grisée survivait à l'envoi du message. Le retrait doit
-                  être immédiat — c'est le signal que le message est parti. */}
+              {/* Pas d'animation de sortie : le retrait doit être immédiat,
+                  c'est lui qui signale que le message est parti. Une
+                  disparition en fondu laisserait douter, une fraction de
+                  seconde, de ce qui a réellement été envoyé. */}
               {queuedMessage && (
                   <motion.div
                     key="message-en-attente"

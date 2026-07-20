@@ -69,6 +69,23 @@ html[data-mouvement='reduit'] *::after {
   scroll-behavior: auto !important;
 }
 
+/* ── Calibrage — apparition des écrans ──────────────────────────────────────
+   En CSS plutôt qu'avec Motion : ces apparitions sont de simples fondus, sans
+   orchestration ni interruption à gérer. Une keyframe suffit, se rejoue au
+   remontage par `key`, et évite d'embarquer la bibliothèque d'animation dans
+   un écran qui n'en a pas besoin.
+   Le mouvement réduit est déjà couvert par la règle globale plus haut. */
+@keyframes cal-entree {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.cal-entree {
+  animation: cal-entree 0.32s ease-out both;
+}
+.cal-decale {
+  animation: cal-entree 0.32s ease-out both;
+}
+
 /* ── Animation logo CR — streaming réponse ──────────────────────────────────── */
 @keyframes cr-shimmer {
   0%   { transform: translateX(-130%) skewX(-12deg); }
