@@ -4391,7 +4391,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             <div className="px-5 py-4 border-t-2 border-white/10">
               {user ? (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                  {/* Cliquer sur son profil ouvre les réglages — le chemin
+                      attendu. L'entrée « Profil IA » de la navigation reste
+                      en place : les deux mènent au même endroit. */}
+                  <button
+                    onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); }}
+                    aria-label="Ouvrir les paramètres"
+                    title="Paramètres"
+                    className="group w-full flex items-center gap-2 -mx-2 px-2 py-1.5 text-left hover:bg-white/5 transition-colors"
+                  >
                     {user.photoURL ? (
                       <img
                         src={user.photoURL}
@@ -4419,7 +4427,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         {user.isAnonymous ? 'Compte non enregistré' : user.email}
                       </p>
                     </div>
-                  </div>
+                    <Settings className="w-3.5 h-3.5 flex-shrink-0 text-white/20 group-hover:text-white/60 transition-colors" />
+                  </button>
                   <button
                     onClick={handleSignOut}
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-white/10 hover:border-white/25 transition-colors text-white/30 hover:text-white/60"

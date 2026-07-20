@@ -8,6 +8,7 @@ import {
   ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
   CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
@@ -319,7 +320,8 @@ export default function SettingsPage({
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profil' | 'abonnement' | 'utilisation'>('profil');
+  const [activeTab, setActiveTab] =
+    useState<'profil' | 'preferences' | 'abonnement' | 'utilisation' | 'compte'>('profil');
   const [showEco, setShowEco] = useState(false);
 
   // MBTI info modal
@@ -454,18 +456,22 @@ export default function SettingsPage({
           </AnimatePresence>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-t border-[#141414]/8">
+        {/* Onglets — défilables horizontalement : à cinq entrées, les forcer à
+            tenir dans la largeur d'un mobile rendrait les libellés illisibles. */}
+        <div className="flex border-t border-[#141414]/8 overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0"
+             style={{ scrollbarWidth: 'none' }}>
           {([
             { id: 'profil',        label: 'Profil IA',    icon: User },
+            { id: 'preferences',   label: 'Préférences',  icon: SlidersHorizontal },
             { id: 'abonnement',    label: 'Abonnement',   icon: CreditCard },
             { id: 'utilisation',   label: 'Utilisation',  icon: BarChart2 },
+            { id: 'compte',        label: 'Compte',       icon: ShieldCheck },
           ] as const).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
               className={cx(
-                'flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all border-b-2',
+                'flex-1 flex-shrink-0 min-w-[92px] flex items-center justify-center gap-1.5 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap',
                 activeTab === id
                   ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/4'
                   : 'border-transparent text-[#141414]/35 hover:text-[#141414]/60'
@@ -481,24 +487,6 @@ export default function SettingsPage({
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto bg-[#F8F9FF]">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
-
-        {/* Profil cognitif évolutif */}
-        <CognitiveCard userId={user?.uid ?? null} />
-
-        {/* Notifications push (mobile surtout) */}
-        <PushToggle />
-
-        {/* Clés d'API développeur */}
-        <ApiKeysPanel userId={user?.uid ?? null} />
-
-        {/* Droits RGPD : partages publics, export, effacement */}
-        <PrivacyPanel
-          userId={user?.uid ?? null}
-          shares={shares}
-          onRevokeShare={onRevokeShare}
-          onRefreshShares={onRefreshShares}
-          onDeleted={onAccountDeleted}
-        />
 
         {/* ═══════════════ ONGLET ABONNEMENT ═══════════════ */}
         {activeTab === 'abonnement' && (<>
@@ -860,8 +848,25 @@ export default function SettingsPage({
 
         </>)}
 
-        {/* ═══════════════ ONGLET PROFIL (existant) ═══════════════ */}
-        {activeTab === 'profil' && (<>
+        {/* ═══════════════ ONGLET COMPTE ═══════════════ */}
+        {activeTab === 'compte' && (<>
+
+          {/* Droits RGPD : partages publics, export, effacement */}
+          <PrivacyPanel
+            userId={user?.uid ?? null}
+            shares={shares}
+            onRevokeShare={onRevokeShare}
+            onRefreshShares={onRefreshShares}
+            onDeleted={onAccountDeleted}
+          />
+
+          {/* Clés d'API développeur */}
+          <ApiKeysPanel userId={user?.uid ?? null} />
+
+        </>)}
+
+        {/* ═══════════════ ONGLET PRÉFÉRENCES ═══════════════ */}
+        {activeTab === 'preferences' && (<>
 
           {/* ── ÉCRAN DE CHAT — épure de l'accueil de session */}
           <div className="border-2 border-[#141414]/10">
@@ -912,6 +917,17 @@ export default function SettingsPage({
               ))}
             </div>
           </div>
+
+          {/* Notifications push (mobile surtout) */}
+          <PushToggle />
+
+        </>)}
+
+        {/* ═══════════════ ONGLET PROFIL ═══════════════ */}
+        {activeTab === 'profil' && (<>
+
+          {/* Profil cognitif évolutif */}
+          <CognitiveCard userId={user?.uid ?? null} />
 
           {/* Info banner */}
           <div className="bg-[#5D7BFF]/5 border-2 border-[#5D7BFF]/20 px-4 py-3 flex gap-3 items-start">
