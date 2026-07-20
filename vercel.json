@@ -4,6 +4,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/v1/:action",
+      "destination": "/api/v1/[action]"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
