@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Scale, Search, Swords, Plus, Send, Loader2, AlertCircle,
@@ -253,6 +253,31 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
     { text: "J'ai une idée d'app mais je ne sais pas par où commencer. Structure le projet en jalons.", icon: Compass },
     { text: "Je dois préparer une reconversion professionnelle en 12 mois. Trace-moi la feuille de route.", icon: TrendingUp },
   ],
+};
+
+// Pool de thèses par secteur — sert aux suggestions DYNAMIQUES : on tire de quoi
+// coller aux secteurs choisis par l'utilisateur, en variant à chaque visite.
+const SUGGESTIONS_SECTEUR: Record<string, string[]> = {
+  Technologie: ["L'IA générative détruira plus d'emplois qu'elle n'en créera.", 'Le smartphone a fait plus de mal que de bien à l\'humanité.'],
+  Sciences: ['On surestime largement ce que la science peut prédire.', 'La science ne devrait jamais dépendre de financements privés.'],
+  'Santé': ['La médecine préventive devrait être rendue obligatoire.', 'Le jeûne intermittent est largement surévalué.'],
+  Environnement: ['La croissance verte est un mythe.', 'Le nucléaire est indispensable à la transition écologique.'],
+  'Économie': ["L'inflation est toujours, au fond, un choix politique.", 'Le revenu universel est inévitable.'],
+  Finance: ['La bourse est un casino déguisé en science.', "L'or ne protège plus de rien."],
+  Politique: ['La démocratie directe vaut mieux que la représentative.', 'Le vote obligatoire renforcerait la démocratie.'],
+  Droit: ['Trop de lois tue la loi.', 'La justice prédictive est un danger pour l\'état de droit.'],
+  'Éducation': ['Les notes à l\'école font plus de mal que de bien.', 'L\'école devrait abandonner les devoirs à la maison.'],
+  'Société': ['Le télétravail détruit le lien social.', "L'individualisme a gagné, et c'est un problème."],
+  Philosophie: ['Le libre arbitre est une illusion.', 'Le bonheur est un mauvais objectif de vie.'],
+  Histoire: ['On n\'apprend rien de l\'Histoire.', 'Les grands hommes ne font pas l\'Histoire.'],
+  'Culture & Arts': ["L'art contemporain est en grande partie une imposture.", 'La gratuité tue la création.'],
+  Sport: ['Le sport de haut niveau est incompatible avec la santé.', 'Les JO coûtent bien plus qu\'ils ne rapportent.'],
+  'Business & Entrepreneuriat': ['La plupart des startups ne devraient pas exister.', 'La croissance à tout prix est une erreur stratégique.'],
+  International: ['La mondialisation a globalement amélioré la condition humaine.', 'Les frontières sont un archaïsme.'],
+  Psychologie: ['Les tests de personnalité ne valent scientifiquement rien.', 'La résilience est un concept surévalué.'],
+  'Médias': ["L'objectivité journalistique n'existe pas.", 'Les réseaux sociaux sont néfastes pour la démocratie.'],
+  'Religion & Spiritualité': ['La spiritualité « à la carte » est un self-service dénué de sens.', 'La laïcité est presque toujours mal comprise.'],
+  'Géopolitique': ['La dissuasion nucléaire a évité une troisième guerre mondiale.', 'Les sanctions économiques ne marchent jamais.'],
 };
 
 // ─── System Prompts ───────────────────────────────────────────────────────────
@@ -2253,6 +2278,20 @@ export default function App() {
   // Le minuteur ne démarre que quand elles sont RÉELLEMENT à l'écran : sinon il
   // s'écoule pendant l'écran de chargement et elles naissent déjà repliées.
   const suggestionsVisible = !authLoading && (!activeConv || activeConv.messages.length === 0);
+
+  // Suggestions DYNAMIQUES : si l'utilisateur a choisi des secteurs, on tire des
+  // thèses de ces secteurs (mélangées, donc variables d'une session à l'autre) ;
+  // sinon on garde les suggestions par persona. Recalculé quand secteurs/persona
+  // changent, ou à chaque nouvelle session (activeId).
+  const suggestionsAffichees = useMemo(() => {
+    const secteurs = (userProfile.secteurs ?? []).filter((s) => SUGGESTIONS_SECTEUR[s]?.length);
+    if (secteurs.length === 0) return SUGGESTIONS[persona];
+    const pool = secteurs.flatMap((s) => SUGGESTIONS_SECTEUR[s]);
+    const icones = [Brain, Target, TrendingUp, Compass, BookOpen];
+    const melange = [...pool].sort(() => Math.random() - 0.5).slice(0, 3);
+    return melange.map((text, i) => ({ text, icon: icones[i % icones.length] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persona, userProfile.secteurs, activeId]);
   useEffect(() => {
     if (!suggestionsVisible) return;
     suggestionsPinnedRef.current = false;
@@ -5776,7 +5815,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 className="overflow-hidden"
               >
               <div className="space-y-2 md:space-y-3">
-                {SUGGESTIONS[persona].map((s, i) => {
+                {suggestionsAffichees.map((s, i) => {
                   const SIcon = s.icon;
                   return (
                     <motion.button
@@ -6187,6 +6226,30 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                   {isCopied ? 'Copié !' : 'Copier'}
                                 </button>
                               </div>
+                              {/* Raccourcis de reformulation — sur la dernière réponse
+                                  seulement. Un clic envoie une consigne de suivi. */}
+                              {msgIdx === activeConv.messages.length - 1 && !sending && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {[
+                                    { label: 'Plus court', instr: 'Reformule ta réponse précédente en beaucoup plus court : l\'essentiel en deux ou trois phrases.' },
+                                    { label: 'Plus dur', instr: 'Reprends ta réponse mais sois plus dur : attaque plus frontalement, sans ménagement.' },
+                                    { label: 'Un exemple', instr: 'Donne un exemple concret qui illustre ton point précédent.' },
+                                    { label: 'Le contre-argument', instr: 'Quel est le meilleur contre-argument à ta propre réponse ? Défends la position inverse.' },
+                                  ].map((r) => (
+                                    <button
+                                      key={r.label}
+                                      onClick={() => submitOrQueue(r.instr, [])}
+                                      disabled={sending}
+                                      className={cx('text-[8px] font-black uppercase tracking-widest border px-2 py-0.5 rounded-sm transition-all disabled:opacity-40',
+                                        (isInterview || isDebate)
+                                          ? 'text-white/35 hover:text-white/75 border-white/10 hover:border-white/30'
+                                          : 'text-[#5D7BFF]/70 hover:text-[#5D7BFF] border-[#5D7BFF]/25 hover:border-[#5D7BFF]/60')}
+                                    >
+                                      {r.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </>
                           );
                         })() : (
