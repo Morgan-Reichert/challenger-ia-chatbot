@@ -51,7 +51,11 @@ export type VerdictSpec = {
   note?: string;
 };
 
-export type VizSpec = BalanceSpec | ArgMapSpec | ConfidenceSpec | VerdictSpec;
+// ─── Sophismes nommés — repérés dans le message ou dans la réponse de l'IA ──────
+export type SophismeItem = { nom: string; cible?: 'user' | 'ia'; explication?: string };
+export type SophismesSpec = { kind: 'sophismes'; items: SophismeItem[] };
+
+export type VizSpec = BalanceSpec | ArgMapSpec | ConfidenceSpec | VerdictSpec | SophismesSpec;
 
 export type Segment =
   | { type: 'text'; value: string }

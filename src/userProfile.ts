@@ -57,6 +57,18 @@ export type UserProfile = {
   // Intérêts
   interests: string[];
   interestNotes: string;
+  // Secteurs d'intérêt (3 à 5), choisis à l'inscription. Orientent les exemples,
+  // les sources et les suggestions.
+  secteurs: string[];
+  // Comportement de Challenger — personnalisable. Renforce l'IA :
+  //  steelman  : reformule l'idée au plus fort et fait valider avant de contredire
+  //  sophismes : repère et nomme les sophismes (dans le message ET ses réponses)
+  //  humilite  : affiche son incertitude et invite à vérifier
+  //  transparence : explique pourquoi il a répondu ainsi
+  steelmanObligatoire: boolean;
+  detectionSophismes: boolean;
+  humiliteEpistemique: boolean;
+  journalTransparence: boolean;
   // Calibrage — renseigné à l'inscription, modifiable ensuite
   objectif: string;          // ce que l'utilisateur vient chercher
   personaPrefere: string;    // contradicteur de départ
@@ -94,6 +106,11 @@ export const EMPTY_PROFILE: UserProfile = {
   neuroNotes: '',
   interests: [],
   interestNotes: '',
+  secteurs: [],
+  steelmanObligatoire: true,
+  detectionSophismes: true,
+  humiliteEpistemique: false,
+  journalTransparence: true,
   objectif: '',
   personaPrefere: '',
   autoMode: true,

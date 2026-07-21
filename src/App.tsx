@@ -44,6 +44,7 @@ import { deduceFriction } from './deduceFriction';
 import { classifieIntention, type Intention } from './classifieIntention';
 import { estCompteIllimite } from './comptesIllimites';
 import { setShareContext } from './shareContext';
+import { directiveComportement } from './comportement';
 import {
   directiveFormat, formatEstAuto, FORMAT_AUTO, longueurDepuisProfil, profondeurDepuisProfil,
   type FormatReponse, type Longueur, type Profondeur,
@@ -2899,7 +2900,10 @@ export default function App() {
         // Format de réponse (longueur/profondeur) : contrainte explicite, après
         // le profil pour ne pas être diluée par la consigne de « subtilité ».
         const fmtDir = directiveFormat(formatReponse);
-        const systemPrompt = [basePrompt, profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
+        // Comportement (steelman, sophismes, humilité, garde-fous…) : uniquement
+        // pour une vraie réponse de contradiction (pas un bonjour, pas un débat scénarisé).
+        const cmpDir = (profilAutorise && estSubstantiel) ? directiveComportement(userProfile) : '';
+        const systemPrompt = [basePrompt, profileCtx, cogCtx, fmtDir, cmpDir].filter(Boolean).join('\n\n');
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
 
         // Inject real-time date (côté client — non sensible)
@@ -2996,7 +3000,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
 
           // Un appel modèle avec le persona et le contenu utilisateur donnés.
           const repondre = async (pers: Persona, userContent: unknown): Promise<string> => {
-            const sys = [buildSystemPrompt(pers, activeLevel), profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
+            const sys = [buildSystemPrompt(pers, activeLevel), profileCtx, cogCtx, fmtDir, cmpDir].filter(Boolean).join('\n\n');
             const res = await callChat({
               model: debateModel, temperature,
               // Fact-Checker dans le jeu → recherche forcée pour qu'il cite des sources.

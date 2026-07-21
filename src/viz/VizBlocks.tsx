@@ -23,6 +23,7 @@ import { getShareContext } from '../shareContext';
 import type {
   VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel,
   VerdictSpec, FactVerdict, RiskLevel, ConsensusLevel, ConfidenceBand,
+  SophismesSpec,
 } from './vizParse';
 import { Scale, Puzzle, AlertTriangle } from 'lucide-react';
 
@@ -397,12 +398,55 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
 }
 
 // ─── Aiguilleur ─────────────────────────────────────────────────────────────────
+// ─── Sophismes nommés — badges cliquables (message de l'utilisateur / réponse IA) ──
+function Sophismes({ spec }: { spec: SophismesSpec }) {
+  const items = (spec.items ?? []).filter((s) => s && s.nom);
+  const [ouvert, setOuvert] = React.useState<number | null>(null);
+  if (!items.length) return null;
+  return (
+    <div className="my-3">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <AlertTriangle className="w-3 h-3 text-[#F59E0B]" />
+        <span className="text-[8px] font-black uppercase tracking-widest text-[#F59E0B]/80">Sophismes repérés</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((s, i) => {
+          const estIA = s.cible === 'ia';
+          const couleur = estIA ? '#8B5CF6' : '#F59E0B';
+          const actif = ouvert === i;
+          return (
+            <button
+              key={i}
+              onClick={() => setOuvert(actif ? null : i)}
+              className={cx('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border-2 text-[10px] font-black uppercase tracking-wide transition-all', actif && 'scale-105')}
+              style={{ color: couleur, borderColor: couleur + '66', background: couleur + '18' }}
+              title="Voir l'explication"
+            >
+              {s.nom}
+              <span className="opacity-50 normal-case font-bold">{estIA ? '· ma réponse' : '· ton message'}</span>
+            </button>
+          );
+        })}
+      </div>
+      {ouvert !== null && items[ouvert]?.explication && (
+        <div
+          className="mt-1.5 max-w-lg text-[11px] leading-snug px-3 py-2 rounded-md border"
+          style={{ borderColor: (items[ouvert].cible === 'ia' ? '#8B5CF6' : '#F59E0B') + '40', background: (items[ouvert].cible === 'ia' ? '#8B5CF6' : '#F59E0B') + '10' }}
+        >
+          <span className="font-black">{items[ouvert].nom} — </span>{items[ouvert].explication}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VizRenderer({ spec }: { spec: VizSpec }) {
   switch (spec.kind) {
     case 'balance':    return <Balance spec={spec} />;
     case 'argmap':     return <ArgMap spec={spec} />;
     case 'confidence': return <Confidence spec={spec} />;
     case 'verdict':    return <Verdict spec={spec} />;
+    case 'sophismes':  return <Sophismes spec={spec} />;
     default:           return null;
   }
 }

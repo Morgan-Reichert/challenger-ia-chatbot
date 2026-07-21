@@ -24,6 +24,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import type { UserProfile } from './userProfile';
+import { SECTEURS } from './comportement';
 import {
   IllusIdentite, IllusContexte, IllusContradiction, IllusDecision,
   IllusTemps, IllusDomaines, IllusParcours, IllusBilan,
@@ -104,10 +105,7 @@ const TEMPS: (Option & { longueur: Longueur })[] = [
     detail: 'Les nuances et les contre-exemples m’intéressent.' },
 ];
 
-const DOMAINES = [
-  'Politique', 'Économie', 'Sciences', 'Technologie', 'Philosophie', 'Éducation',
-  'Santé', 'Écologie', 'Entreprise', 'Droit', 'Médias', 'Culture',
-];
+const DOMAINES = SECTEURS;
 
 const NOMS_PERSONA: Record<Persona, string> = {
   architect: 'l’Architecte', factchecker: 'le Fact-Checker', opponent: 'l’Opposant',
@@ -167,8 +165,8 @@ export default function Calibrage({
       sous: 'Règle la longueur des réponses. Rien n’est plus inutile qu’une analyse de trois pages quand on en a trois lignes.',
       illus: IllusTemps },
     { cle: 'domaines', narration: 'Deux dernières, plus faciles.',
-      titre: 'Sur quoi débattez-vous le plus ?',
-      sous: 'Plusieurs choix possibles. Sert à ancrer les exemples dans ce que vous connaissez.',
+      titre: 'Choisissez 3 à 5 secteurs d’intérêt',
+      sous: 'Ceux sur lesquels vous débattez ou réfléchissez le plus. Ils ancrent les exemples, les sources et les suggestions dans ce qui vous concerne.',
       illus: IllusDomaines },
     { cle: 'parcours', narration: 'La dernière.',
       titre: 'En une phrase, d’où parlez-vous ?',
@@ -196,6 +194,7 @@ export default function Calibrage({
         longueurReponse: tps?.longueur ?? '',
         rapportContradiction: rea?.rapport ?? '',
         interests: domaines,
+        secteurs: domaines,
         background: parcours.trim(),
         calibrageFait: true,
       },
@@ -369,25 +368,36 @@ export default function Calibrage({
                 {e.cle === 'temps'     && <Choix options={TEMPS}     valeur={temps}    definir={setTemps} />}
 
                 {e.cle === 'domaines' && (
-                  <div className="flex flex-wrap gap-1.5 max-w-xl">
-                    {DOMAINES.map((d) => {
-                      const actif = domaines.includes(d);
-                      return (
-                        <button
-                          key={d}
-                          onClick={() => setDomaines((p) => actif ? p.filter((x) => x !== d) : [...p, d])}
-                          aria-pressed={actif}
-                          className={
-                            'px-3.5 py-2 border-2 text-[11px] font-bold transition-all '
-                            + (actif
-                              ? 'border-[#141414] bg-[#5D7BFF] text-white'
-                              : 'border-[#141414]/15 bg-white text-[#141414]/55 hover:border-[#141414]/45')
-                          }
-                        >
-                          {d}
-                        </button>
-                      );
-                    })}
+                  <div className="max-w-xl">
+                    <div className="flex flex-wrap gap-1.5">
+                      {DOMAINES.map((d) => {
+                        const actif = domaines.includes(d);
+                        const plein = !actif && domaines.length >= 5;
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => setDomaines((p) => actif ? p.filter((x) => x !== d) : (p.length < 5 ? [...p, d] : p))}
+                            aria-pressed={actif}
+                            disabled={plein}
+                            className={
+                              'px-3.5 py-2 border-2 text-[11px] font-bold transition-all '
+                              + (actif
+                                ? 'border-[#141414] bg-[#5D7BFF] text-white'
+                                : plein
+                                  ? 'border-[#141414]/10 bg-white text-[#141414]/25 cursor-not-allowed'
+                                  : 'border-[#141414]/15 bg-white text-[#141414]/55 hover:border-[#141414]/45')
+                            }
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className={'mt-3 text-[11px] font-bold ' + (domaines.length >= 3 ? 'text-[#10B981]' : 'text-[#141414]/45')}>
+                      {domaines.length < 3
+                        ? `Encore ${3 - domaines.length} secteur${3 - domaines.length > 1 ? 's' : ''} minimum (${domaines.length}/5)`
+                        : `${domaines.length}/5 sélectionné${domaines.length > 1 ? 's' : ''} ✓`}
+                    </p>
                   </div>
                 )}
 
@@ -426,7 +436,8 @@ export default function Calibrage({
           )}
           <button
             onClick={avancer}
-            className="flex-1 md:flex-none md:px-10 flex items-center justify-center gap-2.5 py-3.5 bg-[#141414] text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-[#5D7BFF] transition-colors"
+            disabled={e.cle === 'domaines' && domaines.length < 3}
+            className="flex-1 md:flex-none md:px-10 flex items-center justify-center gap-2.5 py-3.5 bg-[#141414] text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-[#5D7BFF] transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-[#141414]"
             style={{ boxShadow: '4px 4px 0 0 rgba(93,123,255,0.35)' }}
           >
             {etape === 0 ? <>Commencer <ArrowRight className="w-4 h-4" /></>

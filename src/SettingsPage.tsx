@@ -25,6 +25,7 @@ import {
   type UserProfile, type NeuroTag, type BigFiveResult,
   NEURO_TAGS, MBTI_TYPES, saveProfile, exportProfile, importProfileFromJson, EMPTY_PROFILE,
 } from './userProfile';
+import { SECTEURS } from './comportement';
 import { CREDIT_PACKS, type Plan } from './supabase';
 import {
   CUSTOM_PERSONA_MAX_NAME, CUSTOM_PERSONA_MAX_DESC,
@@ -359,6 +360,7 @@ const ARBORESCENCE: SectionReglages[] = [
     id: 'personnalisation', label: 'Personnalisation', icon: SlidersHorizontal, accent: '#8B5CF6',
     desc: 'Affichage du chat, notifications, personas et accessibilité.',
     sous: [
+      { id: 'comportement',  label: 'Comportement de l’IA', icon: Sparkles,    hint: 'Steelman, sophismes, humilité, secteurs' },
       { id: 'ecran',         label: 'Écran de chat',      icon: MessageSquare, hint: 'Suggestions et défi du jour' },
       { id: 'notifications', label: 'Notifications',      icon: Bell,          hint: 'Alertes push sur cet appareil' },
       { id: 'personas',      label: 'Studio de personas', icon: Sparkles,      hint: 'Créer un persona sur mesure' },
@@ -1127,6 +1129,80 @@ export default function SettingsPage({
           </div>
 
         </>)}
+
+        {/* ═══════════════ PERSONNALISATION › COMPORTEMENT DE L'IA ═══════════════ */}
+        {ouvert('personnalisation', 'comportement') && (
+          <div className="border-2 border-[#141414]/10">
+            <div className="flex items-center gap-2.5 px-5 py-3 border-b-2 border-[#141414]/10">
+              <div className="w-8 h-8 flex items-center justify-center" style={{ background: '#5D7BFF12', border: '1.5px solid #5D7BFF30' }}>
+                <Sparkles className="w-4 h-4 text-[#5D7BFF]" />
+              </div>
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">Comportement de l'IA</h2>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-[10px] text-[#141414]/50 leading-relaxed">
+                Réglez la façon dont Challenger vous challenge. Ces options renforcent la rigueur — désactivez-les si vous préférez des réponses plus directes.
+              </p>
+
+              {([
+                { cle: 'steelmanObligatoire' as const, titre: 'Steelman obligatoire', desc: 'Reformule votre idée dans sa version la plus forte (et vérifie qu\'il a bien compris) avant de la contredire.' },
+                { cle: 'detectionSophismes' as const, titre: 'Détection de sophismes', desc: 'Repère et nomme les erreurs de raisonnement — dans vos messages comme dans ses propres réponses.' },
+                { cle: 'humiliteEpistemique' as const, titre: 'Humilité épistémique', desc: 'Affiche son degré de certitude et vous invite à recouper quand un point est incertain.' },
+                { cle: 'journalTransparence' as const, titre: 'Journal de transparence', desc: 'Explique en une phrase pourquoi il répond ainsi — pas seulement sa conclusion.' },
+              ]).map((o) => {
+                const val = !!profile[o.cle];
+                return (
+                  <div key={o.cle} className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-[11px] font-black text-[#141414]">{o.titre}</p>
+                      <p className="text-[10px] text-[#141414]/50 mt-1 leading-relaxed">{o.desc}</p>
+                    </div>
+                    <button
+                      onClick={() => updateProfile({ [o.cle]: !val } as Partial<UserProfile>)}
+                      role="switch" aria-checked={val} aria-label={o.titre}
+                      className="flex-shrink-0 mt-0.5 relative w-11 h-6 rounded-full transition-colors duration-200"
+                      style={{ backgroundColor: val ? '#5D7BFF' : '#D1D5DB' }}
+                    >
+                      <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                        style={{ transform: val ? 'translateX(20px)' : 'translateX(0)' }} />
+                    </button>
+                  </div>
+                );
+              })}
+
+              <div className="pt-1 border-t border-[#141414]/8">
+                <p className="text-[11px] font-black text-[#141414] mt-3">Secteurs d'intérêt</p>
+                <p className="text-[10px] text-[#141414]/50 mt-1 mb-2.5 leading-relaxed">3 à 5 domaines — ils ancrent exemples, sources et suggestions.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SECTEURS.map((sct) => {
+                    const actif = (profile.secteurs ?? []).includes(sct);
+                    const plein = !actif && (profile.secteurs ?? []).length >= 5;
+                    return (
+                      <button
+                        key={sct}
+                        disabled={plein}
+                        onClick={() => updateProfile({ secteurs: actif
+                          ? (profile.secteurs ?? []).filter((x) => x !== sct)
+                          : [...(profile.secteurs ?? []), sct] })}
+                        className={'px-2.5 py-1 border-2 text-[10px] font-bold transition-all '
+                          + (actif ? 'border-[#141414] bg-[#5D7BFF] text-white'
+                            : plein ? 'border-[#141414]/10 text-[#141414]/25 cursor-not-allowed'
+                            : 'border-[#141414]/15 text-[#141414]/55 hover:border-[#141414]/40')}
+                      >
+                        {sct}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[9px] font-black text-[#141414]/35 mt-2">{(profile.secteurs ?? []).length}/5</p>
+              </div>
+
+              <p className="text-[9px] text-[#141414]/40 leading-relaxed pt-1 border-t border-[#141414]/8 mt-1">
+                <strong>Garde-fous santé / droit / finance</strong> : toujours actifs. Challenger informe mais ne donne jamais de conseil personnalisé sur ces sujets.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ═══════════════ ONGLET PRÉFÉRENCES ═══════════════ */}
         {ouvert('personnalisation', 'ecran') && (<>
