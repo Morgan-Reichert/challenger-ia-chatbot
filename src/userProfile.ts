@@ -86,7 +86,7 @@ export type UserProfile = {
   profondeurReponse: '' | 'essentiel' | 'equilibre' | 'fouille';
   // Réponse multi-personas : mode (regards parallèles / investigation enchaînée)
   // et nombre max de contradicteurs mobilisés. Réglé dans le popup de config.
-  multiPersonaMode: '' | 'parallele' | 'investigation';
+  multiPersonaMode: '' | 'parallele' | 'investigation' | 'duel';
   multiPersonaNombre: number;
   rapportContradiction: string; // comment il souhaite être contredit
   calibrageFait: boolean;    // évite de reproposer le questionnaire

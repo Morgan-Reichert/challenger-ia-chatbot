@@ -111,6 +111,7 @@ interface Message {
   investigation?: {
     etapes: { persona: Persona; content: string }[];
     synthese: string;
+    duel?: boolean; // exchange adversarial entre 2 personas (mode Duel)
   };
   // Réponse conversationnelle (salutation / méta) : pas un contradicteur, donc
   // pas de badge persona ni de friction — l'en-tête affiche « Le Challenger ».
@@ -1572,7 +1573,7 @@ export default function App() {
   });
   const [formatOuvert, setFormatOuvert] = useState(false);
   // Réponse multi-personas : configuration (mode + nombre) et ouverture du popup.
-  const [multiConfig, setMultiConfig] = useState<{ mode: 'parallele' | 'investigation'; nombre: number }>(() => {
+  const [multiConfig, setMultiConfig] = useState<{ mode: 'parallele' | 'investigation' | 'duel'; nombre: number }>(() => {
     const p = loadProfile();
     return {
       mode: p.multiPersonaMode === 'investigation' ? 'investigation' : 'parallele',
@@ -1589,7 +1590,7 @@ export default function App() {
   // Mode Mentor : Challenger aide à construire au lieu de contredire.
   const [modeMentor, setModeMentor] = useState(false);
   // Dernier envoi mémorisé, pour proposer « Réessayer » si la réponse échoue.
-  const [dernierEnvoi, setDernierEnvoi] = useState<{ text: string; attachments: Attachment[]; opts?: { multi?: { mode: 'parallele' | 'investigation'; personas: Persona[] } } } | null>(null);
+  const [dernierEnvoi, setDernierEnvoi] = useState<{ text: string; attachments: Attachment[]; opts?: { multi?: { mode: 'parallele' | 'investigation' | 'duel'; personas: Persona[] } } } | null>(null);
   const [reessaiEnAttente, setReessaiEnAttente] = useState(false);
   // Cheminements d'investigation dépliés (par id de message).
   const [cheminementsOuverts, setCheminementsOuverts] = useState<Set<string>>(new Set());
@@ -2345,7 +2346,7 @@ export default function App() {
   }, [user]);
 
   // Config multi-personas : persistée pour devenir le défaut de la prochaine fois.
-  const changerMultiConfig = useCallback((suivant: { mode: 'parallele' | 'investigation'; nombre: number }) => {
+  const changerMultiConfig = useCallback((suivant: { mode: 'parallele' | 'investigation' | 'duel'; nombre: number }) => {
     const nombre = Math.max(2, Math.min(suivant.nombre, 5));
     const valide = { mode: suivant.mode, nombre };
     setMultiConfig(valide);
@@ -2673,7 +2674,7 @@ export default function App() {
 
   // ── Send message
   const send = useCallback(
-    async (text: string, attachments: Attachment[] = [], opts?: { multi?: { mode: 'parallele' | 'investigation'; personas: Persona[] } }) => {
+    async (text: string, attachments: Attachment[] = [], opts?: { multi?: { mode: 'parallele' | 'investigation' | 'duel'; personas: Persona[] } }) => {
       if (!text.trim() && attachments.length === 0) return;
       if (sending || sendingRef.current) return;
       sendingRef.current = true;
@@ -3056,6 +3057,65 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                     : m),
                 })
               );
+            } else if (mode === 'duel') {
+              // Duel : deux personas s'affrontent en alternance, chacun réfutant
+              // l'autre sur plusieurs tours, puis un Arbitre livre ce qu'il faut
+              // retenir. Stocké comme une investigation (duel:true) pour réutiliser
+              // le rendu du cheminement.
+              const duo = personas.slice(0, 2);
+              setConversations((p) =>
+                p.map((c) => c.id !== convId ? c : {
+                  ...c,
+                  messages: [...c.messages, {
+                    id: asstIdMulti, role: 'assistant' as const, content: '',
+                    timestamp: new Date(), persona: duo[0], level: activeLevel,
+                    investigation: { etapes: [], synthese: '', duel: true },
+                  }],
+                  updatedAt: new Date(),
+                })
+              );
+              const etapesD: { persona: Persona; content: string }[] = [];
+              const TOURS = 4; // deux passes chacun
+              for (let i = 0; i < TOURS; i++) {
+                const pers = duo[i % 2];
+                const adversaire = duo[(i + 1) % 2];
+                const userContent = i === 0
+                  ? `SUJET DU DUEL :\n${text}\n\nTu affrontes ${PERSONAS[adversaire].name}. Ouvre le débat : défends ta position avec ton angle propre, en 3 à 5 phrases percutantes.`
+                  : `SUJET DU DUEL :\n${text}\n\nTON ADVERSAIRE (${PERSONAS[etapesD[i - 1].persona].name}) vient de dire :\n${etapesD[i - 1].content}\n\nRÉPONDS-LUI : réfute son point le plus faible et renforce ta propre position, en 3 à 5 phrases. Reste vif et direct, sans invective. Pas de conclusion neutre — c'est un duel.`;
+                const rep = await repondre(pers, userContent);
+                etapesD.push({ persona: pers, content: rep });
+                setConversations((p) =>
+                  p.map((c) => c.id !== convId ? c : {
+                    ...c,
+                    messages: c.messages.map((m) => m.id === asstIdMulti
+                      ? { ...m, investigation: { etapes: [...etapesD], synthese: '', duel: true } }
+                      : m),
+                  })
+                );
+              }
+              const sysBilan = [buildSystemPrompt('arbiter', activeLevel), profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
+              const echange = etapesD.map((e, i) => `── ${PERSONAS[e.persona].name} (tour ${i + 1}) ──\n${e.content}`).join('\n\n');
+              const resBilan = await callChat({
+                model: debateModel, temperature,
+                messages: [
+                  { role: 'system', content: sysBilan },
+                  ...historique,
+                  { role: 'user', content:
+                    `SUJET :\n${text}\n\nVoici un duel entre deux personas :\n\n${echange}\n\nEn Arbitre, livre à l'utilisateur CE QU'IL FAUT RETENIR : les meilleurs arguments de chaque camp, les points de convergence, et ce qui reste ouvert. Ne désigne un « gagnant » que si un camp est objectivement plus solide. Utile et concis.` },
+                ],
+              });
+              if (!resBilan.ok) throw Object.assign(new Error(`HTTP ${resBilan.status}`), { status: resBilan.status });
+              const dataBilan = await resBilan.json();
+              const bilan = stripCiaQuestion(stripCiaBias(dataBilan.choices?.[0]?.message?.content ?? '')).trim();
+              playDone();
+              setConversations((p) =>
+                p.map((c) => c.id !== convId ? c : {
+                  ...c,
+                  messages: c.messages.map((m) => m.id === asstIdMulti
+                    ? { ...m, content: bilan, investigation: { etapes: [...etapesD], synthese: bilan, duel: true }, sources: filtrerSourcesCitees(sourcesMulti, contenuFactcheck) }
+                    : m),
+                })
+              );
             } else {
               // Investigation : chaîne séquentielle. Chaque persona relit le
               // précédent, puis un Arbitre synthétise une réponse cohérente.
@@ -3301,7 +3361,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
    */
   // Résout les options multi-personas si le mode est actif et applicable.
   // Retourne undefined → envoi normal (un seul persona).
-  const resoudreMulti = useCallback((text: string): { mode: 'parallele' | 'investigation'; personas: Persona[] } | undefined => {
+  const resoudreMulti = useCallback((text: string): { mode: 'parallele' | 'investigation' | 'duel'; personas: Persona[] } | undefined => {
     if (!multiActif || modeMentor) return undefined; // le mode Mentor prime
     if (activeConv?.debatePersonaId || activeConv?.interviewType) return undefined;
     const base = autoMode ? ordrePersonas(text || 'x', multiConfig.nombre) : [persona, ...personasExtra];
@@ -5999,7 +6059,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                             className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] hover:opacity-80 transition-opacity"
                           >
                             <Compass className="w-3 h-3" />
-                            <span>Cheminement · {inv.etapes.length} étape{inv.etapes.length > 1 ? 's' : ''}</span>
+                            <span>{inv.duel
+                              ? `Duel · ${inv.etapes.length} échange${inv.etapes.length > 1 ? 's' : ''}`
+                              : `Cheminement · ${inv.etapes.length} étape${inv.etapes.length > 1 ? 's' : ''}`}</span>
                             <ChevronDown className={cx('w-3 h-3 transition-transform', ouvert ? 'rotate-180' : '')} />
                           </button>
                           {ouvert && (
@@ -6031,7 +6093,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           {inv.synthese && (
                             <div className="flex items-center gap-1.5 mt-3 mb-1">
                               <Gavel className="w-3 h-3 text-[#5D7BFF]" />
-                              <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Synthèse</span>
+                              <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">{inv.duel ? 'Bilan du duel' : 'Synthèse'}</span>
                             </div>
                           )}
                         </div>
@@ -6732,8 +6794,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     (le jeu est déduit) comme en manuel (l'utilisateur choisit les
                     personas qui s'ajoutent au persona de base). */}
                 {!activeConv?.debatePersonaId && (() => {
-                  const nbCredits = (autoMode ? multiConfig.nombre : 1 + personasExtra.length)
-                    + (multiConfig.mode === 'investigation' ? 1 : 0);
+                  // Coût par mode : parallèle = N ; investigation = N+1 ; duel = 5
+                  // (4 tours + bilan, toujours 2 personas).
+                  const coutMode = (m: 'parallele' | 'investigation' | 'duel') =>
+                    m === 'duel' ? 5 : (autoMode ? multiConfig.nombre : 1 + personasExtra.length) + (m === 'investigation' ? 1 : 0);
+                  const nbCredits = coutMode(multiConfig.mode);
                   const manuelSansExtra = !autoMode && personasExtra.length === 0;
                   return (
                   <div className="relative">
@@ -6836,6 +6901,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                               {([
                                 { v: 'parallele' as const, titre: 'Regards parallèles', desc: 'Chacun répond de son côté, réponses côte à côte.' },
                                 { v: 'investigation' as const, titre: 'Investigation enchaînée', desc: 'Chacun relit le précédent et affine ; une synthèse tranche. Cheminement consultable.' },
+                                { v: 'duel' as const, titre: 'Duel en direct', desc: 'Deux personas s\'affrontent tour à tour ; un bilan clôt le débat.' },
                               ]).map((opt) => (
                                 <button
                                   key={opt.v}
@@ -6846,7 +6912,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                 >
                                   <div className="flex items-center justify-between mb-0.5">
                                     <span className={cx('text-[10px] font-black uppercase tracking-wider', multiConfig.mode === opt.v ? 'text-[#5D7BFF]' : 'text-[var(--text-primary)]/70')}>{opt.titre}</span>
-                                    <span className="text-[7px] font-black uppercase tracking-widest bg-[#5D7BFF]/15 text-[#5D7BFF] px-1.5 py-0.5">×{(autoMode ? multiConfig.nombre : 1 + personasExtra.length) + (opt.v === 'investigation' ? 1 : 0)}</span>
+                                    <span className="text-[7px] font-black uppercase tracking-widest bg-[#5D7BFF]/15 text-[#5D7BFF] px-1.5 py-0.5">×{coutMode(opt.v)}</span>
                                   </div>
                                   <p className="text-[8px] text-[var(--text-primary)]/45 leading-snug">{opt.desc}</p>
                                 </button>
