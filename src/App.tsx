@@ -12,7 +12,7 @@ import {
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
-  HelpCircle, Compass, Gavel, SlidersHorizontal,
+  HelpCircle, Compass, Gavel, SlidersHorizontal, GraduationCap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -44,7 +44,7 @@ import { deduceFriction } from './deduceFriction';
 import { classifieIntention, type Intention } from './classifieIntention';
 import { estCompteIllimite } from './comptesIllimites';
 import { setShareContext } from './shareContext';
-import { directiveComportement } from './comportement';
+import { directiveComportement, PROMPT_MENTOR } from './comportement';
 import {
   directiveFormat, formatEstAuto, FORMAT_AUTO, longueurDepuisProfil, profondeurDepuisProfil,
   type FormatReponse, type Longueur, type Profondeur,
@@ -115,6 +115,8 @@ interface Message {
   // Réponse conversationnelle (salutation / méta) : pas un contradicteur, donc
   // pas de badge persona ni de friction — l'en-tête affiche « Le Challenger ».
   conversationnel?: boolean;
+  // Réponse en MODE MENTOR (constructif, pas contradicteur) → en-tête « Le Mentor ».
+  mentor?: boolean;
   // Réponse multi-personas interrompue : 'quota' (crédits épuisés → inciter à
   // l'achat) ou 'reseau'. Coupe les indicateurs « en cours » et affiche un
   // bloc d'erreur explicite.
@@ -1584,6 +1586,8 @@ export default function App() {
   // déclenche une réponse à plusieurs personas. Fini le « tape puis lance » —
   // c'est un mode qu'on active, puis on écrit et on envoie comme d'habitude.
   const [multiActif, setMultiActif] = useState(false);
+  // Mode Mentor : Challenger aide à construire au lieu de contredire.
+  const [modeMentor, setModeMentor] = useState(false);
   // Dernier envoi mémorisé, pour proposer « Réessayer » si la réponse échoue.
   const [dernierEnvoi, setDernierEnvoi] = useState<{ text: string; attachments: Attachment[]; opts?: { multi?: { mode: 'parallele' | 'investigation'; personas: Persona[] } } } | null>(null);
   const [reessaiEnAttente, setReessaiEnAttente] = useState(false);
@@ -2891,8 +2895,12 @@ export default function App() {
         const activeConvNow = conversations.find((c) => c.id === convId);
         // Message social/méta : prompt conversationnel léger au lieu du
         // contradicteur. Un débat/entretien (debatePrompt) prime toujours.
+        // Mode Mentor : posture constructive au lieu du persona contradicteur.
+        const enMentor = modeMentor && estSubstantiel && !activeConvNow?.debatePrompt && !activeConvNow?.interviewType;
         const basePrompt = activeConvNow?.debatePrompt
-          ?? (estSubstantiel ? buildSystemPrompt(activePersona, activeLevel) : promptConversationnel(intention as 'social' | 'meta'));
+          ?? (enMentor ? PROMPT_MENTOR
+              : estSubstantiel ? buildSystemPrompt(activePersona, activeLevel)
+              : promptConversationnel(intention as 'social' | 'meta'));
         const profilAutorise = !activeConvNow?.debatePrompt && !activeConvNow?.noProfile && !noProfileMode;
         const profileCtx = profilAutorise ? buildProfileContext(userProfile) : '';
         // Mémoire cognitive : soumise au même consentement que le profil.
@@ -3165,6 +3173,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 persona: activePersona,
                 level: activeLevel,
                 conversationnel: !estSubstantiel,
+                mentor: enMentor,
               }],
               updatedAt: new Date(),
             }
@@ -3264,7 +3273,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         sendingRef.current = false;
       }
     },
-    [activeId, conversations, sending, persona, autoMode, autoFriction, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv, formatReponse]
+    [activeId, conversations, sending, persona, autoMode, autoFriction, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv, formatReponse, modeMentor]
   );
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
@@ -3293,12 +3302,12 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
   // Résout les options multi-personas si le mode est actif et applicable.
   // Retourne undefined → envoi normal (un seul persona).
   const resoudreMulti = useCallback((text: string): { mode: 'parallele' | 'investigation'; personas: Persona[] } | undefined => {
-    if (!multiActif) return undefined;
+    if (!multiActif || modeMentor) return undefined; // le mode Mentor prime
     if (activeConv?.debatePersonaId || activeConv?.interviewType) return undefined;
     const base = autoMode ? ordrePersonas(text || 'x', multiConfig.nombre) : [persona, ...personasExtra];
     const uniques = [...new Set(base)].slice(0, 5);
     return uniques.length >= 2 ? { mode: multiConfig.mode, personas: uniques } : undefined;
-  }, [multiActif, autoMode, multiConfig, persona, personasExtra, activeConv]);
+  }, [multiActif, modeMentor, autoMode, multiConfig, persona, personasExtra, activeConv]);
 
   const submitOrQueue = useCallback((text: string, attachments: Attachment[]) => {
     if (!text.trim() && attachments.length === 0) return;
@@ -5783,9 +5792,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 // premier persona (chaque persona a déjà son propre encart) — on
                 // met un libellé neutre pour lever la confusion.
                 const estMulti = !!(msg.multiRegard || msg.doubleRegard || msg.investigation);
-                const estNeutre = estConv || estMulti;
-                const nomNeutre = estMulti ? 'Plusieurs personas' : 'Le Challenger';
-                const pColor = estNeutre ? '#5D7BFF' : PERSONAS[msg.persona ?? persona].color;
+                const estMentor = !!msg.mentor;
+                const estNeutre = estConv || estMulti || estMentor;
+                const nomNeutre = estMentor ? 'Le Mentor' : estMulti ? 'Plusieurs personas' : 'Le Challenger';
+                const pColor = estMentor ? '#10B981' : estNeutre ? '#5D7BFF' : PERSONAS[msg.persona ?? persona].color;
                 // Réponse IA en chat normal → pleine largeur, teintée de la couleur du mode
                 const aiFull = !isUser && !isInterview && !isDebate;
 
@@ -6870,6 +6880,27 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   </div>
                   );
                 })()}
+
+                {/* Mode Mentor — bascule la posture : construire au lieu de
+                    contredire. Prime sur le multi tant qu'il est actif. */}
+                {!activeConv?.debatePersonaId && (
+                  <button
+                    type="button"
+                    onClick={() => setModeMentor((v) => !v)}
+                    title="Mode Mentor : Challenger vous aide à construire au lieu de vous contredire"
+                    className={cx(
+                      'flex items-center gap-1.5 border-2 transition-all',
+                      isMobile ? 'px-2.5 py-1' : 'px-3 py-1.5',
+                      modeMentor
+                        ? 'border-[#10B981] bg-[#10B981] text-white'
+                        : 'border-[#10B981]/30 bg-[#10B981]/[0.04] text-[#10B981] hover:border-[#10B981] hover:bg-[#10B981]/10',
+                    )}
+                  >
+                    <GraduationCap className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Mentor</span>
+                    {modeMentor && <span className="text-[8px] font-black uppercase tracking-widest bg-white text-[#10B981] px-1.5 py-0.5">Actif</span>}
+                  </button>
+                )}
               </div>
             )}
 

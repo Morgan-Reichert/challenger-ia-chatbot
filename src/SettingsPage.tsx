@@ -1146,6 +1146,7 @@ export default function SettingsPage({
 
               {([
                 { cle: 'steelmanObligatoire' as const, titre: 'Steelman obligatoire', desc: 'Reformule votre idée dans sa version la plus forte (et vérifie qu\'il a bien compris) avant de la contredire.' },
+                { cle: 'personaAdaptatif' as const, titre: 'S\'adapte à votre niveau', desc: 'Pédagogue sur un raisonnement hésitant, sans concession sur un raisonnement avancé.' },
                 { cle: 'detectionSophismes' as const, titre: 'Détection de sophismes', desc: 'Repère et nomme les erreurs de raisonnement — dans vos messages comme dans ses propres réponses.' },
                 { cle: 'humiliteEpistemique' as const, titre: 'Humilité épistémique', desc: 'Affiche son degré de certitude et vous invite à recouper quand un point est incertain.' },
                 { cle: 'journalTransparence' as const, titre: 'Journal de transparence', desc: 'Explique en une phrase pourquoi il répond ainsi — pas seulement sa conclusion.' },

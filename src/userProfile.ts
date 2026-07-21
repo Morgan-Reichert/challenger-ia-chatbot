@@ -69,6 +69,9 @@ export type UserProfile = {
   detectionSophismes: boolean;
   humiliteEpistemique: boolean;
   journalTransparence: boolean;
+  // Le persona ajuste sa rigueur au niveau détecté dans le message (pédagogue
+  // pour un raisonnement hésitant, sans concession pour un raisonnement avancé).
+  personaAdaptatif: boolean;
   // Calibrage — renseigné à l'inscription, modifiable ensuite
   objectif: string;          // ce que l'utilisateur vient chercher
   personaPrefere: string;    // contradicteur de départ
@@ -111,6 +114,7 @@ export const EMPTY_PROFILE: UserProfile = {
   detectionSophismes: true,
   humiliteEpistemique: false,
   journalTransparence: true,
+  personaAdaptatif: true,
   objectif: '',
   personaPrefere: '',
   autoMode: true,
