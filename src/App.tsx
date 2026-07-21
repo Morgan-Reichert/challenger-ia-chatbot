@@ -277,6 +277,22 @@ function promptConversationnel(intention: 'social' | 'meta'): string {
   return intention === 'meta' ? PROMPT_META : PROMPT_SOCIAL;
 }
 
+/**
+ * Ne conserve que les sources RÉELLEMENT citées (`[n]`) dans le texte.
+ *
+ * La recherche remonte parfois des résultats hors sujet (un « 90 » parasite au
+ * milieu de vraies sources) : les afficher alors qu'ils ne sont jamais cités
+ * trompe le lecteur. On aligne donc la liste sur ce que la réponse mobilise
+ * vraiment. Aucune source citée → pas de section (retour `undefined`).
+ */
+function filtrerSourcesCitees(sources: SourceRef[] | undefined, texte: string): SourceRef[] | undefined {
+  if (!sources?.length) return sources;
+  const cites = new Set<number>();
+  for (const m of texte.matchAll(/\[(\d{1,2})\]/g)) cites.add(parseInt(m[1], 10));
+  const gardees = sources.filter((s) => cites.has(s.n));
+  return gardees.length ? gardees : undefined;
+}
+
 // ─── Contrôle de format : barre à 3 crans (longueur / profondeur) ────────────
 // Une barre remplace trois boutons : le choix est un curseur, pas un menu, et
 // « auto » y est un état à part entière (aucun cran allumé). Cliquer un cran le
@@ -3009,7 +3025,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 p.map((c) => c.id !== convId ? c : {
                   ...c,
                   messages: c.messages.map((m) => m.id === asstIdMulti
-                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })), sources: sourcesMulti.length ? sourcesMulti : undefined }
+                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })), sources: filtrerSourcesCitees(sourcesMulti, reponses.join('\n')) }
                     : m),
                 })
               );
@@ -3078,7 +3094,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 p.map((c) => c.id !== convId ? c : {
                   ...c,
                   messages: c.messages.map((m) => m.id === asstIdMulti
-                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese }, sources: sourcesMulti.length ? sourcesMulti : undefined }
+                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese }, sources: filtrerSourcesCitees(sourcesMulti, [synthese, ...etapes.map((e) => e.content)].join('\n')) }
                     : m),
                 })
               );
@@ -3201,16 +3217,19 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         // Nettoyer le message affiché (marqueurs cachés : biais + question)
         let cleaned = stripCiaBias(accumulated);
         if (question) cleaned = stripCiaQuestion(cleaned);
-        if (cleaned !== accumulated) {
-          setConversations((p) =>
-            p.map((c) =>
-              c.id !== convId ? c : {
-                ...c,
-                messages: c.messages.map((m) => m.id === asstId ? { ...m, content: cleaned } : m),
-              }
-            )
-          );
-        }
+        // On aligne le contenu final ET les sources : seules celles citées `[n]`
+        // dans la réponse sont conservées (retire les résultats de recherche hors
+        // sujet, jamais mobilisés).
+        setConversations((p) =>
+          p.map((c) =>
+            c.id !== convId ? c : {
+              ...c,
+              messages: c.messages.map((m) => m.id === asstId
+                ? { ...m, content: cleaned, sources: filtrerSourcesCitees(m.sources, cleaned) }
+                : m),
+            }
+          )
+        );
 
         // Sauvegarder l'état final dans Firestore
         setConversations((p) => {
