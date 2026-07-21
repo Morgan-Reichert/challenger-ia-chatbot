@@ -2984,11 +2984,15 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
           const collecterSources = (src?: SourceRef[]) => {
             if (!src?.length) return;
             for (const s of src) {
-              if (!sourcesMulti.some((x) => x.url === s.url)) {
-                sourcesMulti.push({ ...s, n: sourcesMulti.length + 1 });
-              }
+              // On CONSERVE le numéro d'origine (celui que le fact-checker cite) :
+              // renuméroter désynchroniserait les renvois [n] du texte.
+              if (!sourcesMulti.some((x) => x.n === s.n || x.url === s.url)) sourcesMulti.push(s);
             }
           };
+          // Contenu du Fact-Checker uniquement : c'est LUI qui produit et cite les
+          // sources. Filtrer les sources sur son texte seul évite qu'un autre
+          // persona (ou l'Arbitre) fasse remonter des sources hors-sujet.
+          let contenuFactcheck = '';
 
           // Un appel modèle avec le persona et le contenu utilisateur donnés.
           const repondre = async (pers: Persona, userContent: unknown): Promise<string> => {
@@ -3006,10 +3010,12 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
             });
             if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
             const data = await res.json();
-            collecterSources(data.cia_meta?.sources);
-            // Retirer aussi les questions interactives [CIA_Q:…] : le flux multi-
-            // personas n'affiche pas de widget de question, le token fuiterait brut.
-            return stripCiaQuestion(stripViz(stripCiaBias(data.choices?.[0]?.message?.content ?? ''))).trim();
+            if (pers === 'factchecker') collecterSources(data.cia_meta?.sources);
+            // On GARDE les visuels [CIA_VIZ] (dont la carte Verdict partageable) —
+            // seuls la question interactive et le marqueur de biais sont retirés.
+            const contenu = stripCiaQuestion(stripCiaBias(data.choices?.[0]?.message?.content ?? '')).trim();
+            if (pers === 'factchecker') contenuFactcheck += '\n' + contenu;
+            return contenu;
           };
 
           try {
@@ -3034,7 +3040,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 p.map((c) => c.id !== convId ? c : {
                   ...c,
                   messages: c.messages.map((m) => m.id === asstIdMulti
-                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })), sources: filtrerSourcesCitees(sourcesMulti, reponses.join('\n')) }
+                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })), sources: filtrerSourcesCitees(sourcesMulti, contenuFactcheck) }
                     : m),
                 })
               );
@@ -3097,13 +3103,13 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
               });
               if (!resSynth.ok) throw Object.assign(new Error(`HTTP ${resSynth.status}`), { status: resSynth.status });
               const dataSynth = await resSynth.json();
-              const synthese = stripCiaQuestion(stripViz(stripCiaBias(dataSynth.choices?.[0]?.message?.content ?? ''))).trim();
+              const synthese = stripCiaQuestion(stripCiaBias(dataSynth.choices?.[0]?.message?.content ?? '')).trim();
               playDone();
               setConversations((p) =>
                 p.map((c) => c.id !== convId ? c : {
                   ...c,
                   messages: c.messages.map((m) => m.id === asstIdMulti
-                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese }, sources: filtrerSourcesCitees(sourcesMulti, [synthese, ...etapes.map((e) => e.content)].join('\n')) }
+                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese }, sources: filtrerSourcesCitees(sourcesMulti, contenuFactcheck) }
                     : m),
                 })
               );
