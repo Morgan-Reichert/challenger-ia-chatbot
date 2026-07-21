@@ -24,11 +24,14 @@ export interface SourceRef {
   tierLabel?: string;
 }
 
+// « unknown » ne veut PAS dire « douteuse » : la source a bien été atteinte et
+// jugée consultable, on n'a simplement pas de note de réputation pour ce
+// domaine. Un libellé neutre (et non « Non vérifiée », qui alarme à tort).
 const TIER_UI: Record<SourceTier, { color: string; label: string }> = {
   high:    { color: '#10B981', label: 'Fiable' },
   medium:  { color: '#FBBF24', label: 'Modérée' },
   low:     { color: '#EF4444', label: 'Peu fiable' },
-  unknown: { color: '#9CA3AF', label: 'Non vérifiée' },
+  unknown: { color: '#9CA3AF', label: 'Non classée' },
 };
 
 /** Transforme les `[n]` (n valide) en liens markdown `[n](#cia-src-n)`. */

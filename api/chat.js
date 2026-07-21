@@ -53,6 +53,24 @@ function getSourceTier(url) {
     if (SOURCE_TIERS.high.some(d => domain.endsWith(d))) return 'high';
     if (SOURCE_TIERS.medium.some(d => domain.endsWith(d))) return 'medium';
     if (SOURCE_TIERS.low.some(d => domain.endsWith(d))) return 'low';
+
+    // ── Heuristiques par nature du domaine ──────────────────────────────────
+    // Sans elles, la liste blanche (surtout FR) laissait tomber en « inconnue »
+    // des sources parfaitement fiables — au premier chef Wikipédia, qui est
+    // justement la source de repli quand la recherche payante est indisponible.
+
+    // Institutions publiques / gouvernementales et organisations internationales.
+    if (/(^|\.)(gouv\.fr|gov|gc\.ca)$/.test(domain)) return 'high';
+    if (/(^|\.)gov\.[a-z]{2}$/.test(domain) || /(^|\.)gouv\.[a-z]{2}$/.test(domain)) return 'high';
+    if (domain.endsWith('.int') || domain.endsWith('europa.eu')) return 'high';
+    // Monde académique et scientifique.
+    if (domain.endsWith('.edu') || /\.edu\.[a-z]{2}$/.test(domain)) return 'high';
+    if (/\.ac\.[a-z]{2}$/.test(domain) || domain.startsWith('univ-') || domain.includes('.univ-')) return 'high';
+    // Encyclopédies collaboratives : sérieuses et sourcées, mais tertiaires et
+    // éditables → « modérée » (pas « fiable »), jamais « inconnue ».
+    if (/(^|\.)(wikipedia|wikimedia|wikidata|wiktionary|wikinews|wikisource)\.org$/.test(domain)) return 'medium';
+    if (/(^|\.)(britannica|larousse|universalis|persee|cairn|openedition)\.[a-z.]+$/.test(domain)) return 'medium';
+
     return 'unknown';
   } catch {
     return 'unknown';
@@ -60,7 +78,7 @@ function getSourceTier(url) {
 }
 
 function tierLabel(tier) {
-  return { high: 'Source fiable', medium: 'Source modérée', low: 'Source peu fiable', unknown: 'Source inconnue' }[tier];
+  return { high: 'Source fiable', medium: 'Source modérée', low: 'Source peu fiable', unknown: 'Fiabilité non classée' }[tier];
 }
 
 // ─── Détection automatique du besoin de recherche web ────────────────────────
