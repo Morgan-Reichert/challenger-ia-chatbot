@@ -5775,7 +5775,13 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 // Réponse conversationnelle (bonjour / méta) : « Le Challenger »
                 // en bleu auto, sans persona ni friction.
                 const estConv = !!msg.conversationnel;
-                const pColor = estConv ? '#5D7BFF' : PERSONAS[msg.persona ?? persona].color;
+                // Réponse multi-personas : l'en-tête ne doit PAS porter le nom du
+                // premier persona (chaque persona a déjà son propre encart) — on
+                // met un libellé neutre pour lever la confusion.
+                const estMulti = !!(msg.multiRegard || msg.doubleRegard || msg.investigation);
+                const estNeutre = estConv || estMulti;
+                const nomNeutre = estMulti ? 'Plusieurs personas' : 'Le Challenger';
+                const pColor = estNeutre ? '#5D7BFF' : PERSONAS[msg.persona ?? persona].color;
                 // Réponse IA en chat normal → pleine largeur, teintée de la couleur du mode
                 const aiFull = !isUser && !isInterview && !isDebate;
 
@@ -5835,7 +5841,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           return <IIcon className="w-2.5 h-2.5" style={{ color: `${ic.accentColor}90` }} />;
                         })()}
                         {!isUser && !isInterview && !isDebate && (() => {
-                          const MsgIcon = estConv ? Sparkles : PERSONAS[msg.persona ?? persona].icon;
+                          const MsgIcon = estNeutre ? Sparkles : PERSONAS[msg.persona ?? persona].icon;
                           return <MsgIcon className="w-2.5 h-2.5" style={{ color: pColor }} />;
                         })()}
                         {!isUser && !isInterview && isDebate && dp && (
@@ -5853,10 +5859,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           {isUser ? 'Vous'
                             : isInterview && ic ? ic.interviewerRole
                             : isDebate && dp ? dp.shortName
-                            : estConv ? 'Le Challenger'
+                            : estNeutre ? nomNeutre
                             : PERSONAS[msg.persona ?? persona].shortName}
                         </p>
-                        {!isUser && !isInterview && !isDebate && !estConv && msg.level && (
+                        {!isUser && !isInterview && !isDebate && !estNeutre && msg.level && (
                           <span className="text-[6px] font-black uppercase tracking-widest text-[#6b7280] border border-[#dcdfe4] px-1 py-px rounded-sm">
                             {FRICTION[msg.level ?? level].label}
                           </span>
