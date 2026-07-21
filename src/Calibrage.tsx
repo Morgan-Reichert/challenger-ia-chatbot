@@ -141,7 +141,7 @@ export default function Calibrage({
     {
       cle: 'ouverture', narration: 'Avant de vous contredire, autant savoir à qui l’on parle.',
       titre: 'Six questions. Deux minutes.', sous:
-        'Elles ont l’air anodines. Elles déterminent le contradicteur qu’on vous assigne, '
+        'Elles ont l’air anodines. Elles déterminent le persona qu’on vous assigne, '
         + 'le ton qu’il adopte et la longueur de ses réponses. Le dernier écran vous montrera '
         + 'exactement ce qu’on en a déduit.',
       illus: IllusIdentite,
@@ -160,7 +160,7 @@ export default function Calibrage({
       illus: IllusContradiction },
     { cle: 'appui', narration: 'Encore une.',
       titre: 'Pour trancher, vous vous fiez d’abord…',
-      sous: 'C’est ce qui choisit lequel des quatre contradicteurs vous accueille.',
+      sous: 'C’est ce qui choisit lequel des personas vous accueille.',
       illus: IllusDecision },
     { cle: 'temps', narration: 'Presque terminé.',
       titre: 'Combien de temps avez-vous, d’habitude ?',

@@ -361,7 +361,7 @@ const ARBORESCENCE: SectionReglages[] = [
     sous: [
       { id: 'ecran',         label: 'Écran de chat',      icon: MessageSquare, hint: 'Suggestions et défi du jour' },
       { id: 'notifications', label: 'Notifications',      icon: Bell,          hint: 'Alertes push sur cet appareil' },
-      { id: 'personas',      label: 'Studio de personas', icon: Sparkles,      hint: 'Créer un contradicteur sur mesure' },
+      { id: 'personas',      label: 'Studio de personas', icon: Sparkles,      hint: 'Créer un persona sur mesure' },
       { id: 'a11y',          label: 'Accessibilité',      icon: Accessibility, hint: 'Taille du texte, contraste, animations' },
       { id: 'dossier',       label: 'Dossier de travail', icon: FolderOpen,    hint: 'Où enregistrer les PDF générés' },
     ],

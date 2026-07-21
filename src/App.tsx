@@ -269,9 +269,9 @@ Une à deux phrases suffisent. Tu peux, si c'est naturel, inviter l'utilisateur 
 
 const PROMPT_META = `Tu es Challenger, un assistant de pensée critique. L'utilisateur demande ce que tu sais faire, qui tu es, ou comment tu fonctionnes.
 Explique-le clairement, simplement, sans jargon et sans le contredire.
-Ce que tu fais : tu mets à l'épreuve une idée, une opinion, une décision ou un raisonnement en jouant le contradicteur constructif.
-Tu peux adopter différents profils selon la question — l'Architecte (logique et cohérence), le Fact-Checker (preuves et sources), l'Opposant (attaque des valeurs), l'Arbitre (tranche), le Stratège (plan d'action) — et le ton se règle d'une friction douce à extrême.
-Tu peux aussi répondre avec plusieurs profils à la fois, mener une investigation où ils s'enchaînent, régler la longueur et la profondeur de la réponse, et générer des PDF.
+Ce que tu fais : tu mets à l'épreuve une idée, une opinion, une décision ou un raisonnement en incarnant un persona qui la challenge de façon constructive.
+Tu peux adopter différents personas selon la question — l'Architecte (logique et cohérence), le Fact-Checker (preuves et sources), l'Opposant (attaque des valeurs), l'Arbitre (tranche), le Stratège (plan d'action) — et le ton se règle d'une friction douce à extrême.
+Tu peux aussi répondre avec plusieurs personas à la fois, mener une investigation où ils s'enchaînent, régler la longueur et la profondeur de la réponse, et générer des PDF.
 Termine en invitant l'utilisateur à te soumettre une thèse, une opinion ou une décision. Reste concis : quelques phrases ou une courte liste. Ne contredis rien.`;
 
 function promptConversationnel(intention: 'social' | 'meta'): string {
@@ -1579,6 +1579,13 @@ export default function App() {
   const [multiConfigOuvert, setMultiConfigOuvert] = useState(false);
   // Mode manuel : personas ajoutés au persona de base pour une réponse multiple.
   const [personasExtra, setPersonasExtra] = useState<Persona[]>([]);
+  // Mode multi-personas ACTIF : quand vrai, un envoi normal (Entrée / bouton)
+  // déclenche une réponse à plusieurs personas. Fini le « tape puis lance » —
+  // c'est un mode qu'on active, puis on écrit et on envoie comme d'habitude.
+  const [multiActif, setMultiActif] = useState(false);
+  // Dernier envoi mémorisé, pour proposer « Réessayer » si la réponse échoue.
+  const [dernierEnvoi, setDernierEnvoi] = useState<{ text: string; attachments: Attachment[]; opts?: { multi?: { mode: 'parallele' | 'investigation'; personas: Persona[] } } } | null>(null);
+  const [reessaiEnAttente, setReessaiEnAttente] = useState(false);
   // Cheminements d'investigation dépliés (par id de message).
   const [cheminementsOuverts, setCheminementsOuverts] = useState<Set<string>>(new Set());
   // Dernière déduction, affichée sous la réponse pour l'expliquer et l'annuler.
@@ -2665,6 +2672,7 @@ export default function App() {
       if (!text.trim() && attachments.length === 0) return;
       if (sending || sendingRef.current) return;
       sendingRef.current = true;
+      setDernierEnvoi({ text, attachments, opts }); // mémorisé pour « Réessayer »
       setActiveQuestion(null); // Effacer la question interactive en cours
 
       // ── Modèle Hybride : quotas pour tous les plans ──────────────────────
@@ -3117,7 +3125,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
             if (typeErreur === 'quota') {
               setChatNotif({
                 type: 'error',
-                msg: 'Crédits épuisés — l’analyse à plusieurs personas consomme un crédit par contradicteur. Rechargez pour continuer.',
+                msg: 'Crédits épuisés — l’analyse à plusieurs personas consomme un crédit par persona. Rechargez pour continuer.',
                 action: { label: 'Acheter des crédits →', page: 'settings' },
               });
             } else {
@@ -3272,6 +3280,16 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
    * Un seul message peut attendre à la fois : au-delà, l'utilisateur
    * empilerait des tours qu'il ne pourrait plus relire avant qu'ils partent.
    */
+  // Résout les options multi-personas si le mode est actif et applicable.
+  // Retourne undefined → envoi normal (un seul persona).
+  const resoudreMulti = useCallback((text: string): { mode: 'parallele' | 'investigation'; personas: Persona[] } | undefined => {
+    if (!multiActif) return undefined;
+    if (activeConv?.debatePersonaId || activeConv?.interviewType) return undefined;
+    const base = autoMode ? ordrePersonas(text || 'x', multiConfig.nombre) : [persona, ...personasExtra];
+    const uniques = [...new Set(base)].slice(0, 5);
+    return uniques.length >= 2 ? { mode: multiConfig.mode, personas: uniques } : undefined;
+  }, [multiActif, autoMode, multiConfig, persona, personasExtra, activeConv]);
+
   const submitOrQueue = useCallback((text: string, attachments: Attachment[]) => {
     if (!text.trim() && attachments.length === 0) return;
 
@@ -3282,8 +3300,9 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
       setPendingAttachments([]);
       return;
     }
-    send(text, attachments);
-  }, [sending, queuedMessage, send]);
+    const multi = resoudreMulti(text);
+    send(text, attachments, multi ? { multi } : undefined);
+  }, [sending, queuedMessage, send, resoudreMulti]);
 
   // Le tour en cours est terminé : le message en attente part à son tour et
   // redevient un message ordinaire.
@@ -3291,8 +3310,33 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
     if (!queuedMessage || sending || sendingRef.current) return;
     const enAttente = queuedMessage;
     setQueuedMessage(null);
-    send(enAttente.text, enAttente.attachments);
-  }, [sending, queuedMessage, send]);
+    const multi = resoudreMulti(enAttente.text);
+    send(enAttente.text, enAttente.attachments, multi ? { multi } : undefined);
+  }, [sending, queuedMessage, send, resoudreMulti]);
+
+  // « Réessayer » : retire la réponse échouée (et la question qui la précède),
+  // puis relance le même envoi. Le renvoi se fait dans un effet, APRÈS le retrait
+  // des messages, pour que `send` reparte d'un fil propre (état à jour).
+  const reessayer = useCallback(() => {
+    if (!dernierEnvoi || sending || sendingRef.current) return;
+    setChatError(null);
+    setConversations((p) => p.map((c) => c.id !== activeId ? c : {
+      ...c,
+      messages: (() => {
+        const m = [...c.messages];
+        while (m.length && m[m.length - 1].role !== 'user') m.pop(); // réponses/commandes en fin
+        if (m.length && m[m.length - 1].role === 'user') m.pop();     // la question
+        return m;
+      })(),
+    }));
+    setReessaiEnAttente(true);
+  }, [dernierEnvoi, sending, activeId]);
+
+  useEffect(() => {
+    if (!reessaiEnAttente || sending || sendingRef.current) return;
+    setReessaiEnAttente(false);
+    if (dernierEnvoi) send(dernierEnvoi.text, dernierEnvoi.attachments, dernierEnvoi.opts);
+  }, [reessaiEnAttente, sending, dernierEnvoi, send]);
 
   /**
    * Annule l'envoi et restitue le texte — et les pièces jointes — à la saisie.
@@ -4517,7 +4561,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-[#5D7BFF]/25 bg-[#5D7BFF]/[0.06]">
                     <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#5D7BFF]" />
                     <p className="text-[10px] text-white/45 leading-relaxed">
-                      Le Challenger choisit le contradicteur selon votre question.
+                      Le Challenger choisit le persona selon votre question.
                       Coupez l'auto pour le choisir vous-même.
                     </p>
                   </div>
@@ -5881,7 +5925,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         <div className="flex items-center gap-1.5 mb-2.5">
                           <Sparkles className="w-3 h-3 text-[#5D7BFF]" />
                           <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">
-                            {(() => { const n = (msg.multiRegard ?? msg.doubleRegard)!.length; return n <= 2 ? 'Double regard' : `Regards croisés · ${n} contradicteurs`; })()}
+                            {(() => { const n = (msg.multiRegard ?? msg.doubleRegard)!.length; return n <= 2 ? 'Double regard' : `Regards croisés · ${n} personas`; })()}
                           </span>
                         </div>
                         <div className="grid md:grid-cols-2 gap-2.5">
@@ -5975,24 +6019,32 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#EF4444]" />
                           <div className="min-w-0">
                             <p className="text-[11px] font-black uppercase tracking-widest text-[#EF4444] mb-1">Analyse interrompue</p>
-                            {msg.multiErreur === 'quota' ? (
-                              <>
-                                <p className="text-[12px] text-[var(--text-primary)]/70 leading-relaxed">
-                                  Crédits épuisés. Une réponse à plusieurs personas coûte un crédit par contradicteur — il n'en restait pas assez pour aller au bout.
-                                </p>
+                            <p className="text-[12px] text-[var(--text-primary)]/70 leading-relaxed">
+                              {msg.multiErreur === 'quota'
+                                ? "Crédits épuisés. Une réponse à plusieurs personas coûte un crédit par persona — il n'en restait pas assez pour aller au bout."
+                                : "Connexion interrompue pendant l'analyse. Vérifiez votre réseau, puis réessayez."}
+                            </p>
+                            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                              {msg.multiErreur === 'quota' && (
                                 <button
                                   type="button"
                                   onClick={() => setCurrentPage('settings')}
-                                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
                                 >
                                   <Coins className="w-3.5 h-3.5" /> Acheter des crédits
                                 </button>
-                              </>
-                            ) : (
-                              <p className="text-[12px] text-[var(--text-primary)]/70 leading-relaxed">
-                                Connexion interrompue pendant l'analyse. Vérifiez votre réseau, puis relancez.
-                              </p>
-                            )}
+                              )}
+                              {dernierEnvoi && (
+                                <button
+                                  type="button"
+                                  onClick={reessayer}
+                                  disabled={sending}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border-2 border-[#5D7BFF]/40 text-[#5D7BFF] text-[10px] font-black uppercase tracking-widest hover:bg-[#5D7BFF]/10 transition-colors disabled:opacity-40"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> Réessayer
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -6056,6 +6108,21 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           </p>
                         )}
                       </div>
+                    ) : (!isUser && !msg.multiRegard && !msg.doubleRegard && !msg.investigation && !msg.multiErreur
+                        && !(sending && msgIdx === activeConv.messages.length - 1)) ? (
+                      /* Réponse assistant vide (échec silencieux) → proposer un réessai. */
+                      <div className="px-4 py-3">
+                        <p className="text-[11px] text-[var(--text-primary)]/45 mb-2">La réponse ne s'est pas affichée.</p>
+                        {dernierEnvoi && (
+                          <button
+                            onClick={reessayer}
+                            disabled={sending}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border-2 border-[#5D7BFF]/40 text-[#5D7BFF] text-[10px] font-black uppercase tracking-widest hover:bg-[#5D7BFF]/10 transition-colors disabled:opacity-40"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Réessayer
+                          </button>
+                        )}
+                      </div>
                     ) : null}
                   </div>
                 </motion.div>
@@ -6114,6 +6181,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         Erreur
                       </p>
                       <p className="text-xs text-red-600">{chatError}</p>
+                      {dernierEnvoi && (
+                        <button
+                          onClick={reessayer}
+                          disabled={sending}
+                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors disabled:opacity-40"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Réessayer
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -6630,32 +6706,28 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 {!activeConv?.debatePersonaId && (() => {
                   const nbCredits = (autoMode ? multiConfig.nombre : 1 + personasExtra.length)
                     + (multiConfig.mode === 'investigation' ? 1 : 0);
-                  const personasResolus = autoMode
-                    ? ordrePersonas(input || 'x', multiConfig.nombre)
-                    : [persona, ...personasExtra];
-                  const pretALancer = !!input.trim() && !sending && personasResolus.length >= 2;
-                  const lancer = () => {
-                    if (!pretALancer) return;
-                    setMultiConfigOuvert(false);
-                    send(input, pendingAttachments, { multi: { mode: multiConfig.mode, personas: personasResolus } });
-                  };
+                  const manuelSansExtra = !autoMode && personasExtra.length === 0;
                   return (
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setMultiConfigOuvert((o) => !o)}
-                      title="Autoriser une réponse à plusieurs contradicteurs"
+                      title="Répondre avec plusieurs personas"
                       className={cx(
                         'group flex items-center gap-1.5 border-2 transition-all',
                         isMobile ? 'px-2.5 py-1' : 'px-3 py-1.5',
-                        multiConfigOuvert
-                          ? 'border-[#5D7BFF] bg-[#5D7BFF]/10 text-[#5D7BFF]'
-                          : 'border-[#5D7BFF]/30 bg-[#5D7BFF]/[0.04] text-[#5D7BFF] hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/10',
+                        multiActif
+                          ? 'border-[#5D7BFF] bg-[#5D7BFF] text-white'
+                          : multiConfigOuvert
+                            ? 'border-[#5D7BFF] bg-[#5D7BFF]/10 text-[#5D7BFF]'
+                            : 'border-[#5D7BFF]/30 bg-[#5D7BFF]/[0.04] text-[#5D7BFF] hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/10',
                       )}
                     >
                       <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">{isMobile ? 'Multi' : 'Plusieurs personas'}</span>
-                      <span className="text-[8px] font-black uppercase tracking-widest bg-[#5D7BFF] text-white px-1.5 py-0.5 whitespace-nowrap">×{nbCredits}</span>
+                      <span className={cx('text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 whitespace-nowrap', multiActif ? 'bg-white text-[#5D7BFF]' : 'bg-[#5D7BFF] text-white')}>
+                        {multiActif ? `Actif · ×${nbCredits}` : `×${nbCredits}`}
+                      </span>
                     </button>
 
                     {multiConfigOuvert && (
@@ -6677,12 +6749,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                               <Sparkles className="w-3.5 h-3.5 text-[#5D7BFF]" />
                               <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Réponse à plusieurs personas</span>
                             </div>
+                            <p className="text-[9px] text-[var(--text-primary)]/45 leading-snug -mt-1.5">
+                              Une fois activé, écrivez votre question et envoyez comme d'habitude — plusieurs personas y répondront.
+                            </p>
 
                             {autoMode ? (
                               /* Auto : le jeu est déduit, on règle juste le nombre. */
                               <div>
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50">Nombre de contradicteurs</span>
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50">Nombre de personas</span>
                                   <div className="flex items-center gap-2">
                                     <button type="button" onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre - 1 })} disabled={multiConfig.nombre <= 2}
                                       className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black">−</button>
@@ -6696,7 +6771,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                             ) : (
                               /* Manuel : le persona de base répond toujours ; on ajoute les autres. */
                               <div>
-                                <span className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-2">Contradicteurs</span>
+                                <span className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-2">Personas</span>
                                 <div className="flex flex-wrap gap-1.5">
                                   {(Object.keys(PERSONAS) as Persona[]).map((k) => {
                                     const info = PERSONAS[k];
@@ -6750,16 +6825,26 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                               ))}
                             </div>
 
+                            {/* Interrupteur : active le MODE. Ensuite l'utilisateur
+                                écrit et envoie normalement — plus de « lancer ». */}
                             <button
                               type="button"
-                              onClick={lancer}
-                              disabled={!pretALancer}
-                              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                              onClick={() => setMultiActif((v) => !v)}
+                              disabled={manuelSansExtra && !multiActif}
+                              className={cx('w-full flex items-center justify-between gap-3 px-3 py-2.5 border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed',
+                                multiActif ? 'border-[#5D7BFF] bg-[#5D7BFF]/[0.08]' : 'border-[var(--border)] hover:border-[#5D7BFF]/40')}
                             >
-                              <Sparkles className="w-3.5 h-3.5" />
-                              {!input.trim() ? 'Écrivez votre question'
-                                : personasResolus.length < 2 ? 'Ajoutez un contradicteur'
-                                : `Lancer · ×${nbCredits} crédits`}
+                              <span className="text-left min-w-0">
+                                <span className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]">Répondre avec plusieurs personas</span>
+                                <span className="block text-[8px] text-[var(--text-primary)]/50 leading-snug">
+                                  {manuelSansExtra ? 'Ajoutez au moins un persona ci-dessus'
+                                    : multiActif ? `Activé — chaque message coûte ×${nbCredits} crédits`
+                                    : 'Écrivez et envoyez ensuite normalement'}
+                                </span>
+                              </span>
+                              <span className={cx('relative w-9 h-5 rounded-full transition-colors flex-shrink-0', multiActif ? 'bg-[#5D7BFF]' : 'bg-[var(--text-primary)]/20')}>
+                                <span className={cx('absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all', multiActif ? 'left-[18px]' : 'left-0.5')} />
+                              </span>
                             </button>
                           </motion.div>
                         </>
