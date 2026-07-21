@@ -149,9 +149,10 @@ ${dosage}`;
   const COGNITIVE = `
 ## Profil cognitif (marqueur caché — TOUTE dernière ligne, OBLIGATOIRE)
 Après ta réponse, ajoute un unique marqueur caché analysant le DERNIER message de l'utilisateur. Rien après. Format EXACT :
-[CIA_BIAS:{"tags":[],"forces":[]}]
+[CIA_BIAS:{"tags":[],"forces":[],"these":{"sujet":"","position":""}}]
 - "tags" = faiblesses de raisonnement RÉELLEMENT présentes (0 à 3, uniquement si avérées). Clés autorisées : generalisation_abusive, correlation_causalite, appel_autorite, biais_confirmation, homme_de_paille, faux_dilemme, pente_glissante, ad_hominem, appel_emotion, cherry_picking, anecdote, petition_principe.
 - "forces" = bons réflexes de raisonnement RÉELLEMENT présents et SUBSTANTIELS (0 à 3). Ne remplis JAMAIS ce champ par complaisance — laisse-le vide si rien ne le mérite vraiment. Clés autorisées : nuance, demande_preuve, contre_exemple, distinction, incertitude_assumee, steelman, hypothese_alternative, causalite_prudente, definition_claire, revision.
+- "these" = SI l'utilisateur défend une position claire, note "sujet" (3-6 mots) et "position" (sa thèse en une phrase courte). Sinon laisse les deux vides. Sert la mémoire longue.
 Ne mentionne JAMAIS ce marqueur dans le texte visible.`;
 
   const roles = {

@@ -58,7 +58,7 @@ import {
 import { subscribeToNewsletter, getSubscription, getUserCredits, addCredits, CREDIT_PACKS, type Plan } from './supabase';
 import { apiFetch, apiUrl } from './apiClient';
 import { notifyLocal } from './push';
-import { parseCiaBias, parseCiaStrengths, stripCiaBias, recordCognitive, loadCognitive, cognitiveContext, type Cognitive } from './cognitive';
+import { parseCiaBias, parseCiaStrengths, parseCiaThese, stripCiaBias, recordCognitive, loadCognitive, cognitiveContext, type Cognitive } from './cognitive';
 import { useMaintenance, isBlocked, useProductLogo, StariaxMaintenanceScreen, StariaxSectionGate } from './StariaxGate';
 import BetaBadge from './BetaBadge';
 import { useBeta } from './beta';
@@ -3331,7 +3331,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
 
         // Profil cognitif : enregistrer les faiblesses de raisonnement détectées
         if (/\[CIA_BIAS:/.test(accumulated) && user) {
-          recordCognitive(user.uid, parseCiaBias(accumulated), parseCiaStrengths(accumulated));
+          recordCognitive(user.uid, parseCiaBias(accumulated), parseCiaStrengths(accumulated), parseCiaThese(accumulated));
         }
 
         // Détecter une question interactive dans la réponse

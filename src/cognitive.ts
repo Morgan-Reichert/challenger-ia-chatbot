@@ -46,6 +46,19 @@ export function parseCiaBias(text: string): string[] {
   } catch { return []; }
 }
 
+/** Extrait la thèse défendue (sujet + position) du marqueur caché, ou null. */
+export function parseCiaThese(text: string): { sujet: string; position: string } | null {
+  const m = text.match(RE);
+  if (!m) return null;
+  try {
+    const o = JSON.parse(m[1]);
+    const sujet = typeof o?.these?.sujet === 'string' ? o.these.sujet.trim() : '';
+    const position = typeof o?.these?.position === 'string' ? o.these.position.trim() : '';
+    if (!sujet || !position) return null;
+    return { sujet: sujet.slice(0, 80), position: position.slice(0, 200) };
+  } catch { return null; }
+}
+
 /** Extrait jusqu'à 3 forces de raisonnement valides du marqueur caché. */
 export function parseCiaStrengths(text: string): string[] {
   const m = text.match(RE);
@@ -67,6 +80,8 @@ export type Cognitive = {
   strengths?: Record<string, number>;
   totalMessages: number;
   weeks: Record<string, { flags: number; messages: number; wins?: number }>;
+  // Mémoire longue : thèses défendues par l'utilisateur au fil des sessions.
+  theses?: { sujet: string; position: string; at: string }[];
   updatedAt?: string;
 };
 
@@ -77,7 +92,7 @@ function weekKey(d: Date): string {
 }
 
 /** Enregistre biais ET forces détectés dans une réponse (compteurs + suivi hebdo). */
-export async function recordCognitive(userId: string, tags: string[], forces: string[] = []): Promise<void> {
+export async function recordCognitive(userId: string, tags: string[], forces: string[] = [], these: { sujet: string; position: string } | null = null): Promise<void> {
   if (!db) return;
   try {
     const ref = doc(db, 'users', userId, 'meta', 'cognitive');
@@ -89,6 +104,11 @@ export async function recordCognitive(userId: string, tags: string[], forces: st
     cur.totalMessages = (cur.totalMessages || 0) + 1;
     for (const t of tags) cur.counts[t] = (cur.counts[t] || 0) + 1;
     for (const f of forces) cur.strengths[f] = (cur.strengths[f] || 0) + 1;
+    if (these) {
+      cur.theses = (cur.theses || []).filter((t) => t.sujet.toLowerCase() !== these.sujet.toLowerCase());
+      cur.theses.push({ ...these, at: new Date().toISOString() });
+      if (cur.theses.length > 20) cur.theses = cur.theses.slice(-20); // on garde les 20 plus récentes
+    }
     const wk = weekKey(new Date());
     const w = cur.weeks[wk] || { flags: 0, messages: 0, wins: 0 };
     w.messages += 1;
@@ -132,7 +152,8 @@ export function cognitiveContext(c: Cognitive | null): string {
     .slice(0, 2)
     .map(([tag]) => STRENGTH_TAGS[tag]?.label ?? tag);
 
-  if (!top.length && !forces.length) return '';
+  const theses = (c.theses ?? []).slice(-6);
+  if (!top.length && !forces.length && !theses.length) return '';
 
   const lignes = [
     '## Historique cognitif de cet utilisateur (CONFIDENTIEL — ne jamais citer)',
@@ -140,6 +161,11 @@ export function cognitiveContext(c: Cognitive | null): string {
   ];
   if (top.length) lignes.push(`- Angles morts récurrents : ${top.join(', ')}.`);
   if (forces.length) lignes.push(`- Réflexes solides déjà acquis : ${forces.join(', ')}.`);
+  if (theses.length) {
+    lignes.push('- Positions déjà défendues par le passé :');
+    for (const t of theses) lignes.push(`  · ${t.sujet} → « ${t.position} »`);
+    lignes.push("- Si sa position ACTUELLE contredit l'une de ces positions passées, tu PEUX le lui faire remarquer (« la dernière fois, tu défendais plutôt l'inverse — qu'est-ce qui a changé ? ») — mais seulement si la contradiction est réelle et pertinente, jamais pour le piéger.");
+  }
   lignes.push(
     '',
     "USAGE STRICT :",
