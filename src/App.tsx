@@ -38,6 +38,7 @@ import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from 
 import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
 import { buildSystemPrompt } from './systemPrompt.js';
 import { deducePersona } from './deducePersona';
+import { deduceFriction } from './deduceFriction';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
@@ -1406,6 +1407,13 @@ export default function App() {
     const a = loadProfile().autoMode;
     return a !== false; // défaut vrai, y compris pour un profil antérieur au champ
   });
+  // Friction automatique : le ton se déduit de la posture du message, comme le
+  // contradicteur se déduit de son intention. Indépendant de l'auto contradicteur
+  // — on peut vouloir l'un sans l'autre.
+  const [autoFriction, setAutoFriction] = useState<boolean>(() => {
+    const a = loadProfile().autoFriction;
+    return a !== false;
+  });
   // Dernière déduction, affichée sous la réponse pour l'expliquer et l'annuler.
   const [derniereDeduction, setDerniereDeduction] = useState<
     { persona: Persona; motif: string; parDefaut: boolean } | null
@@ -2121,6 +2129,17 @@ export default function App() {
     });
   }, [user]);
 
+  // Même logique pour la friction automatique, persistée séparément.
+  const basculerAutoFriction = useCallback((valeur: boolean) => {
+    setAutoFriction(valeur);
+    setUserProfile((actuel) => {
+      const suivant = { ...actuel, autoFriction: valeur };
+      saveProfile(suivant);
+      if (user) void fsSaveProfileRemote(user.uid, suivant);
+      return suivant;
+    });
+  }, [user]);
+
   const handleSignOut = async () => {
     if (!auth) return;
     await fbSignOut(auth);
@@ -2536,6 +2555,7 @@ export default function App() {
       // déduction — on ne change pas de contradicteur en cours d'échange.
       const conversationEngagee = activeConv?.messages?.some((m) => m.role === 'user');
       let activePersona = persona;
+      let activeLevel = level;
       if (autoMode && !conversationEngagee) {
         // Le contradicteur est déduit du premier message. On ne redéduit pas en
         // cours d'échange : changer d'interlocuteur au milieu d'une conversation
@@ -2548,7 +2568,12 @@ export default function App() {
         // Mode manuel, ou conversation déjà engagée : on garde le persona courant.
         setDerniereDeduction(null);
       }
-      const activeLevel = level;
+      // La friction se déduit indépendamment, et seulement au premier message.
+      if (autoFriction && !conversationEngagee) {
+        const df = deduceFriction(text);
+        activeLevel = df.level;
+        setLevel(df.level);
+      }
 
       const userMsg: Message = {
         id: uid(),
@@ -2804,7 +2829,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         sendingRef.current = false;
       }
     },
-    [activeId, conversations, sending, persona, autoMode, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv]
+    [activeId, conversations, sending, persona, autoMode, autoFriction, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv]
   );
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
@@ -3466,7 +3491,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
   const AUTO_BLEU = '#5D7BFF';
   const enTeteCouleur = afficherAuto ? AUTO_BLEU : PERSONAS[persona].color;
   const EnTeteIcone = afficherAuto ? Sparkles : CurrentIcon;
-  const enTeteNom = afficherAuto ? 'Mode automatique' : PERSONAS[persona].name;
+  const enTeteNom = afficherAuto ? 'Le Challenger' : PERSONAS[persona].name;
 
   // ─── STARIAX : coupure globale pilotée à distance ───────────────────────────
   // Placé après tous les hooks (règle des hooks) et avant le rendu principal.
@@ -3977,7 +4002,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     l'auto — auquel cas on choisit soi-même, comme avant. */}
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-black uppercase tracking-widest text-white/25">
-                    Contradicteur
+                    Challenger
                   </span>
                   <button
                     onClick={() => basculerAuto(!autoMode)}
@@ -4002,8 +4027,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-[#5D7BFF]/25 bg-[#5D7BFF]/[0.06]">
                     <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#5D7BFF]" />
                     <p className="text-[10px] text-white/45 leading-relaxed">
-                      Le contradicteur s'adapte à votre question. Coupez l'auto
-                      pour le choisir vous-même.
+                      Le Challenger choisit le contradicteur selon votre question.
+                      Coupez l'auto pour le choisir vous-même.
                     </p>
                   </div>
                 ) : (
@@ -4016,7 +4041,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           key={p.id}
                           onClick={() => {
                             if (p.id !== persona && activeId) {
-                              addCommandMsg(`— Contradicteur : ${p.name} —`);
+                              addCommandMsg(`— Challenger : ${p.name} —`);
                             }
                             setPersona(p.id);
                             setDerniereDeduction(null);
@@ -4045,32 +4070,78 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               </div>
               )} {/* fin persona selector conditionnel */}
 
-              {/* Friction level */}
+              {/* Friction — barre à trois crans plutôt que trois boutons : la
+                  friction est une intensité, une échelle la représente mieux
+                  qu'un choix discret. Un interrupteur « Auto » la déduit du ton
+                  du message, comme le Challenger déduit le contradicteur. */}
               <div>
-                <p className="text-[11px] font-black uppercase tracking-widest text-white/25 mb-3">
-                  Niveau de Friction
-                </p>
-                <div className="grid grid-cols-3 gap-1">
-                  {(
-                    Object.entries(FRICTION) as [FrictionLevel, (typeof FRICTION)[FrictionLevel]][]
-                  ).map(([key, val]) => (
-                    <button
-                      key={key}
-                      onClick={() => setLevel(key)}
-                      className={cx(
-                        'py-2 px-1 text-center rounded-lg border transition-all',
-                        level === key
-                          ? 'bg-[#5D7BFF] border-[#5D7BFF] text-white'
-                          : 'bg-transparent border-white/10 text-white/35 hover:border-white/25 hover:text-white/60'
-                      )}
-                    >
-                      <p className="text-[11px] font-black uppercase tracking-wider leading-none">
-                        {val.label}
-                      </p>
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-white/25">
+                    Niveau de friction
+                  </span>
+                  <button
+                    onClick={() => basculerAutoFriction(!autoFriction)}
+                    role="switch"
+                    aria-checked={autoFriction}
+                    aria-label="Friction automatique"
+                    className="flex items-center gap-2"
+                  >
+                    <span className={cx('text-[9px] font-black uppercase tracking-widest transition-colors',
+                      autoFriction ? 'text-[#5D7BFF]' : 'text-white/30')}>
+                      Auto
+                    </span>
+                    <span className="relative w-9 h-5 rounded-full transition-colors duration-200"
+                          style={{ backgroundColor: autoFriction ? '#5D7BFF' : 'rgba(255,255,255,0.15)' }}>
+                      <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+                            style={{ transform: autoFriction ? 'translateX(16px)' : 'translateX(0)' }} />
+                    </span>
+                  </button>
                 </div>
-                <p className="mt-2 text-center text-[10px] text-white/20">{FRICTION[level].hint}</p>
+
+                {autoFriction ? (
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-[#5D7BFF]/25 bg-[#5D7BFF]/[0.06]">
+                    <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#5D7BFF]" />
+                    <p className="text-[10px] text-white/45 leading-relaxed">
+                      Le ton s&apos;adapte à votre message. Coupez l&apos;auto pour le régler
+                      vous-même.
+                    </p>
+                  </div>
+                ) : (() => {
+                  const ordre: FrictionLevel[] = ['doux', 'moyen', 'extreme'];
+                  const idx = ordre.indexOf(level);
+                  // La couleur chauffe avec l'intensité : le cran actif la porte.
+                  const teinte = ['#10B981', '#F59E0B', '#EF4444'][idx] ?? '#5D7BFF';
+                  return (
+                    <div>
+                      {/* Trois crans cliquables ; remplis jusqu'au cran actif. */}
+                      <div className="flex gap-1.5">
+                        {ordre.map((lvl, i) => (
+                          <button
+                            key={lvl}
+                            onClick={() => setLevel(lvl)}
+                            aria-label={FRICTION[lvl].label}
+                            className="flex-1 h-2 rounded-full transition-colors duration-200"
+                            style={{ backgroundColor: i <= idx ? teinte : 'rgba(255,255,255,0.12)' }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-between mt-2">
+                        {ordre.map((lvl) => (
+                          <button
+                            key={lvl}
+                            onClick={() => setLevel(lvl)}
+                            className={cx('text-[10px] font-black uppercase tracking-wider transition-colors',
+                              level === lvl ? '' : 'text-white/30 hover:text-white/55')}
+                            style={level === lvl ? { color: teinte } : undefined}
+                          >
+                            {FRICTION[lvl].label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-center text-[10px] text-white/25">{FRICTION[level].hint}</p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* ── Menu dépliable ── */}
@@ -4709,7 +4780,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </p>
                 <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-primary)]/35">
                   {afficherAuto
-                    ? `Le contradicteur s'adapte · Mode ${FRICTION[level].label}`
+                    ? (autoFriction ? "S'adapte à votre message" : `S'adapte · Mode ${FRICTION[level].label}`)
                     : `Mode ${FRICTION[level].label} — ${FRICTION[level].hint}`}
                 </p>
               </>
@@ -4992,8 +5063,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   <p className="text-[10px] md:text-[12px] text-[var(--text-primary)]/45 mt-0.5 md:mt-1.5">
                     {afficherAuto ? (
                       <>
-                        <span className="font-bold" style={{ color: AUTO_BLEU }}>Le contradicteur s&apos;adapte à votre question</span>
-                        {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
+                        <span className="font-bold" style={{ color: AUTO_BLEU }}>S&apos;adapte à votre question</span>
+                        {!autoFriction && <>{' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span></>}
                       </>
                     ) : (
                       <>

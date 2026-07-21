@@ -60,7 +60,8 @@ export type UserProfile = {
   // Calibrage — renseigné à l'inscription, modifiable ensuite
   objectif: string;          // ce que l'utilisateur vient chercher
   personaPrefere: string;    // contradicteur de départ
-  autoMode: boolean;         // le contradicteur est déduit du message (défaut)
+  autoMode: boolean;         // le Challenger choisit le contradicteur (défaut)
+  autoFriction: boolean;     // le ton est déduit du message (défaut)
   frictionPreferee: string;  // ton de départ
   // Déduits des réponses, et MONTRÉS à l'utilisateur au dernier écran.
   // Déduire sans le dire relèverait du profilage dissimulé — contraire à
@@ -91,6 +92,7 @@ export const EMPTY_PROFILE: UserProfile = {
   objectif: '',
   personaPrefere: '',
   autoMode: true,
+  autoFriction: true,
   frictionPreferee: '',
   usage: '',
   longueurReponse: '',
