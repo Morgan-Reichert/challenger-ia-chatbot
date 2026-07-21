@@ -11,7 +11,34 @@ export type ShareVerdictOptions = {
   conversationUrl?: string | null;
   /** Pseudo pour l'appel à l'action (mode conversation). */
   pseudo?: string;
+  /** Identifiant du thème visuel choisi par l'utilisateur (cf. CARD_THEMES). */
+  themeId?: string;
 };
+
+/** Palette d'un thème de carte. Le vert/rouge du FAIT reste, lui, universel. */
+export type CardTheme = {
+  id: string; nom: string;
+  bg: [string, string];  // dégradé de fond (haut → bas)
+  liser: string;         // liseré haut + accents
+  titre: string;         // texte principal (claim, CTA)
+  attenue: string;       // texte secondaire
+  faible: string;        // petits labels
+  marque: string;        // couleur de marque
+  separateur: string;    // filets
+  vide: string;          // segments de confiance non remplis
+  logo: 'blanc' | 'bleu';
+};
+
+export const CARD_THEMES: CardTheme[] = [
+  { id: 'nuit',    nom: 'Nuit',    bg: ['#181b26', '#0e1017'], liser: '#5D7BFF', titre: '#e9ebf2', attenue: '#7c8496', faible: '#6b7180', marque: '#5D7BFF', separateur: 'rgba(255,255,255,0.08)', vide: 'rgba(255,255,255,0.12)', logo: 'blanc' },
+  { id: 'indigo',  nom: 'Indigo',  bg: ['#312e81', '#0f0d24'], liser: '#818CF8', titre: '#EEF0FF', attenue: '#A5A9D6', faible: '#8B8FC4', marque: '#A5B4FC', separateur: 'rgba(255,255,255,0.10)', vide: 'rgba(255,255,255,0.12)', logo: 'blanc' },
+  { id: 'ardoise', nom: 'Ardoise', bg: ['#1e293b', '#0b1120'], liser: '#38BDF8', titre: '#E5EEF6', attenue: '#8FA3B8', faible: '#7C90A6', marque: '#56CCF2', separateur: 'rgba(255,255,255,0.08)', vide: 'rgba(255,255,255,0.12)', logo: 'blanc' },
+  { id: 'clair',   nom: 'Clair',   bg: ['#F5F8FF', '#E6EDFF'], liser: '#5D7BFF', titre: '#141428', attenue: '#5b6478', faible: '#7A8296', marque: '#5D7BFF', separateur: 'rgba(20,20,40,0.10)', vide: 'rgba(20,20,40,0.10)', logo: 'bleu' },
+];
+
+export function themeParId(id?: string): CardTheme {
+  return CARD_THEMES.find((t) => t.id === id) ?? CARD_THEMES[0];
+}
 
 /** Génère l'image d'un QR code (data URL) pour une URL, ou null si échec. */
 async function qrImage(url: string): Promise<HTMLImageElement | null> {
@@ -98,31 +125,39 @@ function pill(ctx: CanvasRenderingContext2D, x: number, y: number, label: string
 
 /** Dessine la carte Verdict et renvoie le canvas. */
 async function drawCard(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Promise<HTMLCanvasElement> {
-  const W = 1080, H = 1350, P = 90, BRAND = '#5D7BFF';
+  const W = 1080, H = 1350, P = 90;
+  const th = themeParId(opts.themeId);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d')!;
-  // Fond
-  ctx.fillStyle = '#14161f'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = BRAND; ctx.fillRect(0, 0, W, 10); // liseré haut
+
+  // Fond en dégradé + liseré + coin accent (léger relief, plus attirant).
+  const grad = ctx.createLinearGradient(0, 0, W * 0.4, H);
+  grad.addColorStop(0, th.bg[0]); grad.addColorStop(1, th.bg[1]);
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.globalAlpha = 0.10; ctx.fillStyle = th.marque;
+  ctx.beginPath(); ctx.arc(W - 40, 120, 260, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = th.liser; ctx.fillRect(0, 0, W, 10); // liseré haut
 
   ctx.textAlign = 'left';
   let y = P;
-  // Marque — LOGO (image) au lieu du texte. Repli texte si l'image manque.
-  const logo = await chargerImage('/logocompletblanc.png');
+  // Marque — LOGO (image, variante selon le thème). Repli texte si indisponible.
+  const logo = await chargerImage(th.logo === 'bleu' ? '/logocompletbleu.png' : '/logocompletblanc.png');
   if (logo && logo.naturalWidth > 0) {
     const h = 64, w = logo.naturalWidth * (h / logo.naturalHeight);
     ctx.drawImage(logo, P, y, Math.min(w, W - P * 2), h);
     y += h + 12;
   } else {
-    ctx.textBaseline = 'alphabetic'; ctx.fillStyle = BRAND; ctx.font = `800 46px ${SANS}`;
+    ctx.textBaseline = 'alphabetic'; ctx.fillStyle = th.marque; ctx.font = `800 46px ${SANS}`;
     ctx.fillText('CHALLENGER IA', P, y + 46); y += 62;
   }
-  ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#7c8496'; ctx.font = `700 22px ${SANS}`;
-  ctx.fillText('F A C T - C H E C K', P, y + 20); y += 66;
+  ctx.textBaseline = 'alphabetic'; ctx.fillStyle = th.attenue; ctx.font = `700 22px ${SANS}`;
+  ctx.fillText('F A C T - C H E C K', P, y + 20); y += 70;
 
   // Claim
   if (spec.claim) {
-    ctx.fillStyle = '#e9ebf2'; ctx.font = `600 44px ${SANS}`;
+    ctx.fillStyle = th.titre; ctx.font = `600 44px ${SANS}`;
     const lines = wrap(ctx, `« ${spec.claim} »`, W - P * 2).slice(0, 4);
     for (const l of lines) { ctx.fillText(l, P, y + 44); y += 58; }
     y += 26;
@@ -132,7 +167,7 @@ async function drawCard(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Prom
   const f = FACT[spec.fact] ?? FACT.non_verifie;
   const phrase = FACT_PHRASE[spec.fact] ?? '';
   const bannerH = phrase ? 152 : 96;
-  ctx.fillStyle = f.color + '1A'; ctx.strokeStyle = f.color; ctx.lineWidth = 3;
+  ctx.fillStyle = f.color + '22'; ctx.strokeStyle = f.color; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(P, y, W - P * 2, bannerH, 18); ctx.fill(); ctx.stroke();
   ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(P + 40, y + 52, 12, 0, Math.PI * 2); ctx.fill();
   ctx.textBaseline = 'middle'; ctx.fillStyle = f.color; ctx.font = `800 52px ${SANS}`;
@@ -147,11 +182,11 @@ async function drawCard(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Prom
   // Solidité & contexte — axes NEUTRES (indigo/bleu), jamais « validation ».
   const r = RISK[spec.risk] ?? RISK.safe;
   const c = CONSENSUS[spec.consensus] ?? CONSENSUS.debattu;
-  ctx.fillStyle = '#6b7180'; ctx.font = `800 22px ${SANS}`;
+  ctx.fillStyle = th.faible; ctx.font = `800 22px ${SANS}`;
   ctx.fillText('SOLIDITÉ & CONTEXTE DU VERDICT', P, y); y += 34;
   const rows: [string, { label: string; color: string }][] = [['Consensus', c], ['Risque', r]];
   for (const [lab, m] of rows) {
-    ctx.fillStyle = '#8a90a2'; ctx.font = `800 24px ${SANS}`; ctx.textBaseline = 'middle';
+    ctx.fillStyle = th.attenue; ctx.font = `800 24px ${SANS}`; ctx.textBaseline = 'middle';
     ctx.fillText(lab.toUpperCase(), P, y + 26);
     pill(ctx, P + 250, y, m.label, m.color);
     ctx.textBaseline = 'alphabetic';
@@ -162,27 +197,27 @@ async function drawCard(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Prom
   y += 14;
   const ci = CONF.findIndex((b) => b.band === spec.confidence);
   const conf = CONF[ci] ?? CONF[2];
-  ctx.fillStyle = '#8a90a2'; ctx.font = `800 24px ${SANS}`; ctx.textBaseline = 'middle';
+  ctx.fillStyle = th.attenue; ctx.font = `800 24px ${SANS}`; ctx.textBaseline = 'middle';
   ctx.fillText('CONFIANCE', P, y + 12);
   ctx.fillStyle = conf.color; ctx.font = `800 28px ${SANS}`;
   ctx.fillText(conf.label, P + 250, y + 12);
   y += 42;
   const barW = W - P * 2, seg = (barW - 4 * 12) / 5;
   for (let i = 0; i < 5; i++) {
-    ctx.fillStyle = i <= ci ? conf.color : 'rgba(255,255,255,0.12)';
+    ctx.fillStyle = i <= ci ? conf.color : th.vide;
     ctx.beginPath(); ctx.roundRect(P + i * (seg + 12), y, seg, 16, 8); ctx.fill();
   }
   y += 34;
 
   // Clarification anti-confusion.
-  ctx.fillStyle = '#6b7180'; ctx.font = `400 23px ${SANS}`; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = th.faible; ctx.font = `400 23px ${SANS}`; ctx.textBaseline = 'alphabetic';
   for (const l of wrap(ctx, 'Consensus & confiance mesurent la solidité de ce verdict, pas si l\'opinion est validée.', W - P * 2).slice(0, 2)) {
     ctx.fillText(l, P, y); y += 31;
   }
 
   // Note
   if (spec.note) {
-    y += 16; ctx.fillStyle = '#7c8496'; ctx.font = `400 26px ${SANS}`;
+    y += 16; ctx.fillStyle = th.attenue; ctx.font = `400 26px ${SANS}`;
     for (const l of wrap(ctx, spec.note, W - P * 2).slice(0, 2)) { ctx.fillText(l, P, y); y += 36; }
   }
 
@@ -195,32 +230,32 @@ async function drawCard(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Prom
 
   const fy = H - 300;
   ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(P, fy, W - P * 2, 2);
+  ctx.fillStyle = th.separateur; ctx.fillRect(P, fy, W - P * 2, 2);
 
-  // QR à droite, sur fond blanc (lisibilité au scan).
+  // QR à droite, toujours sur fond blanc (lisibilité au scan sur tout thème).
   const qrSize = 190, qx = W - P - qrSize, qy = fy + 44;
   if (qr) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.roundRect(qx - 14, qy - 14, qrSize + 28, qrSize + 28, 16); ctx.fill();
     ctx.drawImage(qr, qx, qy, qrSize, qrSize);
-    ctx.fillStyle = '#7c8496'; ctx.font = `700 20px ${SANS}`; ctx.textAlign = 'center';
+    ctx.fillStyle = th.faible; ctx.font = `700 20px ${SANS}`; ctx.textAlign = 'center';
     ctx.fillText('SCANNE-MOI', qx + qrSize / 2, qy + qrSize + 44);
     ctx.textAlign = 'left';
   }
 
-  // Texte à gauche du QR, centré verticalement sur le bloc.
+  // Texte à gauche du QR.
   const txtW = qx - 28 - P;
   let ty = qy + 20;
   const pseudo = (opts.pseudo || '').trim();
   const cta = modeConv
     ? (pseudo ? `${pseudo} vous partage cet échange` : 'Découvrez cet échange en entier')
     : "Musclez votre esprit critique";
-  ctx.fillStyle = '#e9ebf2'; ctx.font = `800 34px ${SANS}`;
+  ctx.fillStyle = th.titre; ctx.font = `800 34px ${SANS}`;
   for (const l of wrap(ctx, cta, txtW).slice(0, 2)) { ctx.fillText(l, P, ty + 34); ty += 44; }
   ty += 18;
-  ctx.fillStyle = BRAND; ctx.font = `800 30px ${SANS}`;
+  ctx.fillStyle = th.marque; ctx.font = `800 30px ${SANS}`;
   ctx.fillText('Challenger IA', P, ty + 30); ty += 44;
-  ctx.fillStyle = '#7c8496'; ctx.font = `500 24px ${SANS}`;
+  ctx.fillStyle = th.attenue; ctx.font = `500 24px ${SANS}`;
   ctx.fillText(modeConv ? 'Scannez pour lire la conversation' : "L'IA qui muscle votre esprit critique", P, ty + 24);
 
   return cv;

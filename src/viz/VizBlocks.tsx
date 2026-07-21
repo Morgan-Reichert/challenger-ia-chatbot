@@ -18,7 +18,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { splitViz, normalizeMd } from './vizParse';
-import { shareVerdict } from '../verdictShare';
+import { shareVerdict, CARD_THEMES } from '../verdictShare';
 import { getShareContext } from '../shareContext';
 import type {
   VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel,
@@ -266,18 +266,25 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
   const conf = CONF_BANDS[confIdx] ?? CONF_BANDS[2];
 
   // Menu de partage : verdict seul (QR → vitrine) ou conversation (QR → lien
-  // de consultation + appel à l'action au pseudo de l'utilisateur).
+  // de consultation + appel à l'action au pseudo), avec choix du thème visuel.
   const [menu, setMenu] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [themeId, setThemeId] = React.useState<string>(() => {
+    try { return localStorage.getItem('cia_card_theme') || 'nuit'; } catch { return 'nuit'; }
+  });
+  const choisirTheme = (id: string) => {
+    setThemeId(id);
+    try { localStorage.setItem('cia_card_theme', id); } catch { /* stockage indispo */ }
+  };
   const ctx = getShareContext();
-  const partagerVerdict = () => { setMenu(false); shareVerdict(spec).catch(() => {}); };
+  const partagerVerdict = () => { setMenu(false); shareVerdict(spec, { themeId }).catch(() => {}); };
   const partagerConversation = async () => {
     setMenu(false);
-    if (!ctx) { shareVerdict(spec).catch(() => {}); return; }
+    if (!ctx) { shareVerdict(spec, { themeId }).catch(() => {}); return; }
     setBusy(true);
     const url = await ctx.creerLienConversation().catch(() => null);
     setBusy(false);
-    shareVerdict(spec, { conversationUrl: url, pseudo: ctx.pseudo }).catch(() => {});
+    shareVerdict(spec, { conversationUrl: url, pseudo: ctx.pseudo, themeId }).catch(() => {});
   };
 
   return (
@@ -302,7 +309,24 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
             {menu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-[#1c1f2b] border border-white/15 rounded-lg shadow-xl overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-[#1c1f2b] border border-white/15 rounded-lg shadow-xl overflow-hidden">
+                  {/* Choix du thème visuel de la carte */}
+                  <div className="px-3 py-2 border-b border-white/10">
+                    <span className="block text-[8px] font-black uppercase tracking-widest text-white/40 mb-1.5">Thème de la carte</span>
+                    <div className="flex items-center gap-1.5">
+                      {CARD_THEMES.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => choisirTheme(t.id)}
+                          title={t.nom}
+                          className={cx('w-7 h-7 rounded-md border-2 transition-all', themeId === t.id ? 'border-white scale-110' : 'border-white/20 hover:border-white/50')}
+                          style={{ background: `linear-gradient(135deg, ${t.bg[0]}, ${t.bg[1]})` }}
+                        >
+                          <span className="block w-1.5 h-1.5 mx-auto rounded-full" style={{ background: t.liser }} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <button onClick={partagerVerdict} className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors">
                     <span className="block text-[10px] font-black text-white/90">Ce verdict</span>
                     <span className="block text-[8px] text-white/40">Image + QR vers Challenger IA</span>
