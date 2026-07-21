@@ -5,6 +5,7 @@ import CognitiveCard from './CognitiveCard';
 import PrivacyPanel from './PrivacyPanel';
 import ApiKeysPanel from './ApiKeysPanel';
 import AccessibilitePanel from './AccessibilitePanel';
+import DossierTravailPanel from './DossierTravailPanel';
 import SecurityPanel from './SecurityPanel';
 import FacturationPanel from './FacturationPanel';
 import ReutilisationPanel from './ReutilisationPanel';
@@ -15,7 +16,7 @@ import {
   CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
   SlidersHorizontal, Info, Bell, KeyRound, ChevronRight,
   Leaf, Car, Mail, Smartphone, PenLine, Image as ImageIcon, Package, Moon, RotateCcw,
-  BookLock,
+  BookLock, FolderOpen,
   Accessibility, LifeBuoy,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -361,6 +362,7 @@ const ARBORESCENCE: SectionReglages[] = [
       { id: 'notifications', label: 'Notifications',      icon: Bell,          hint: 'Alertes push sur cet appareil' },
       { id: 'personas',      label: 'Studio de personas', icon: Sparkles,      hint: 'Créer un contradicteur sur mesure' },
       { id: 'a11y',          label: 'Accessibilité',      icon: Accessibility, hint: 'Taille du texte, contraste, animations' },
+      { id: 'dossier',       label: 'Dossier de travail', icon: FolderOpen,    hint: 'Où enregistrer les PDF générés' },
     ],
   },
   {
@@ -1180,6 +1182,9 @@ export default function SettingsPage({
 
         {/* ═══════════════ PERSONNALISATION › ACCESSIBILITÉ ═══════════════ */}
         {ouvert('personnalisation', 'a11y') && <AccessibilitePanel />}
+
+        {/* ═══════════════ PERSONNALISATION › DOSSIER DE TRAVAIL ═══════════════ */}
+        {ouvert('personnalisation', 'dossier') && <DossierTravailPanel />}
 
         {/* ═══════════════ PROGRESSION ═══════════════ */}
         {ouvert('progression') && <CognitiveCard userId={user?.uid ?? null} />}

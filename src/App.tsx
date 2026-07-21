@@ -22,6 +22,8 @@ import { SourcesPanel, CitationChip, linkifyCitations } from './factcheck/Source
 import type { SourceRef } from './factcheck/SourcesPanel';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { generateSessionPDF } from './pdfExport';
+import { markdownVersDocument, genererPdf } from './pdfDocument';
+import { capacite as dossierCapacite, dossierActuel, ecrireFichier } from './dossierTravail';
 import { generateMarkdown, generateNotionMarkdown, generateObsidianMarkdown, downloadTextFile, copyToClipboard } from './markdownExport';
 import { getDailyChallenge, fetchDailyChallenge, getChallengeProgress, incrementChallengeProgress, type DailyChallenge } from './dailyChallenges';
 import LibraryPage from './LibraryPage';
@@ -1003,6 +1005,13 @@ const SLASH_COMMANDS = [
     shortcut: '/exportmd',
   },
   {
+    id: 'pdf',
+    label: 'Générer un PDF',
+    desc: "L'IA rédige un document structuré à partir de la conversation, rendu en vrai PDF",
+    icon: FileDown,
+    shortcut: '/pdf',
+  },
+  {
     id: 'copiernotion',
     label: 'Copier pour Notion',
     desc: 'Copie la conversation formatée pour Notion dans le presse-papier',
@@ -1418,6 +1427,9 @@ export default function App() {
   const [derniereDeduction, setDerniereDeduction] = useState<
     { persona: Persona; motif: string; parDefaut: boolean } | null
   >(null);
+  // PDF généré en attente de destination (télécharger ou dossier de travail).
+  const [pdfPret, setPdfPret] = useState<{ blob: Blob; nom: string; dossier: string | null } | null>(null);
+  const [pdfEnCours, setPdfEnCours] = useState(false);
   const [level, setLevel] = useState<FrictionLevel>(() => {
     const f = loadProfile().frictionPreferee;
     return (f === 'doux' || f === 'moyen' || f === 'extreme' ? f : 'moyen');
@@ -3186,6 +3198,60 @@ Sois précis, factuel et bienveillant. Les conseils doivent être directement ac
           addCommandMsg('Export Markdown téléchargé !');
         } else {
           showSlashNotif('Aucune conversation à exporter.', false);
+        }
+        return;
+      }
+
+      if (id === 'pdf') {
+        const conv = conversations.find((c) => c.id === activeId);
+        if (!conv || conv.messages.length === 0) {
+          showSlashNotif('Aucune conversation à mettre en PDF.', false);
+          return;
+        }
+        setPdfEnCours(true);
+        addCommandMsg('Rédaction du document en cours…');
+        try {
+          // On demande au modèle un DOCUMENT structuré, pas une réponse de chat.
+          // Le Markdown est ensuite rendu en PDF réel — c'est le format que le
+          // modèle produit le plus fiablement.
+          const echange = conv.messages
+            .filter((m) => m.role === 'user' || m.role === 'assistant')
+            .map((m) => `${m.role === 'user' ? 'UTILISATEUR' : 'CHALLENGER'} : ${stripViz(m.content)}`)
+            .join('\n\n');
+          const consigne = `À partir de l'échange ci-dessous, rédige un DOCUMENT de synthèse autonome, en français, au format Markdown.
+Structure attendue : un titre (#), des sections (##), des sous-sections (###), des listes, et un tableau si c'est pertinent. Pas de bavardage : un document qu'on pourrait imprimer et remettre. N'invente aucun chiffre non présent dans l'échange.
+
+ÉCHANGE :
+${echange.slice(0, 12000)}`;
+
+          const res = await callChat({
+            model: 'mistral-large-latest',
+            temperature: 0.4,
+            messages: [
+              { role: 'system', content: 'Tu rédiges des documents de synthèse clairs et structurés en Markdown.' },
+              { role: 'user', content: consigne },
+            ],
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const md = (data.choices?.[0]?.message?.content ?? '').trim();
+          if (md.length < 20) throw new Error('Document vide');
+
+          const titrePremier = (md.match(/^#\s+(.+)$/m)?.[1] ?? conv.title).slice(0, 90);
+          const document = markdownVersDocument(md, titrePremier, 'Synthèse générée par Challenger IA');
+          const blob = genererPdf(document);
+          const nom = `${titrePremier.replace(/[^a-z0-9àâäéèêëîïôöùûüç]/gi, '-').toLowerCase().slice(0, 60)}.pdf`;
+
+          // Où l'enregistrer ? Le dossier de travail s'il est autorisé, sinon on
+          // proposera le téléchargement. La décision revient à l'utilisateur.
+          const dossier = dossierCapacite() ? await dossierActuel() : null;
+          setPdfPret({ blob, nom, dossier });
+          addCommandMsg('Document PDF prêt.');
+        } catch (err) {
+          console.error('[pdf]', err);
+          showSlashNotif('La génération du PDF a échoué.', false);
+        } finally {
+          setPdfEnCours(false);
         }
         return;
       }
@@ -6317,6 +6383,74 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Génération de PDF : indicateur pendant la rédaction ──────────────── */}
+      {pdfEnCours && (
+        <div className="fixed inset-0 z-[65] bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-[#141414] px-6 py-5 flex items-center gap-3"
+               style={{ boxShadow: '5px 5px 0 rgba(93,123,255,0.35)' }}>
+            <Loader2 className="w-5 h-5 animate-spin text-[#5D7BFF]" />
+            <p className="text-[12px] font-black text-[#141414]">Rédaction du document…</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── PDF prêt : choix de la destination ───────────────────────────────
+          Le PDF est généré ; l'utilisateur choisit où il va. Enregistrer dans
+          le dossier n'apparaît que si un dossier a été autorisé — sinon le
+          téléchargement reste la voie universelle. */}
+      {pdfPret && (
+        <div className="fixed inset-0 z-[65] bg-black/45 flex items-center justify-center p-4"
+             onClick={() => setPdfPret(null)}>
+          <div
+            className="bg-white border-2 border-[#141414] w-full max-w-sm"
+            style={{ boxShadow: '6px 6px 0 rgba(93,123,255,0.35)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b-2 border-[#141414]/10">
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] mb-1">Document prêt</p>
+              <p className="text-[13px] font-black text-[#141414] break-all">{pdfPret.nom}</p>
+            </div>
+            <div className="px-5 py-4 space-y-2">
+              {pdfPret.dossier && (
+                <button
+                  onClick={async () => {
+                    const ok = await ecrireFichier(pdfPret.nom, pdfPret.blob);
+                    setPdfPret(null);
+                    showSlashNotif(ok ? `Enregistré dans « ${pdfPret.dossier} »` : "L'enregistrement a échoué.", ok);
+                    if (ok) addCommandMsg(`PDF enregistré dans le dossier « ${pdfPret.dossier} ».`);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  Enregistrer dans « {pdfPret.dossier} »
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const url = URL.createObjectURL(pdfPret.blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = pdfPret.nom;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  setPdfPret(null);
+                  addCommandMsg('PDF téléchargé.');
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-[#141414]/15 text-[#141414]/70 text-[10px] font-black uppercase tracking-widest hover:border-[#141414]/40 transition-colors"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                Télécharger
+              </button>
+              {!pdfPret.dossier && dossierCapacite() && (
+                <p className="text-[9px] text-[#141414]/40 leading-relaxed pt-1">
+                  Pour enregistrer directement dans un dossier de votre ordinateur,
+                  désignez-en un dans Paramètres › Personnalisation › Dossier de travail.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Calibrage (après création du compte) ──────────────────────────── */}
       {calibrageOuvert && user && !user.isAnonymous && !userProfile.calibrageFait && (
