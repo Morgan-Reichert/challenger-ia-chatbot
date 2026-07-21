@@ -4077,25 +4077,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
       {/* ── Chargement initial Firebase ───────────────────────────────────── */}
       {FIREBASE_ENABLED && authLoading && !consentPending && (
         <div className="flex-1 flex flex-col items-center justify-center gap-7 px-6" style={{ background: 'var(--bg-app)' }}>
-          {/* Animation du logo (vidéo fournie). Muette + playsInline pour que
-              l'autoplay soit autorisé sur mobile ; en boucle car la durée du
-              chargement est variable. Repli sur le logo si la vidéo échoue. */}
-          <video
-            src="/animation%20logo%20challenger.MP4"
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="w-auto max-w-[320px] max-h-[220px] object-contain"
-            onError={(e) => {
-              const v = e.currentTarget;
-              const img = document.createElement('img');
-              img.src = '/logocompletbleu.png';
-              img.alt = 'Challenger IA';
-              img.className = 'h-12 w-auto object-contain';
-              img.style.animation = 'cr-breathe 2.4s ease-in-out infinite';
-              v.replaceWith(img);
-            }}
+          <img
+            src="/logocompletbleu.png"
+            alt="Challenger IA"
+            className="h-12 w-auto object-contain"
+            style={{ animation: 'cr-breathe 2.4s ease-in-out infinite' }}
           />
           <div className="w-44 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(93,123,255,0.15)' }}>
             <div className="h-full w-[35%] rounded-full" style={{ background: '#5D7BFF', animation: 'splash-progress 1.1s ease-in-out infinite' }} />
