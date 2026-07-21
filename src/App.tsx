@@ -12,7 +12,7 @@ import {
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
-  HelpCircle, Compass, Gavel, Pin,
+  HelpCircle, Compass, Gavel,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -132,7 +132,9 @@ const PERSONAS = {
     shortName: 'Architecte',
     desc: 'Structure et cohérence argumentative',
     icon: Scale,
-    color: '#5D7BFF',
+    // Ardoise — évoque le plan d'architecte, et surtout PLUS DE BLEU : le bleu
+    // (#5D7BFF) est désormais la couleur exclusive du mode automatique.
+    color: '#64748B',
   },
   factchecker: {
     id: 'factchecker' as const,
@@ -1396,23 +1398,18 @@ export default function App() {
     const p = loadProfile().personaPrefere;
     return (p && p in PERSONAS ? p : 'architect') as Persona;
   });
-  // Épinglage : quand il est posé, l'auto-sélection est suspendue et le persona
-  // reste fixe d'un message à l'autre. C'est le contrôle des utilisateurs qui
-  // savent déjà ce qu'ils veulent — distinct de la puce contextuelle, qui ne
-  // change qu'un tour. Nul = mode automatique.
-  const [personaEpingle, setPersonaEpingle] = useState<Persona | null>(() => {
-    const p = loadProfile().personaEpingle;
-    return (p && p in PERSONAS ? p : null) as Persona | null;
+  // Mode automatique : le contradicteur est DÉDUIT de chaque premier message
+  // plutôt qu'imposé d'avance. C'est le défaut. Quand il est coupé, l'utilisateur
+  // choisit lui-même dans la liste, comme avant. Le bleu de l'interface est
+  // désormais la couleur de ce mode.
+  const [autoMode, setAutoMode] = useState<boolean>(() => {
+    const a = loadProfile().autoMode;
+    return a !== false; // défaut vrai, y compris pour un profil antérieur au champ
   });
-  // Dernière déduction affichée sous la réponse, pour l'expliquer et l'annuler.
+  // Dernière déduction, affichée sous la réponse pour l'expliquer et l'annuler.
   const [derniereDeduction, setDerniereDeduction] = useState<
     { persona: Persona; motif: string; parDefaut: boolean } | null
   >(null);
-  // Petit sélecteur ouvert depuis la puce « Changer ».
-  const [changerPersonaOuvert, setChangerPersonaOuvert] = useState(false);
-  // Le panneau persona de la barre latérale est replié par défaut : le choix
-  // étant désormais automatique, il ne concerne que qui veut le fixer.
-  const [sidebarPersonaOuvert, setSidebarPersonaOuvert] = useState(false);
   const [level, setLevel] = useState<FrictionLevel>(() => {
     const f = loadProfile().frictionPreferee;
     return (f === 'doux' || f === 'moyen' || f === 'extreme' ? f : 'moyen');
@@ -2111,13 +2108,13 @@ export default function App() {
     }
   };
 
-  // Épingle (ou libère) un contradicteur. L'épinglage est persisté : un
-  // utilisateur qui a fixé son choix ne veut pas le refaire à chaque session.
-  const epinglerPersona = useCallback((p: Persona | null) => {
-    setPersonaEpingle(p);
-    if (p) { setPersona(p); setDerniereDeduction(null); }
+  // Active ou coupe le mode automatique, et le persiste : un utilisateur qui a
+  // choisi son réglage ne veut pas le refaire à chaque session.
+  const basculerAuto = useCallback((valeur: boolean) => {
+    setAutoMode(valeur);
+    setDerniereDeduction(null);
     setUserProfile((actuel) => {
-      const suivant = { ...actuel, personaEpingle: p ?? '' };
+      const suivant = { ...actuel, autoMode: valeur };
       saveProfile(suivant);
       if (user) void fsSaveProfileRemote(user.uid, suivant);
       return suivant;
@@ -2539,14 +2536,16 @@ export default function App() {
       // déduction — on ne change pas de contradicteur en cours d'échange.
       const conversationEngagee = activeConv?.messages?.some((m) => m.role === 'user');
       let activePersona = persona;
-      if (personaEpingle) {
-        activePersona = personaEpingle;
-      } else if (!conversationEngagee) {
-        const d = deducePersona(text, { personaEpingle: null });
+      if (autoMode && !conversationEngagee) {
+        // Le contradicteur est déduit du premier message. On ne redéduit pas en
+        // cours d'échange : changer d'interlocuteur au milieu d'une conversation
+        // serait déroutant.
+        const d = deducePersona(text);
         activePersona = d.persona;
         setPersona(d.persona);
         setDerniereDeduction({ persona: d.persona, motif: d.motif, parDefaut: d.parDefaut });
       } else {
+        // Mode manuel, ou conversation déjà engagée : on garde le persona courant.
         setDerniereDeduction(null);
       }
       const activeLevel = level;
@@ -2805,7 +2804,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         sendingRef.current = false;
       }
     },
-    [activeId, conversations, sending, persona, personaEpingle, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv]
+    [activeId, conversations, sending, persona, autoMode, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv]
   );
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
@@ -3458,6 +3457,17 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
   const CurrentIcon = PERSONAS[persona].icon;
 
+  // Affichage neutre du contradicteur tant que le mode auto n'a rien déduit :
+  // montrer un nom de persona AVANT le premier message laisserait croire qu'il
+  // est déjà fixé, alors qu'il dépend de ce que l'utilisateur va écrire. Une
+  // fois un message envoyé, `persona` reflète le choix réel et on l'affiche.
+  const conversationEngageeHeader = (activeConv?.messages ?? []).some((m) => m.role === 'user');
+  const afficherAuto = autoMode && !conversationEngageeHeader && !derniereDeduction;
+  const AUTO_BLEU = '#5D7BFF';
+  const enTeteCouleur = afficherAuto ? AUTO_BLEU : PERSONAS[persona].color;
+  const EnTeteIcone = afficherAuto ? Sparkles : CurrentIcon;
+  const enTeteNom = afficherAuto ? 'Mode automatique' : PERSONAS[persona].name;
+
   // ─── STARIAX : coupure globale pilotée à distance ───────────────────────────
   // Placé après tous les hooks (règle des hooks) et avant le rendu principal.
   // Couvre le web ET l'app native, que le middleware edge ne protège pas.
@@ -3961,95 +3971,76 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </div>
               ) : (
               <div>
-                {/* En-tête repliable. Le persona n'est plus un choix imposé
-                    d'avance : par défaut il est déduit du message. Ce panneau
-                    ne sert qu'à ceux qui veulent le fixer eux-mêmes, d'où son
-                    repli. L'état — automatique ou épinglé — est annoncé ici. */}
-                <button
-                  onClick={() => setSidebarPersonaOuvert((v) => !v)}
-                  className="w-full flex items-center justify-between mb-3 group"
-                >
+                {/* Interrupteur du mode automatique. Le contradicteur n'est plus
+                    un choix imposé d'avance : par défaut il est déduit du
+                    message. La liste ci-dessous n'apparaît que si l'on coupe
+                    l'auto — auquel cas on choisit soi-même, comme avant. */}
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-black uppercase tracking-widest text-white/25">
                     Contradicteur
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    {personaEpingle ? (
-                      <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest"
-                            style={{ color: PERSONAS[personaEpingle].color }}>
-                        <Pin className="w-2.5 h-2.5" /> {PERSONAS[personaEpingle].shortName}
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-black uppercase tracking-widest text-white/30">Automatique</span>
-                    )}
-                    <ChevronDown className={cx('w-3.5 h-3.5 text-white/30 transition-transform', sidebarPersonaOuvert && 'rotate-180')} />
-                  </span>
-                </button>
-
-                {sidebarPersonaOuvert && (
-                <>
-                {/* Mode automatique : le bouton actif. Épingler le suspend. */}
-                {personaEpingle && (
                   <button
-                    onClick={() => epinglerPersona(null)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 mb-2 rounded-xl border border-white/10 text-white/50 hover:text-white/80 hover:border-white/25 transition-all"
+                    onClick={() => basculerAuto(!autoMode)}
+                    role="switch"
+                    aria-checked={autoMode}
+                    aria-label="Mode automatique"
+                    className="flex items-center gap-2 group"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="text-[11px] font-black uppercase tracking-wider">Revenir en automatique</span>
+                    <span className={cx('text-[9px] font-black uppercase tracking-widest transition-colors',
+                      autoMode ? 'text-[#5D7BFF]' : 'text-white/30')}>
+                      Auto
+                    </span>
+                    <span className="relative w-9 h-5 rounded-full transition-colors duration-200"
+                          style={{ backgroundColor: autoMode ? '#5D7BFF' : 'rgba(255,255,255,0.15)' }}>
+                      <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+                            style={{ transform: autoMode ? 'translateX(16px)' : 'translateX(0)' }} />
+                    </span>
                   </button>
-                )}
-                <div className="space-y-2">
-                  {visiblePersonas.map(
-                    (p) => {
+                </div>
+
+                {autoMode ? (
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-[#5D7BFF]/25 bg-[#5D7BFF]/[0.06]">
+                    <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-[#5D7BFF]" />
+                    <p className="text-[10px] text-white/45 leading-relaxed">
+                      Le contradicteur s'adapte à votre question. Coupez l'auto
+                      pour le choisir vous-même.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {visiblePersonas.map((p) => {
                       const Icon = p.icon;
-                      const epingle = personaEpingle === p.id;
                       const active = persona === p.id;
                       return (
-                        <div key={p.id} className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              if (p.id !== persona && activeId) {
-                                addCommandMsg(`— Contradicteur : ${p.name} —`);
-                              }
-                              setPersona(p.id);
-                              setDerniereDeduction(null);
-                            }}
-                            className={cx(
-                              'flex-1 flex items-center gap-3 px-4 py-3 text-left rounded-xl border transition-all',
-                              active ? 'text-white' : 'bg-transparent border-white/10 text-white/50 hover:text-white/80',
-                            )}
-                            style={
-                              active
-                                ? { background: p.color, borderColor: p.color, boxShadow: `0 6px 16px ${p.color}33` }
-                                : { borderColor: `${p.color}30` }
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            if (p.id !== persona && activeId) {
+                              addCommandMsg(`— Contradicteur : ${p.name} —`);
                             }
-                          >
-                            <Icon className="w-4 h-4 flex-shrink-0" style={{ color: active ? '#fff' : p.color }} />
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-black uppercase tracking-wider">{p.shortName}</p>
-                              <p className="text-[10px] opacity-60 truncate">{p.desc}</p>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => epinglerPersona(epingle ? null : p.id)}
-                            title={epingle ? `Détacher ${p.shortName}` : `Épingler ${p.shortName} pour la session`}
-                            aria-label={epingle ? `Détacher ${p.shortName}` : `Épingler ${p.shortName}`}
-                            aria-pressed={epingle}
-                            className={cx('flex-shrink-0 p-2.5 rounded-xl border transition-all',
-                              epingle ? 'border-white/25 text-white' : 'border-white/5 text-white/25 hover:text-white/60 hover:border-white/15')}
-                            style={epingle ? { color: p.color, borderColor: `${p.color}60` } : undefined}
-                          >
-                            <Pin className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                            setPersona(p.id);
+                            setDerniereDeduction(null);
+                          }}
+                          className={cx(
+                            'w-full flex items-center gap-3 px-4 py-3 text-left rounded-xl border transition-all',
+                            active ? 'text-white' : 'bg-transparent border-white/10 text-white/50 hover:text-white/80',
+                          )}
+                          style={
+                            active
+                              ? { background: p.color, borderColor: p.color, boxShadow: `0 6px 16px ${p.color}33` }
+                              : { borderColor: `${p.color}30` }
+                          }
+                        >
+                          <Icon className="w-4 h-4 flex-shrink-0" style={{ color: active ? '#fff' : p.color }} />
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-wider">{p.shortName}</p>
+                            <p className="text-[10px] opacity-60 truncate">{p.desc}</p>
+                          </div>
+                          {active && <ChevronRight className="w-3 h-3 ml-auto flex-shrink-0" />}
+                        </button>
                       );
-                    }
-                  )}
-                </div>
-                <p className="text-[9px] text-white/25 leading-relaxed mt-2.5">
-                  Par défaut, le contradicteur est choisi selon votre message.
-                  L’icône <Pin className="w-2.5 h-2.5 inline" /> en fixe un pour toute la session.
-                </p>
-                </>
+                    })}
+                  </div>
                 )}
               </div>
               )} {/* fin persona selector conditionnel */}
@@ -4673,11 +4664,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
-              background: PERSONAS[persona].color,
-              boxShadow: `0 4px 12px ${PERSONAS[persona].color}4D`,
+              background: enTeteCouleur,
+              boxShadow: `0 4px 12px ${enTeteCouleur}4D`,
             }}
           >
-            <CurrentIcon className="w-4 h-4 text-white" />
+            <EnTeteIcone className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0">
             {activeConv?.interviewType ? (() => {
@@ -4714,10 +4705,12 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             ) : (
               <>
                 <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] truncate">
-                  {PERSONAS[persona].name}
+                  {enTeteNom}
                 </p>
                 <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--text-primary)]/35">
-                  Mode {FRICTION[level].label} — {FRICTION[level].hint}
+                  {afficherAuto
+                    ? `Le contradicteur s'adapte · Mode ${FRICTION[level].label}`
+                    : `Mode ${FRICTION[level].label} — ${FRICTION[level].hint}`}
                 </p>
               </>
             )}
@@ -4986,20 +4979,29 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 <div
                   className="flex-shrink-0 w-9 h-9 md:w-14 md:h-14 rounded-2xl flex items-center justify-center"
                   style={{
-                    background: PERSONAS[persona].color,
-                    boxShadow: `0 6px 18px ${PERSONAS[persona].color}59`,
+                    background: enTeteCouleur,
+                    boxShadow: `0 6px 18px ${enTeteCouleur}59`,
                   }}
                 >
-                  <CurrentIcon className="w-4 h-4 md:w-6 md:h-6 text-white" />
+                  <EnTeteIcone className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-base md:text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] leading-none">
-                    {PERSONAS[persona].name}
+                    {enTeteNom}
                   </h1>
                   <p className="text-[10px] md:text-[12px] text-[var(--text-primary)]/45 mt-0.5 md:mt-1.5">
-                    <span className="font-bold" style={{ color: PERSONAS[persona].color }}>{PERSONAS[persona].shortName}</span>
-                    {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
-                    {' '}— {FRICTION[level].hint}
+                    {afficherAuto ? (
+                      <>
+                        <span className="font-bold" style={{ color: AUTO_BLEU }}>Le contradicteur s&apos;adapte à votre question</span>
+                        {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold" style={{ color: PERSONAS[persona].color }}>{PERSONAS[persona].shortName}</span>
+                        {' '}· Mode <span className="font-bold">{FRICTION[level].label.toLowerCase()}</span>
+                        {' '}— {FRICTION[level].hint}
+                      </>
+                    )}
                   </p>
                 </div>
                 {!user && FIREBASE_ENABLED && (
@@ -5471,11 +5473,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   </motion.div>
               )}
 
-              {/* ── Puce contextuelle : quel contradicteur a été choisi, et
-                  pourquoi. Réversible d'un clic. Elle n'apparaît que sur un
-                  choix DÉDUIT — jamais quand l'utilisateur a épinglé lui-même,
-                  puisqu'il sait déjà ce qu'il a choisi. */}
-              {derniereDeduction && !personaEpingle && !sending && (() => {
+              {/* ── Puce contextuelle : quel contradicteur a été choisi par le
+                  mode auto, et pourquoi. « Choisir » coupe l'auto et fait
+                  apparaître la liste dans la barre latérale, où l'on sélectionne
+                  à la main — le même geste qu'avant, sans épinglage. */}
+              {autoMode && derniereDeduction && !sending && (() => {
                 const pInfo = PERSONAS[derniereDeduction.persona];
                 const PIcon = pInfo.icon;
                 return (
@@ -5491,71 +5493,15 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         {' — '}{derniereDeduction.motif}.
                       </span>
                       <button
-                        onClick={() => setChangerPersonaOuvert((v) => !v)}
+                        onClick={() => { basculerAuto(false); setSidebarOpen(true); }}
                         className="flex-shrink-0 font-black uppercase tracking-widest text-[9px] text-[var(--text-primary)]/40 hover:text-[#5D7BFF] transition-colors"
                       >
-                        Changer
+                        Choisir
                       </button>
                     </div>
                   </motion.div>
                 );
               })()}
-
-              {/* ── Sélecteur rapide, ouvert depuis « Changer ». Deux gestes
-                  distincts : basculer pour ce sujet (change le persona actif),
-                  ou épingler pour toute la session (suspend l'auto). */}
-              {changerPersonaOuvert && !personaEpingle && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex justify-center"
-                >
-                  <div className="border-2 border-[var(--border)] bg-[var(--bg-chat)] p-3 w-full max-w-md">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 mb-2 px-1">
-                      Choisir un contradicteur
-                    </p>
-                    <div className="space-y-1">
-                      {visiblePersonas.map((p) => {
-                        const PIcon = p.icon;
-                        const actif = p.id === persona;
-                        return (
-                          <div key={p.id} className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => {
-                                setPersona(p.id);
-                                setDerniereDeduction({ persona: p.id, motif: 'tu l’as choisi', parDefaut: false });
-                                setChangerPersonaOuvert(false);
-                              }}
-                              className={cx(
-                                'flex-1 flex items-center gap-2.5 px-3 py-2 border transition-all text-left',
-                                actif ? 'border-[var(--text-primary)]/25' : 'border-transparent hover:bg-[var(--text-primary)]/5',
-                              )}
-                            >
-                              <PIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: p.color }} />
-                              <span className="min-w-0">
-                                <span className="block text-[12px] font-black text-[var(--text-primary)]">{p.shortName}</span>
-                                <span className="block text-[10px] text-[var(--text-primary)]/45 truncate">{p.desc}</span>
-                              </span>
-                            </button>
-                            <button
-                              onClick={() => { epinglerPersona(p.id); setChangerPersonaOuvert(false); }}
-                              title={`Épingler ${p.shortName} pour toute la session`}
-                              aria-label={`Épingler ${p.shortName}`}
-                              className="flex-shrink-0 p-2 text-[var(--text-primary)]/25 hover:text-[#5D7BFF] transition-colors"
-                            >
-                              <Pin className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[9px] text-[var(--text-primary)]/35 leading-relaxed mt-2 px-1">
-                      L’icône <Pin className="w-2.5 h-2.5 inline" /> épingle un contradicteur pour toute la session.
-                      Sinon, il est choisi selon votre message.
-                    </p>
-                  </div>
-                </motion.div>
-              )}
 
               <div ref={bottomRef} />
             </div>
