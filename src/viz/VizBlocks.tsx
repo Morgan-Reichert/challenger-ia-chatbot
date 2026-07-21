@@ -204,26 +204,42 @@ const FACT_META: Record<FactVerdict, { label: string; color: string }> = {
   probable_faux: { label: 'Probablement faux', color: '#F97316' },
   faux:          { label: 'Faux',              color: '#EF4444' },
 };
+// Phrase en clair de l'axe FAIT — c'est LA réponse, exprimée sans ambiguïté.
+const FACT_PHRASE: Record<FactVerdict, string> = {
+  vrai:          'Cette affirmation est exacte.',
+  probable_vrai: 'Cette affirmation est probablement exacte.',
+  inconnu:       'Impossible de trancher avec les éléments disponibles.',
+  non_verifie:   'Non vérifié, faute de sources fiables.',
+  inconcluant:   'Les éléments ne permettent pas de trancher.',
+  probable_faux: 'Cette affirmation est probablement fausse.',
+  faux:          'Cette affirmation est fausse.',
+};
+// Risque : « safe » en gris neutre (et non vert) — le vert reste réservé au
+// FAIT vrai, pour qu'aucun vert ne soit lu comme « l'IA te donne raison ».
 const RISK_META: Record<RiskLevel, { label: string; color: string }> = {
-  safe:      { label: 'Safe',      color: '#10B981' },
-  faible:    { label: 'Faible',    color: '#84CC16' },
-  modere:    { label: 'Modéré',    color: '#FBBF24' },
-  dangereux: { label: 'Dangereux', color: '#F97316' },
-  critique:  { label: 'Critique',  color: '#EF4444' },
+  safe:      { label: 'Aucun risque notable', color: '#64748B' },
+  faible:    { label: 'Risque faible',        color: '#F59E0B' },
+  modere:    { label: 'Risque modéré',        color: '#FBBF24' },
+  dangereux: { label: 'Dangereux',            color: '#F97316' },
+  critique:  { label: 'Critique',             color: '#EF4444' },
 };
+// Consensus : échelle NEUTRE (indigo = intensité de l'accord des spécialistes),
+// jamais vert/rouge. Un consensus fort AUTOUR d'un fait FAUX ne doit pas verdir.
 const CONSENSUS_META: Record<ConsensusLevel, { label: string; color: string }> = {
-  fort:        { label: 'Consensus fort',     color: '#10B981' },
-  modere:      { label: 'Consensus modéré',   color: '#2DD4BF' },
-  debattu:     { label: 'Sujet débattu',      color: '#FBBF24' },
-  controverse: { label: 'Controversé',        color: '#F97316' },
-  marginal:    { label: 'Position marginale', color: '#9CA3AF' },
+  fort:        { label: 'Consensus fort des spécialistes', color: '#6366F1' },
+  modere:      { label: 'Consensus modéré',                color: '#818CF8' },
+  debattu:     { label: 'Sujet débattu',                   color: '#94A3B8' },
+  controverse: { label: 'Sujet controversé',               color: '#94A3B8' },
+  marginal:    { label: 'Position marginale',              color: '#64748B' },
 };
+// Confiance : échelle NEUTRE (bleu = solidité des preuves du verdict), pas de
+// vert/rouge — la confiance porte sur les PREUVES, pas sur l'opinion de l'user.
 const CONF_BANDS: { band: ConfidenceBand; label: string; color: string }[] = [
-  { band: 'speculatif',    label: 'Spéculatif',    color: '#EF4444' },
-  { band: 'faible',        label: 'Faible',        color: '#F97316' },
-  { band: 'plausible',     label: 'Plausible',     color: '#FBBF24' },
-  { band: 'eleve',         label: 'Élevé',         color: '#84CC16' },
-  { band: 'quasi_certain', label: 'Quasi-certain', color: '#10B981' },
+  { band: 'speculatif',    label: 'Spéculatif',    color: '#CBD5E1' },
+  { band: 'faible',        label: 'Faible',        color: '#94A3B8' },
+  { band: 'plausible',     label: 'Plausible',     color: '#60A5FA' },
+  { band: 'eleve',         label: 'Élevé',         color: '#3B82F6' },
+  { band: 'quasi_certain', label: 'Quasi-certain', color: '#2563EB' },
 ];
 
 function VerdictRow({ label, value, color }: { label: string; value: string; color: string }) {
@@ -269,16 +285,32 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
       </div>
 
       {spec.claim && (
-        <p className="text-[11px] text-white/80 italic leading-snug mb-3">« {spec.claim} »</p>
+        <p className="text-[11px] text-white/80 italic leading-snug mb-2.5">« {spec.claim} »</p>
       )}
 
-      <div className="space-y-1.5">
-        <VerdictRow label="Fact" value={f.label} color={f.color} />
-        <VerdictRow label="Risque" value={r.label} color={r.color} />
-        <VerdictRow label="Consensus" value={c.label} color={c.color} />
+      {/* FAIT — la réponse, dominante et sans ambiguïté. Seul axe où le vert
+          veut dire « vrai » et le rouge « faux ». */}
+      <div className="rounded-lg px-3 py-2.5" style={{ background: `${f.color}1A`, border: `1.5px solid ${f.color}` }}>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: f.color }} />
+          <span className="text-[14px] font-black uppercase tracking-wide" style={{ color: f.color }}>{f.label}</span>
+        </div>
+        {FACT_PHRASE[spec.fact] && (
+          <p className="text-[11px] mt-1 leading-snug font-semibold" style={{ color: f.color }}>{FACT_PHRASE[spec.fact]}</p>
+        )}
       </div>
 
-      {/* Confiance — bande qualitative (jamais un décimal fabriqué) */}
+      {/* Solidité & contexte — axes NEUTRES qui QUALIFIENT le verdict ci-dessus.
+          Aucun vert « validation » ici : ils ne disent pas si l'user a raison. */}
+      <p className="text-[7px] font-black uppercase tracking-widest text-white/30 mt-3 mb-1.5">
+        Solidité &amp; contexte du verdict
+      </p>
+      <div className="space-y-1.5">
+        <VerdictRow label="Consensus" value={c.label} color={c.color} />
+        <VerdictRow label="Risque" value={r.label} color={r.color} />
+      </div>
+
+      {/* Confiance — bande d'intensité NEUTRE (solidité des preuves) */}
       <div className="mt-3">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[8px] font-black uppercase tracking-widest text-white/40 w-[68px] shrink-0">Confiance</span>
@@ -291,7 +323,11 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
         </div>
       </div>
 
-      {spec.note && <p className="text-[9px] text-white/45 mt-2.5 leading-snug">{spec.note}</p>}
+      <p className="text-[8px] text-white/35 mt-2.5 leading-snug">
+        Consensus &amp; confiance mesurent la <strong className="text-white/55 font-black">solidité de ce verdict</strong>, pas si ton opinion est validée : un consensus fort peut confirmer qu'une affirmation est <em>fausse</em>.
+      </p>
+
+      {spec.note && <p className="text-[9px] text-white/45 mt-2 leading-snug">{spec.note}</p>}
     </div>
   );
 }
