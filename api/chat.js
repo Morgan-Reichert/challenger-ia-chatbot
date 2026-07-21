@@ -249,7 +249,10 @@ Aucune source n'a pu être obtenue. En conséquence :
 
     if (!stream) {
       const data = await mistralRes.json();
-      return res.status(200).json(data);
+      // On joint les sources web (même format que l'événement SSE `cia_meta`)
+      // pour que les appels non-streamés (multi-personas) puissent afficher la
+      // même section « Sources ».
+      return res.status(200).json({ ...data, cia_meta: { sources: webSources } });
     }
 
     // Mode streaming SSE — pipe la réponse Mistral vers le client

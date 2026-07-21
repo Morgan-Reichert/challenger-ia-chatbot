@@ -9,7 +9,7 @@
  * - linkifyCitations   : transforme les [n] du texte en liens #cia-src-n
  */
 import React, { useState } from 'react';
-import { Globe } from 'lucide-react';
+import { Globe, ChevronDown } from 'lucide-react';
 
 export type SourceTier = 'high' | 'medium' | 'low' | 'unknown';
 
@@ -65,37 +65,46 @@ export function CitationChip({ targetId, children }: { targetId: string; childre
   );
 }
 
+/**
+ * Section « Sources » — repliable, en bas de toute réponse qui en comporte.
+ *
+ * Design UNIQUE et reconnaissable : une carte claire à liseré bleu Challenger,
+ * texte foncé sur fond clair, quel que soit le contexte (bulle claire du chat
+ * normal OU bulle sombre d'un débat/entretien). C'est ce contraste constant qui
+ * la rend identifiable d'un coup d'œil, partout dans l'app. Repliée par défaut
+ * pour ne pas alourdir la réponse.
+ */
 export function SourcesPanel({ sources }: { sources: SourceRef[] }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div className="mt-3 border border-white/10 bg-[#15171f] rounded-xl overflow-hidden">
+    <div className="cia-sources mt-3 rounded-lg overflow-hidden border-2 border-[#5D7BFF]/25 bg-white shadow-[0_1px_3px_rgba(20,20,40,0.08)]">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left bg-[#5D7BFF]/[0.07] hover:bg-[#5D7BFF]/[0.12] transition-colors"
       >
-        <Globe className="w-2.5 h-2.5" />
-        <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
+        <Globe className="w-3 h-3 text-[#5D7BFF] flex-shrink-0" />
+        <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">
           Sources · {sources.length}
         </span>
-        <span className="ml-auto text-[9px] text-white/40">{open ? '▲' : '▼'}</span>
+        <ChevronDown className={`ml-auto w-3.5 h-3.5 text-[#5D7BFF] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="divide-y divide-white/8">
+        <div className="divide-y divide-[#141428]/8">
           {sources.map((s) => {
             const ui = TIER_UI[s.tier] ?? TIER_UI.unknown;
             return (
               <div key={s.n} id={`cia-src-${s.n}`} className="px-3 py-2 scroll-mt-4">
                 <div className="flex items-start gap-2">
-                  <span className="text-[9px] font-black text-white/40 mt-0.5 flex-shrink-0">[{s.n}]</span>
+                  <span className="text-[9px] font-black text-[#5D7BFF] mt-0.5 flex-shrink-0">[{s.n}]</span>
                   <div className="min-w-0 flex-1">
                     <a
                       href={s.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-white/90 hover:text-[#8AA0FF] leading-snug font-medium break-words"
+                      className="text-[11px] text-[#141428] hover:text-[#5D7BFF] leading-snug font-semibold break-words"
                     >
                       {s.title}
                     </a>
@@ -104,8 +113,8 @@ export function SourcesPanel({ sources }: { sources: SourceRef[] }) {
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: ui.color }} />
                         {ui.label}
                       </span>
-                      <span className="text-[8px] text-white/35">{s.domain}</span>
-                      {s.date && <span className="text-[8px] text-white/25">· {s.date}</span>}
+                      <span className="text-[8px] text-[#141428]/45">{s.domain}</span>
+                      {s.date && <span className="text-[8px] text-[#141428]/30">· {s.date}</span>}
                     </div>
                   </div>
                 </div>

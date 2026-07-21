@@ -2952,6 +2952,19 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
             .filter((m) => m.role !== 'command')
             .map((m) => ({ role: m.role, content: m.content }));
 
+          // Sources agrégées de tous les appels (seul le Fact-Checker en produit,
+          // via la recherche forcée). Dédoublonnées par URL, la même section
+          // « Sources » repliable s'affiche alors au bas de la réponse multiple.
+          const sourcesMulti: SourceRef[] = [];
+          const collecterSources = (src?: SourceRef[]) => {
+            if (!src?.length) return;
+            for (const s of src) {
+              if (!sourcesMulti.some((x) => x.url === s.url)) {
+                sourcesMulti.push({ ...s, n: sourcesMulti.length + 1 });
+              }
+            }
+          };
+
           // Un appel modèle avec le persona et le contenu utilisateur donnés.
           const repondre = async (pers: Persona, userContent: unknown): Promise<string> => {
             const sys = [buildSystemPrompt(pers, activeLevel), profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
@@ -2968,6 +2981,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
             });
             if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
             const data = await res.json();
+            collecterSources(data.cia_meta?.sources);
             // Retirer aussi les questions interactives [CIA_Q:…] : le flux multi-
             // personas n'affiche pas de widget de question, le token fuiterait brut.
             return stripCiaQuestion(stripViz(stripCiaBias(data.choices?.[0]?.message?.content ?? ''))).trim();
@@ -2995,7 +3009,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 p.map((c) => c.id !== convId ? c : {
                   ...c,
                   messages: c.messages.map((m) => m.id === asstIdMulti
-                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })) }
+                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })), sources: sourcesMulti.length ? sourcesMulti : undefined }
                     : m),
                 })
               );
@@ -3064,7 +3078,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 p.map((c) => c.id !== convId ? c : {
                   ...c,
                   messages: c.messages.map((m) => m.id === asstIdMulti
-                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese } }
+                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese }, sources: sourcesMulti.length ? sourcesMulti : undefined }
                     : m),
                 })
               );
@@ -5873,6 +5887,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                             );
                           })}
                         </div>
+                        {/* Regards parallèles : le contenu est dans les cartes (pas
+                            dans msg.content), donc la section Sources se rend ici. */}
+                        {msg.sources?.length ? <SourcesPanel sources={msg.sources} /> : null}
                       </div>
                     )}
 
