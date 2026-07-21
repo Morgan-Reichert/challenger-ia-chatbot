@@ -68,6 +68,11 @@ export type UserProfile = {
   // l'article 13 du RGPD, et surtout à ce que ce produit prétend défendre.
   usage: '' | 'pro' | 'perso' | 'etudes';
   longueurReponse: '' | 'concise' | 'standard' | 'approfondie';
+  profondeurReponse: '' | 'essentiel' | 'equilibre' | 'fouille';
+  // Réponse multi-personas : mode (regards parallèles / investigation enchaînée)
+  // et nombre max de contradicteurs mobilisés. Réglé dans le popup de config.
+  multiPersonaMode: '' | 'parallele' | 'investigation';
+  multiPersonaNombre: number;
   rapportContradiction: string; // comment il souhaite être contredit
   calibrageFait: boolean;    // évite de reproposer le questionnaire
 };
@@ -96,6 +101,9 @@ export const EMPTY_PROFILE: UserProfile = {
   frictionPreferee: '',
   usage: '',
   longueurReponse: '',
+  profondeurReponse: '',
+  multiPersonaMode: 'parallele',
+  multiPersonaNombre: 2,
   rapportContradiction: '',
   calibrageFait: false,
 };
@@ -171,19 +179,14 @@ export function buildProfileContext(profile: UserProfile): string {
   if (profile.interests.length > 0) lines.push(`Centres d'intérêt : ${profile.interests.join(', ')}`);
   if (profile.interestNotes) lines.push(`Détail intérêts : ${profile.interestNotes}`);
 
-  // Longueur attendue : directive de format, pas information de profil. Elle
-  // sort donc du bloc « profil », dont la consigne est d'user des informations
-  // « avec subtilité » — ce qui affaiblirait une contrainte de format.
-  const format = {
-    concise:     "## Format\nRéponds court : l'essentiel en quelques phrases, sans développement superflu. L'utilisateur a peu de temps.",
-    approfondie: '## Format\nDéveloppe : nuances, contre-exemples et implications sont bienvenus. L\'utilisateur veut creuser.',
-    standard:    '',
-    '':          '',
-  }[profile.longueurReponse] ?? '';
+  // Longueur ET profondeur attendues ne sont plus injectées ici : ce sont des
+  // contraintes de format, gérées par message via directiveFormat (src/
+  // formatReponse.ts), initialisées depuis le défaut du profil. Les placer dans
+  // le bloc « profil » — dont la consigne est d'user des informations « avec
+  // subtilité » — affaiblirait la contrainte. On les sort donc entièrement.
 
-  if (lines.length === 0) return format;
+  if (lines.length === 0) return '';
   return (
-    (format ? format + '\n\n' : '') +
     `## Profil de l'utilisateur\n` +
     `Utilise ces informations de façon subtile et bienveillante :\n` +
     `- Seulement quand c'est pertinent pour la session en cours — pas de façon systématique.\n` +

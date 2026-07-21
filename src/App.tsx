@@ -12,7 +12,7 @@ import {
   Star, UserMinus, Eraser, Slash, FileDown, Coins,
   Copy, Share2, Link, Trophy, Wrench,
   Hexagon, ShieldAlert, ShieldCheck, Vote, Clock, Sparkles, Hourglass,
-  HelpCircle, Compass, Gavel,
+  HelpCircle, Compass, Gavel, SlidersHorizontal,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -39,8 +39,12 @@ import { DEBATE_PERSONAS, type DebateDisplayData } from './debatePersonas';
 import { INTERVIEW_TYPES, type InterviewTypeId, type InterviewTypeConfig } from './interviewTypes';
 import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type UserProfile } from './userProfile';
 import { buildSystemPrompt } from './systemPrompt.js';
-import { deducePersona } from './deducePersona';
+import { deducePersona, deduceDuo, ordrePersonas } from './deducePersona';
 import { deduceFriction } from './deduceFriction';
+import {
+  directiveFormat, formatEstAuto, FORMAT_AUTO, longueurDepuisProfil, profondeurDepuisProfil,
+  type FormatReponse, type Longueur, type Profondeur,
+} from './formatReponse';
 import {
   FIREBASE_ENABLED, auth, db, googleProvider,
   signInWithPopup, signOut as fbSignOut, onAuthStateChanged,
@@ -92,6 +96,18 @@ interface Message {
   level: FrictionLevel;
   attachments?: Attachment[];
   sources?: SourceRef[]; // sources web (fact-check) — rendues en cartes cliquables
+  // Réponse multi-personas, mode PARALLÈLE : N contradicteurs répondent à la
+  // même question indépendamment, rendus en cartes encadrées. N appels = N crédits.
+  // (doubleRegard : ancien nom, conservé pour relire les conversations d'avant.)
+  doubleRegard?: { persona: Persona; content: string }[];
+  multiRegard?: { persona: Persona; content: string }[];
+  // Réponse multi-personas, mode INVESTIGATION : les personas s'enchaînent,
+  // chacun relisant le précédent, puis une synthèse tranche. `synthese` est la
+  // réponse finale ; `etapes` est le cheminement, dépliable par l'utilisateur.
+  investigation?: {
+    etapes: { persona: Persona; content: string }[];
+    synthese: string;
+  };
 }
 
 interface Conversation {
@@ -231,6 +247,77 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
 // Enterré ici, il ne pouvait être exercé qu'en montant React : cinq campagnes
 // d'évaluation ont donc porté sur le prompt de l'API publique, jamais sur
 // celui-ci — que rencontrent pourtant les utilisateurs.
+
+// ─── Contrôle de format : barre à 3 crans (longueur / profondeur) ────────────
+// Une barre remplace trois boutons : le choix est un curseur, pas un menu, et
+// « auto » y est un état à part entière (aucun cran allumé). Cliquer un cran le
+// règle ; recliquer le cran actif revient à « auto ».
+const CRANS_LONGUEUR: { v: 'bref' | 'moyen' | 'detaille'; label: string }[] = [
+  { v: 'bref', label: 'Bref' }, { v: 'moyen', label: 'Moyen' }, { v: 'detaille', label: 'Détaillé' },
+];
+const CRANS_PROFONDEUR: { v: 'essentiel' | 'equilibre' | 'fouille'; label: string }[] = [
+  { v: 'essentiel', label: 'Essentiel' }, { v: 'equilibre', label: 'Équilibré' }, { v: 'fouille', label: 'Fouillé' },
+];
+
+function BarreCrans<T extends string>({
+  titre, indice, crans, valeur, couleur, onChange,
+}: {
+  titre: string;
+  indice: string;
+  crans: { v: T; label: string }[];
+  valeur: T | 'auto';
+  couleur: string;
+  onChange: (v: T | 'auto') => void;
+}) {
+  const actifIdx = crans.findIndex((c) => c.v === valeur);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50">{titre}</span>
+        <button
+          type="button"
+          onClick={() => onChange('auto')}
+          className={cx(
+            'text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 border transition-colors',
+            valeur === 'auto'
+              ? 'border-[#5D7BFF] text-[#5D7BFF] bg-[#5D7BFF]/10'
+              : 'border-[var(--border)] text-[var(--text-primary)]/35 hover:text-[#5D7BFF] hover:border-[#5D7BFF]/40',
+          )}
+        >
+          Auto
+        </button>
+      </div>
+      <div className="flex gap-1">
+        {crans.map((c, i) => {
+          const rempli = actifIdx >= 0 && i <= actifIdx;
+          return (
+            <button
+              key={c.v}
+              type="button"
+              onClick={() => onChange(valeur === c.v ? 'auto' : c.v)}
+              className="flex-1 group"
+              title={c.label}
+            >
+              <span
+                className="block h-1.5 transition-colors"
+                style={{ background: rempli ? couleur : 'var(--border)' }}
+              />
+              <span
+                className={cx(
+                  'block mt-1 text-[8px] font-black uppercase tracking-widest transition-colors',
+                  valeur === c.v ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]/35',
+                )}
+              >
+                {c.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1.5 text-[8px] text-[var(--text-primary)]/35 leading-snug">{indice}</p>
+    </div>
+  );
+}
 
 // ─── Questions interactives ───────────────────────────────────────────────────
 
@@ -1423,6 +1510,28 @@ export default function App() {
     const a = loadProfile().autoFriction;
     return a !== false;
   });
+  // Format de réponse — longueur ET profondeur, deux axes distincts, réglés par
+  // message. Initialisé depuis le défaut du profil (calibrage) ; « auto » sur un
+  // axe = le modèle s'adapte, on n'injecte rien pour cet axe.
+  const [formatReponse, setFormatReponse] = useState<FormatReponse>(() => {
+    const p = loadProfile();
+    return {
+      longueur: longueurDepuisProfil(p.longueurReponse),
+      profondeur: profondeurDepuisProfil(p.profondeurReponse),
+    };
+  });
+  const [formatOuvert, setFormatOuvert] = useState(false);
+  // Réponse multi-personas : configuration (mode + nombre) et ouverture du popup.
+  const [multiConfig, setMultiConfig] = useState<{ mode: 'parallele' | 'investigation'; nombre: number }>(() => {
+    const p = loadProfile();
+    return {
+      mode: p.multiPersonaMode === 'investigation' ? 'investigation' : 'parallele',
+      nombre: Math.max(2, Math.min(p.multiPersonaNombre || 2, 5)),
+    };
+  });
+  const [multiConfigOuvert, setMultiConfigOuvert] = useState(false);
+  // Cheminements d'investigation dépliés (par id de message).
+  const [cheminementsOuverts, setCheminementsOuverts] = useState<Set<string>>(new Set());
   // Dernière déduction, affichée sous la réponse pour l'expliquer et l'annuler.
   const [derniereDeduction, setDerniereDeduction] = useState<
     { persona: Persona; motif: string; parDefaut: boolean } | null
@@ -2152,6 +2261,41 @@ export default function App() {
     });
   }, [user]);
 
+  // Format de réponse : le choix par message devient aussi le nouveau défaut,
+  // persisté dans le profil sous le vocabulaire hérité (concise/standard/…).
+  const changerFormat = useCallback((suivant: FormatReponse) => {
+    setFormatReponse(suivant);
+    const versProfilLong: Record<Longueur, UserProfile['longueurReponse']> = {
+      auto: '', bref: 'concise', moyen: 'standard', detaille: 'approfondie',
+    };
+    const versProfilProf: Record<Profondeur, UserProfile['profondeurReponse']> = {
+      auto: '', essentiel: 'essentiel', equilibre: 'equilibre', fouille: 'fouille',
+    };
+    setUserProfile((actuel) => {
+      const maj = {
+        ...actuel,
+        longueurReponse: versProfilLong[suivant.longueur],
+        profondeurReponse: versProfilProf[suivant.profondeur],
+      };
+      saveProfile(maj);
+      if (user) void fsSaveProfileRemote(user.uid, maj);
+      return maj;
+    });
+  }, [user]);
+
+  // Config multi-personas : persistée pour devenir le défaut de la prochaine fois.
+  const changerMultiConfig = useCallback((suivant: { mode: 'parallele' | 'investigation'; nombre: number }) => {
+    const nombre = Math.max(2, Math.min(suivant.nombre, 5));
+    const valide = { mode: suivant.mode, nombre };
+    setMultiConfig(valide);
+    setUserProfile((actuel) => {
+      const maj = { ...actuel, multiPersonaMode: valide.mode, multiPersonaNombre: nombre };
+      saveProfile(maj);
+      if (user) void fsSaveProfileRemote(user.uid, maj);
+      return maj;
+    });
+  }, [user]);
+
   const handleSignOut = async () => {
     if (!auth) return;
     await fbSignOut(auth);
@@ -2468,7 +2612,7 @@ export default function App() {
 
   // ── Send message
   const send = useCallback(
-    async (text: string, attachments: Attachment[] = []) => {
+    async (text: string, attachments: Attachment[] = [], opts?: { multi?: { mode: 'parallele' | 'investigation'; nombre: number } }) => {
       if (!text.trim() && attachments.length === 0) return;
       if (sending || sendingRef.current) return;
       sendingRef.current = true;
@@ -2676,7 +2820,10 @@ export default function App() {
         const profileCtx = profilAutorise ? buildProfileContext(userProfile) : '';
         // Mémoire cognitive : soumise au même consentement que le profil.
         const cogCtx = profilAutorise ? cognitiveContext(cognitiveProfile) : '';
-        const systemPrompt = [basePrompt, profileCtx, cogCtx].filter(Boolean).join('\n\n');
+        // Format de réponse (longueur/profondeur) : contrainte explicite, après
+        // le profil pour ne pas être diluée par la consigne de « subtilité ».
+        const fmtDir = directiveFormat(formatReponse);
+        const systemPrompt = [basePrompt, profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
         const debateModel = activeConvNow?.debatePrompt ? 'mistral-large-latest' : model;
 
         // Inject real-time date (côté client — non sensible)
@@ -2734,6 +2881,153 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         const contextMessages = memoryResetAt
           ? allMessages.filter((m) => new Date(m.timestamp).toISOString() > memoryResetAt)
           : allMessages;
+
+        // ── Réponse multi-personas (parallèle / investigation) ─────────────
+        // Réservé au mode automatique — c'est lui qui choisit le jeu de
+        // contradicteurs complémentaires. Chaque appel modèle coûte un crédit,
+        // déduit côté serveur : N regards = N crédits ; investigation ≈ N+1.
+        if (opts?.multi && autoMode) {
+          setDerniereDeduction(null); // la réponse multiple remplace la puce simple
+          const { mode, nombre } = opts.multi;
+          const personas = ordrePersonas(text, nombre);
+          const asstIdMulti = uid();
+
+          const historique = contextMessages.slice(0, -1)
+            .filter((m) => m.role !== 'command')
+            .map((m) => ({ role: m.role, content: m.content }));
+
+          // Un appel modèle avec le persona et le contenu utilisateur donnés.
+          const repondre = async (pers: Persona, userContent: unknown): Promise<string> => {
+            const sys = [buildSystemPrompt(pers, activeLevel), profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
+            const res = await callChat({
+              model: debateModel, temperature,
+              messages: [
+                { role: 'system', content: sys },
+                ...historique,
+                { role: 'user', content: userContent },
+              ],
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            // Retirer aussi les questions interactives [CIA_Q:…] : le flux multi-
+            // personas n'affiche pas de widget de question, le token fuiterait brut.
+            return stripCiaQuestion(stripViz(stripCiaBias(data.choices?.[0]?.message?.content ?? ''))).trim();
+          };
+
+          try {
+            if (mode === 'parallele') {
+              // Placeholder : autant de cartes que de personas, toutes « en cours ».
+              setConversations((p) =>
+                p.map((c) => c.id !== convId ? c : {
+                  ...c,
+                  messages: [...c.messages, {
+                    id: asstIdMulti, role: 'assistant' as const, content: '',
+                    timestamp: new Date(), persona: personas[0], level: activeLevel,
+                    multiRegard: personas.map((pp) => ({ persona: pp, content: '' })),
+                  }],
+                  updatedAt: new Date(),
+                })
+              );
+              const reponses = await Promise.all(
+                personas.map((pp) => repondre(pp, buildUserContent(userMsg)))
+              );
+              playDone();
+              setConversations((p) =>
+                p.map((c) => c.id !== convId ? c : {
+                  ...c,
+                  messages: c.messages.map((m) => m.id === asstIdMulti
+                    ? { ...m, multiRegard: personas.map((pp, i) => ({ persona: pp, content: reponses[i] })) }
+                    : m),
+                })
+              );
+            } else {
+              // Investigation : chaîne séquentielle. Chaque persona relit le
+              // précédent, puis un Arbitre synthétise une réponse cohérente.
+              setConversations((p) =>
+                p.map((c) => c.id !== convId ? c : {
+                  ...c,
+                  messages: [...c.messages, {
+                    id: asstIdMulti, role: 'assistant' as const, content: '',
+                    timestamp: new Date(), persona: personas[0], level: activeLevel,
+                    investigation: { etapes: [], synthese: '' },
+                  }],
+                  updatedAt: new Date(),
+                })
+              );
+
+              const etapes: { persona: Persona; content: string }[] = [];
+              for (let i = 0; i < personas.length; i++) {
+                const pers = personas[i];
+                let userContent: unknown;
+                if (i === 0) {
+                  userContent = buildUserContent(userMsg);
+                } else {
+                  const prec = etapes[i - 1];
+                  userContent =
+                    `QUESTION INITIALE :\n${text}\n\n` +
+                    `ANALYSE DU CONTRADICTEUR PRÉCÉDENT (${PERSONAS[prec.persona].name}) :\n${prec.content}\n\n` +
+                    `Relis cette analyse avec TON angle propre. Relève ce qu'elle manque, corrige ce qui est faux ou fragile, pousse le raisonnement plus loin. Ne répète pas ce qui est déjà juste — apporte ce que les précédents n'ont pas vu.`;
+                }
+                const rep = await repondre(pers, userContent);
+                etapes.push({ persona: pers, content: rep });
+                // Mise à jour progressive : l'utilisateur voit le cheminement se construire.
+                setConversations((p) =>
+                  p.map((c) => c.id !== convId ? c : {
+                    ...c,
+                    messages: c.messages.map((m) => m.id === asstIdMulti
+                      ? { ...m, investigation: { etapes: [...etapes], synthese: '' } }
+                      : m),
+                  })
+                );
+              }
+
+              // Synthèse finale : un Arbitre tranche et livre LA réponse cohérente.
+              const sysSynth = [buildSystemPrompt('arbiter', activeLevel), profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
+              const enchainement = etapes
+                .map((e, i) => `── Analyse ${i + 1} — ${PERSONAS[e.persona].name} ──\n${e.content}`)
+                .join('\n\n');
+              const resSynth = await callChat({
+                model: debateModel, temperature,
+                messages: [
+                  { role: 'system', content: sysSynth },
+                  ...historique,
+                  { role: 'user', content:
+                    `QUESTION DE L'UTILISATEUR :\n${text}\n\n` +
+                    `Plusieurs contradicteurs l'ont analysée successivement, chacun affinant le précédent :\n\n${enchainement}\n\n` +
+                    `Produis maintenant LA réponse finale, cohérente et directement utile à l'utilisateur. Tranche les désaccords, garde le meilleur de chaque angle, écarte ce qui a été réfuté. N'évoque ni les personas ni ce procédé : l'utilisateur veut une réponse aboutie, pas un compte rendu.` },
+                ],
+              });
+              if (!resSynth.ok) throw new Error(`HTTP ${resSynth.status}`);
+              const dataSynth = await resSynth.json();
+              const synthese = stripCiaQuestion(stripViz(stripCiaBias(dataSynth.choices?.[0]?.message?.content ?? ''))).trim();
+              playDone();
+              setConversations((p) =>
+                p.map((c) => c.id !== convId ? c : {
+                  ...c,
+                  messages: c.messages.map((m) => m.id === asstIdMulti
+                    ? { ...m, content: synthese, investigation: { etapes: [...etapes], synthese } }
+                    : m),
+                })
+              );
+            }
+          } catch {
+            setConversations((p) =>
+              p.map((c) => c.id !== convId ? c : {
+                ...c,
+                messages: c.messages.map((m) => m.id === asstIdMulti
+                  ? { ...m, content: m.content || 'L’analyse multi-personas a été interrompue (quota ou erreur réseau). Réessayez.' }
+                  : m),
+              })
+            );
+          }
+
+          setConversations((p) => {
+            const conv = p.find((c) => c.id === convId);
+            if (conv && user) fsSaveConversation(user.uid, conv);
+            return p;
+          });
+          return;
+        }
 
         // Placeholder vide affiché immédiatement pendant le streaming
         const asstId = uid();
@@ -2841,7 +3135,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
         sendingRef.current = false;
       }
     },
-    [activeId, conversations, sending, persona, autoMode, autoFriction, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv]
+    [activeId, conversations, sending, persona, autoMode, autoFriction, level, user, subscription, dailyUsage, challengeRewarded, cognitiveProfile, activeConv, formatReponse]
   );
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
@@ -2937,7 +3231,8 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
     const profilAutorise = !conv.debatePrompt && !conv.noProfile && !noProfileMode;
     const profileCtx = profilAutorise ? buildProfileContext(userProfile) : '';
     const cogCtx = profilAutorise ? cognitiveContext(cognitiveProfile) : '';
-    const systemPrompt = [basePrompt, profileCtx, cogCtx].filter(Boolean).join('\n\n');
+    const fmtDir = directiveFormat(formatReponse);
+    const systemPrompt = [basePrompt, profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
 
     // Historique respectant /oublier
     const memoryResetAt = conv.memoryResetAt;
@@ -3010,7 +3305,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
       setSending(false);
       sendingRef.current = false;
     }
-  }, [activeId, conversations, addCommandMsg, persona, level, noProfileMode, userProfile, user, setConversations]);
+  }, [activeId, conversations, addCommandMsg, persona, level, noProfileMode, userProfile, user, setConversations, formatReponse]);
 
   const handleSlashCommand = useCallback(
     async (id: SlashCommandId) => {
@@ -3552,8 +3847,11 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
   // montrer un nom de persona AVANT le premier message laisserait croire qu'il
   // est déjà fixé, alors qu'il dépend de ce que l'utilisateur va écrire. Une
   // fois un message envoyé, `persona` reflète le choix réel et on l'affiche.
-  const conversationEngageeHeader = (activeConv?.messages ?? []).some((m) => m.role === 'user');
-  const afficherAuto = autoMode && !conversationEngageeHeader && !derniereDeduction;
+  // En mode auto, l'en-tête reste « Le Challenger » pendant TOUTE la conversation :
+  // afficher le nom du dernier contradicteur déduit laisserait croire qu'il est
+  // figé, alors que chaque message peut réaiguiller. Le persona réel de chaque
+  // réponse est expliqué au cas par cas par la puce sous la réponse, pas ici.
+  const afficherAuto = autoMode && !activeConv?.debatePersonaId && !activeConv?.interviewType;
   const AUTO_BLEU = '#5D7BFF';
   const enTeteCouleur = afficherAuto ? AUTO_BLEU : PERSONAS[persona].color;
   const EnTeteIcone = afficherAuto ? Sparkles : CurrentIcon;
@@ -5445,6 +5743,95 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                       />
                     )}
 
+                    {/* Regards parallèles : N contradicteurs encadrés côte à côte.
+                        (multiRegard ; doubleRegard = ancien nom, toujours rendu.) */}
+                    {(msg.multiRegard ?? msg.doubleRegard) && (
+                      <div className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <Sparkles className="w-3 h-3 text-[#5D7BFF]" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">
+                            {(() => { const n = (msg.multiRegard ?? msg.doubleRegard)!.length; return n <= 2 ? 'Double regard' : `Regards croisés · ${n} contradicteurs`; })()}
+                          </span>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-2.5">
+                          {(msg.multiRegard ?? msg.doubleRegard)!.map((r, ri) => {
+                            const pinfo = PERSONAS[r.persona];
+                            const PIcon = pinfo.icon;
+                            return (
+                              <div key={ri} className="border-2 border-[#141414]/10 bg-[var(--bg-chat)] overflow-hidden">
+                                <div className="flex items-center gap-2 px-3 py-2 border-b-2 border-[#141414]/10"
+                                     style={{ background: `${pinfo.color}0D` }}>
+                                  <PIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: pinfo.color }} />
+                                  <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: pinfo.color }}>
+                                    {pinfo.shortName}
+                                  </span>
+                                </div>
+                                <div className="px-3 py-2.5">
+                                  {r.content
+                                    ? <RichContent text={r.content} components={mdLight} streaming={false} />
+                                    : <p className="flex items-center gap-2 text-[11px] text-[var(--text-primary)]/40"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rédaction…</p>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Investigation : cheminement dépliable au-dessus de la synthèse.
+                        Tant que la synthèse n'est pas prête, la section reste ouverte
+                        pour montrer les étapes se construire. */}
+                    {msg.investigation && (() => {
+                      const inv = msg.investigation!;
+                      const enCours = !inv.synthese;
+                      const ouvert = enCours || cheminementsOuverts.has(msg.id);
+                      return (
+                        <div className="px-4 pt-3">
+                          <button
+                            type="button"
+                            onClick={() => setCheminementsOuverts((s) => { const n = new Set(s); n.has(msg.id) ? n.delete(msg.id) : n.add(msg.id); return n; })}
+                            className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[#5D7BFF] hover:opacity-80 transition-opacity"
+                          >
+                            <Compass className="w-3 h-3" />
+                            <span>Cheminement · {inv.etapes.length} étape{inv.etapes.length > 1 ? 's' : ''}</span>
+                            <ChevronDown className={cx('w-3 h-3 transition-transform', ouvert ? 'rotate-180' : '')} />
+                          </button>
+                          {ouvert && (
+                            <div className="mt-2.5 space-y-2 border-l-2 border-[#5D7BFF]/20 pl-3">
+                              {inv.etapes.map((e, ei) => {
+                                const pinfo = PERSONAS[e.persona];
+                                const PIcon = pinfo.icon;
+                                return (
+                                  <div key={ei} className="border border-[#141414]/10 bg-[var(--bg-chat)] overflow-hidden">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#141414]/10" style={{ background: `${pinfo.color}0D` }}>
+                                      <span className="text-[8px] font-black text-[var(--text-primary)]/30">{ei + 1}</span>
+                                      <PIcon className="w-3 h-3 flex-shrink-0" style={{ color: pinfo.color }} />
+                                      <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: pinfo.color }}>{pinfo.shortName}</span>
+                                    </div>
+                                    <div className="px-3 py-2 text-[var(--text-primary)]/75">
+                                      <RichContent text={e.content} components={mdLight} streaming={false} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {enCours && (
+                                <p className="flex items-center gap-2 text-[10px] text-[var(--text-primary)]/40 py-1">
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  {inv.etapes.length === 0 ? 'Analyse en cours…' : 'Poursuite du raisonnement…'}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {!enCours && (
+                            <div className="flex items-center gap-1.5 mt-3 mb-1">
+                              <Gavel className="w-3 h-3 text-[#5D7BFF]" />
+                              <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Synthèse</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {msg.content ? (
                       <div className="px-4 py-3">
                         {msg.role === 'assistant' ? (() => {
@@ -5985,6 +6372,190 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Barre d'options : format de réponse (toujours) + double regard (auto). */}
+            {!activeConv?.interviewType && (
+              <div className="flex justify-center items-center gap-2 mb-2">
+                {/* Format — longueur ET profondeur, réglées par message, repliées
+                    dans un chip. « Auto » sur les deux axes = le modèle s'adapte. */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setFormatOuvert((o) => !o)}
+                    title="Choisir la longueur et la profondeur de la réponse"
+                    className={cx(
+                      'flex items-center gap-2 px-3 py-1.5 border-2 transition-all',
+                      formatOuvert || !formatEstAuto(formatReponse)
+                        ? 'border-[#5D7BFF] bg-[#5D7BFF]/[0.06] text-[#5D7BFF]'
+                        : 'border-[var(--border)] text-[var(--text-primary)]/45 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]',
+                    )}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Format</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest opacity-60">
+                      {formatEstAuto(formatReponse)
+                        ? 'Auto'
+                        : [
+                            CRANS_LONGUEUR.find((c) => c.v === formatReponse.longueur)?.label,
+                            CRANS_PROFONDEUR.find((c) => c.v === formatReponse.profondeur)?.label,
+                          ].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+
+                  <AnimatePresence>
+                    {formatOuvert && (
+                      <>
+                        {/* Voile transparent pour fermer au clic extérieur. */}
+                        <div className="fixed inset-0 z-40" onClick={() => setFormatOuvert(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 6 }}
+                          transition={{ duration: 0.12 }}
+                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-[280px] p-4 space-y-4 border-2 border-[#5D7BFF]/25 bg-[var(--bg-elevated,#fff)] shadow-xl"
+                          style={{ background: 'var(--bg-elevated, #ffffff)' }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Format de réponse</span>
+                            <button
+                              type="button"
+                              onClick={() => changerFormat(FORMAT_AUTO)}
+                              className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/35 hover:text-[#5D7BFF] transition-colors"
+                            >
+                              Tout auto
+                            </button>
+                          </div>
+                          <BarreCrans<Longueur>
+                            titre="Longueur"
+                            indice="Combien de mots — de deux phrases à un développement complet."
+                            crans={CRANS_LONGUEUR}
+                            valeur={formatReponse.longueur}
+                            couleur="#5D7BFF"
+                            onChange={(v) => changerFormat({ ...formatReponse, longueur: v })}
+                          />
+                          <BarreCrans<Profondeur>
+                            titre="Profondeur"
+                            indice="Jusqu'où l'analyse pousse — un angle décisif ou plusieurs, avec objections et cas limites."
+                            crans={CRANS_PROFONDEUR}
+                            valeur={formatReponse.profondeur}
+                            couleur="#8B5CF6"
+                            onChange={(v) => changerFormat({ ...formatReponse, profondeur: v })}
+                          />
+                          <p className="text-[8px] text-[var(--text-primary)]/40 leading-snug border-t border-[var(--border)] pt-2.5">
+                            Deux axes indépendants : une réponse peut être <strong>courte et fouillée</strong> (dense) ou <strong>longue et essentielle</strong> (pédagogique).
+                          </p>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Réponse multi-personas — au clic, un popup configure le nombre
+                    de contradicteurs et le mode (parallèle / investigation) avant
+                    de lancer. Réservé au mode automatique, qui choisit le jeu. */}
+                {autoMode && !activeConv?.debatePersonaId && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMultiConfigOuvert((o) => !o)}
+                      title="Autoriser une réponse à plusieurs contradicteurs"
+                      className={cx(
+                        'group flex items-center gap-2 px-3 py-1.5 border-2 transition-all',
+                        multiConfigOuvert
+                          ? 'border-[#5D7BFF] bg-[#5D7BFF]/10 text-[#5D7BFF]'
+                          : 'border-[#5D7BFF]/30 bg-[#5D7BFF]/[0.04] text-[#5D7BFF] hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/10',
+                      )}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Plusieurs personas</span>
+                      <span className="text-[8px] font-black uppercase tracking-widest bg-[#5D7BFF] text-white px-1.5 py-0.5">
+                        {multiConfig.mode === 'investigation' ? `×${multiConfig.nombre + 1}` : `×${multiConfig.nombre}`} crédits
+                      </span>
+                    </button>
+
+                    <AnimatePresence>
+                      {multiConfigOuvert && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setMultiConfigOuvert(false)} />
+                          <motion.div
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 6 }}
+                            transition={{ duration: 0.12 }}
+                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-[320px] p-4 space-y-4 border-2 border-[#5D7BFF]/25 shadow-xl"
+                            style={{ background: 'var(--bg-elevated, #ffffff)' }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-[#5D7BFF]" />
+                              <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Réponse à plusieurs personas</span>
+                            </div>
+
+                            {/* Nombre de contradicteurs */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50">Nombre de contradicteurs</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre - 1 })}
+                                    disabled={multiConfig.nombre <= 2}
+                                    className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black"
+                                  >−</button>
+                                  <span className="w-5 text-center text-[13px] font-black text-[var(--text-primary)]">{multiConfig.nombre}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre + 1 })}
+                                    disabled={multiConfig.nombre >= 5}
+                                    className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black"
+                                  >+</button>
+                                </div>
+                              </div>
+                              <p className="text-[8px] text-[var(--text-primary)]/40 leading-snug">De 2 à 5 contradicteurs aux angles complémentaires.</p>
+                            </div>
+
+                            {/* Mode */}
+                            <div className="space-y-2">
+                              {([
+                                { v: 'parallele' as const, titre: 'Regards parallèles', desc: 'Chacun répond de son côté, réponses côte à côte.', cout: `×${multiConfig.nombre} crédits` },
+                                { v: 'investigation' as const, titre: 'Investigation enchaînée', desc: 'Chacun relit le précédent et affine ; une synthèse tranche. Cheminement consultable.', cout: `×${multiConfig.nombre + 1} crédits` },
+                              ]).map((opt) => (
+                                <button
+                                  key={opt.v}
+                                  type="button"
+                                  onClick={() => changerMultiConfig({ ...multiConfig, mode: opt.v })}
+                                  className={cx(
+                                    'w-full text-left p-2.5 border-2 transition-all',
+                                    multiConfig.mode === opt.v
+                                      ? 'border-[#5D7BFF] bg-[#5D7BFF]/[0.06]'
+                                      : 'border-[var(--border)] hover:border-[#5D7BFF]/40',
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className={cx('text-[10px] font-black uppercase tracking-wider', multiConfig.mode === opt.v ? 'text-[#5D7BFF]' : 'text-[var(--text-primary)]/70')}>{opt.titre}</span>
+                                    <span className="text-[7px] font-black uppercase tracking-widest bg-[#5D7BFF]/15 text-[#5D7BFF] px-1.5 py-0.5">{opt.cout}</span>
+                                  </div>
+                                  <p className="text-[8px] text-[var(--text-primary)]/45 leading-snug">{opt.desc}</p>
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => { if (input.trim() && !sending) { setMultiConfigOuvert(false); send(input, pendingAttachments, { multi: multiConfig }); } }}
+                              disabled={sending || !input.trim()}
+                              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              {input.trim() ? 'Lancer l’analyse' : 'Écrivez votre question'}
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className={cx('flex gap-2', isMobile && !inputFocused ? 'items-center' : 'items-end')}>
               {/* Bouton pièce jointe */}

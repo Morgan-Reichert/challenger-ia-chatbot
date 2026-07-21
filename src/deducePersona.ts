@@ -135,3 +135,40 @@ export function deducePersona(
 
   return { persona: meilleur, score: meilleurScore, motif: meilleurMotif, parDefaut: false };
 }
+
+/**
+ * Deux contradicteurs complémentaires pour le « double regard ».
+ *
+ * L'intérêt d'une double réponse est le CONTRASTE : deux angles qui ne se
+ * recouvrent pas. Le premier est celui qu'on aurait choisi seul ; le second
+ * est son complément naturel — l'angle qu'il ne couvre pas.
+ */
+const COMPLEMENT: Record<Persona, Persona> = {
+  architect: 'factchecker',   // la logique, puis les faits
+  factchecker: 'architect',   // les faits, puis la logique
+  opponent: 'arbiter',        // l'attaque, puis la synthèse qui tranche
+  arbiter: 'opponent',        // la synthèse, puis l'attaque frontale
+  strategist: 'opponent',     // le plan, puis ses risques
+};
+
+export function deduceDuo(texte: string): [Persona, Persona] {
+  const premier = deducePersona(texte).persona;
+  return [premier, COMPLEMENT[premier]];
+}
+
+/**
+ * Ordre de plusieurs contradicteurs pour une réponse multi-personas.
+ *
+ * On part de celui qu'on aurait choisi seul, puis on ajoute les autres dans un
+ * ordre de DIVERSITÉ des angles (logique → attaque → faits → action → synthèse),
+ * sans doublon. C'est cet ordre que suivra le mode investigation : chaque
+ * persona relit le précédent, l'Arbitre finissant volontiers par trancher.
+ */
+const ORDRE_DIVERSITE: Persona[] = ['architect', 'opponent', 'factchecker', 'strategist', 'arbiter'];
+
+export function ordrePersonas(texte: string, n: number): Persona[] {
+  const borne = Math.max(2, Math.min(Math.floor(n) || 2, ORDRE_DIVERSITE.length));
+  const premier = deducePersona(texte).persona;
+  const suite = ORDRE_DIVERSITE.filter((p) => p !== premier);
+  return [premier, ...suite].slice(0, borne);
+}
