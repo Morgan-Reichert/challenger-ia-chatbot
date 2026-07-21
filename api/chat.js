@@ -16,6 +16,7 @@
  */
 import { verifyIdToken, isAuthEnforced } from './_lib/admin.js';
 import { checkAndConsumeQuota } from './_lib/quota.js';
+import { estEmailIllimite } from './_lib/illimite.js';
 import { cors } from './_lib/cors.js';
 import { rechercher } from './_lib/recherche.js';
 import { verifierReponse } from './_lib/verifier.js';
@@ -104,7 +105,7 @@ export default async function handler(req, res) {
   if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { messages, model, temperature, searchQuery, stream = true, attachmentCount = 0 } = req.body;
+  const { messages, model, temperature, searchQuery, stream = true, attachmentCount = 0, factcheck = false } = req.body;
 
   if (!messages || !model) {
     return res.status(400).json({ error: 'messages et model sont requis' });
@@ -123,7 +124,7 @@ export default async function handler(req, res) {
   if (process.env.VERCEL_ENV === 'production' && !isAuthEnforced()) {
     return res.status(503).json({ error: 'Service indisponible : authentification serveur non configurée (FIREBASE_ADMIN_*).' });
   }
-  const { uid, error: authErr, skipped: authSkipped } = await verifyIdToken(req);
+  const { uid, email, error: authErr, skipped: authSkipped } = await verifyIdToken(req);
   if (isAuthEnforced() && !uid) {
     return res.status(401).json({ error: authErr === 'invalid_token' ? 'Token invalide' : 'Authentification requise' });
   }
@@ -132,7 +133,10 @@ export default async function handler(req, res) {
   const safeAttachCount = Math.max(0, Math.min(3, Number(attachmentCount) || 0));
   const cost = 1 + safeAttachCount * 3;
 
-  if (!authSkipped) {
+  // Comptes à crédits illimités : ni quota, ni décompte (vérifié avant la RPC).
+  const illimite = estEmailIllimite(email);
+
+  if (!authSkipped && !illimite) {
     const quota = await checkAndConsumeQuota(uid, cost);
     if (!quota.allowed) {
       const status = quota.reason === 'rate_limited' ? 429 :
@@ -157,8 +161,15 @@ export default async function handler(req, res) {
   // silencieux. Le module unifié bascule sur une encyclopédie publique à
   // défaut de clé, et écarte les URL inatteignables avant de les proposer.
   const detected = detectSearchNeed(messages);
-  const cible = searchQuery
-    ? { query: searchQuery, mode: detected?.mode === 'factcheck' ? 'factcheck' : 'news' }
+  // `factcheck:true` (persona Fact-Checker) force une recherche en mode
+  // vérification : le Fact-Checker doit TOUJOURS pouvoir citer des sources, quelle
+  // que soit la longueur demandée. Faute de query explicite, on prend le dernier
+  // message utilisateur.
+  const requeteFactcheck = factcheck
+    ? (searchQuery || [...messages].reverse().find((m) => m.role === 'user')?.content?.slice(0, 300) || '')
+    : searchQuery;
+  const cible = requeteFactcheck
+    ? { query: requeteFactcheck, mode: (factcheck || detected?.mode === 'factcheck') ? 'factcheck' : 'news' }
     : detected;
 
   let panneRecherche = cible ? null : 'non_declenchee';

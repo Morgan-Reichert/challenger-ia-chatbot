@@ -42,6 +42,7 @@ import { buildSystemPrompt } from './systemPrompt.js';
 import { deducePersona, deduceDuo, ordrePersonas } from './deducePersona';
 import { deduceFriction } from './deduceFriction';
 import { classifieIntention, type Intention } from './classifieIntention';
+import { estCompteIllimite } from './comptesIllimites';
 import {
   directiveFormat, formatEstAuto, FORMAT_AUTO, longueurDepuisProfil, profondeurDepuisProfil,
   type FormatReponse, type Longueur, type Profondeur,
@@ -112,6 +113,10 @@ interface Message {
   // Réponse conversationnelle (salutation / méta) : pas un contradicteur, donc
   // pas de badge persona ni de friction — l'en-tête affiche « Le Challenger ».
   conversationnel?: boolean;
+  // Réponse multi-personas interrompue : 'quota' (crédits épuisés → inciter à
+  // l'achat) ou 'reseau'. Coupe les indicateurs « en cours » et affiche un
+  // bloc d'erreur explicite.
+  multiErreur?: 'quota' | 'reseau';
 }
 
 interface Conversation {
@@ -1184,7 +1189,7 @@ type SlashCommandId = (typeof SLASH_COMMANDS)[number]['id'];
 
 // ─── Appel API Chat avec streaming SSE ───────────────────────────────────────
 async function streamChat(
-  payload: { messages: object[]; model: string; temperature: number; searchQuery?: string; attachmentCount?: number },
+  payload: { messages: object[]; model: string; temperature: number; searchQuery?: string; attachmentCount?: number; factcheck?: boolean },
   onChunk: (text: string) => void,
   onMeta?: (meta: { sources?: SourceRef[] }) => void
 ): Promise<void> {
@@ -1235,6 +1240,7 @@ async function callChat(payload: {
   temperature: number;
   searchQuery?: string;
   attachmentCount?: number;
+  factcheck?: boolean;
 }): Promise<Response> {
   return apiFetch('/api/chat', {
     method: 'POST',
@@ -2645,7 +2651,9 @@ export default function App() {
       setActiveQuestion(null); // Effacer la question interactive en cours
 
       // ── Modèle Hybride : quotas pour tous les plans ──────────────────────
-      if (FIREBASE_ENABLED) {
+      // Comptes illimités : aucun contrôle ni décompte côté client (le serveur
+      // fait de même via api/_lib/illimite.js).
+      if (FIREBASE_ENABLED && !estCompteIllimite(user?.email)) {
         const today = todayStr();
         const thisWeek = weekStr();
         const dailyCount = dailyUsage.date === today ? dailyUsage.count : 0;
@@ -2949,13 +2957,16 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
             const sys = [buildSystemPrompt(pers, activeLevel), profileCtx, cogCtx, fmtDir].filter(Boolean).join('\n\n');
             const res = await callChat({
               model: debateModel, temperature,
+              // Fact-Checker dans le jeu → recherche forcée pour qu'il cite des sources.
+              factcheck: pers === 'factchecker',
+              searchQuery: pers === 'factchecker' ? text : undefined,
               messages: [
                 { role: 'system', content: sys },
                 ...historique,
                 { role: 'user', content: userContent },
               ],
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
             const data = await res.json();
             // Retirer aussi les questions interactives [CIA_Q:…] : le flux multi-
             // personas n'affiche pas de widget de question, le token fuiterait brut.
@@ -3045,7 +3056,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                     `Produis maintenant LA réponse finale, cohérente et directement utile à l'utilisateur. Tranche les désaccords, garde le meilleur de chaque angle, écarte ce qui a été réfuté. N'évoque ni les personas ni ce procédé : l'utilisateur veut une réponse aboutie, pas un compte rendu.` },
                 ],
               });
-              if (!resSynth.ok) throw new Error(`HTTP ${resSynth.status}`);
+              if (!resSynth.ok) throw Object.assign(new Error(`HTTP ${resSynth.status}`), { status: resSynth.status });
               const dataSynth = await resSynth.json();
               const synthese = stripCiaQuestion(stripViz(stripCiaBias(dataSynth.choices?.[0]?.message?.content ?? ''))).trim();
               playDone();
@@ -3058,15 +3069,29 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 })
               );
             }
-          } catch {
+          } catch (e) {
+            const status = (e && typeof e === 'object' && 'status' in e) ? (e as { status?: number }).status : undefined;
+            const typeErreur: 'quota' | 'reseau' = status === 402 ? 'quota' : 'reseau';
+            playError();
+            // On coupe les indicateurs « en cours » (cartes / cheminement) et on
+            // marque l'échec ; le rendu affiche alors un bloc d'erreur explicite.
             setConversations((p) =>
               p.map((c) => c.id !== convId ? c : {
                 ...c,
                 messages: c.messages.map((m) => m.id === asstIdMulti
-                  ? { ...m, content: m.content || 'L’analyse multi-personas a été interrompue (quota ou erreur réseau). Réessayez.' }
+                  ? { ...m, multiErreur: typeErreur }
                   : m),
               })
             );
+            if (typeErreur === 'quota') {
+              setChatNotif({
+                type: 'error',
+                msg: 'Crédits épuisés — l’analyse à plusieurs personas consomme un crédit par contradicteur. Rechargez pour continuer.',
+                action: { label: 'Acheter des crédits →', page: 'settings' },
+              });
+            } else {
+              setChatNotif({ type: 'error', msg: 'Connexion interrompue pendant l’analyse. Vérifiez votre réseau et réessayez.' });
+            }
           }
 
           setConversations((p) => {
@@ -3105,9 +3130,12 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
           {
             model: debateModel,
             temperature,
-            // Pas de recherche systématique : le serveur décide via détection
-            // (mots de vérification / actualité) → maîtrise des coûts Tavily.
+            // Recherche : le serveur décide via détection (mots de vérification /
+            // actualité), SAUF pour le Fact-Checker où on la force — il doit
+            // toujours pouvoir citer des sources, même en réponse brève.
             attachmentCount: attachments?.length ?? 0,
+            factcheck: estSubstantiel && activePersona === 'factchecker',
+            searchQuery: estSubstantiel && activePersona === 'factchecker' ? text : undefined,
             messages: [
               { role: 'system', content: enrichedSystemPrompt },
               ...contextMessages.slice(0, -1).filter((m) => m.role !== 'command').map((m) => ({ role: m.role, content: m.content })),
@@ -5048,6 +5076,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             weeklyUsage={weeklyUsage}
             userCredits={userCredits}
             totalCredits={totalCredits}
+            illimite={estCompteIllimite(user?.email)}
             user={user}
             autoUseCredits={autoUseCredits}
             onAutoUseCreditsChange={setAutoUseCredits}
@@ -5822,7 +5851,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                 <div className="px-3 py-2.5">
                                   {r.content
                                     ? <RichContent text={r.content} components={mdLight} streaming={false} />
-                                    : <p className="flex items-center gap-2 text-[11px] text-[var(--text-primary)]/40"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rédaction…</p>}
+                                    : msg.multiErreur
+                                      ? <p className="text-[11px] text-[var(--text-primary)]/35 italic">Non généré.</p>
+                                      : <p className="flex items-center gap-2 text-[11px] text-[var(--text-primary)]/40"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rédaction…</p>}
                                 </div>
                               </div>
                             );
@@ -5836,7 +5867,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         pour montrer les étapes se construire. */}
                     {msg.investigation && (() => {
                       const inv = msg.investigation!;
-                      const enCours = !inv.synthese;
+                      const enCours = !inv.synthese && !msg.multiErreur;
                       const ouvert = enCours || cheminementsOuverts.has(msg.id);
                       return (
                         <div className="px-4 pt-3">
@@ -5875,7 +5906,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                               )}
                             </div>
                           )}
-                          {!enCours && (
+                          {inv.synthese && (
                             <div className="flex items-center gap-1.5 mt-3 mb-1">
                               <Gavel className="w-3 h-3 text-[#5D7BFF]" />
                               <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Synthèse</span>
@@ -5884,6 +5915,36 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         </div>
                       );
                     })()}
+
+                    {/* Erreur multi-personas : bloc explicite + incitation à l'achat. */}
+                    {msg.multiErreur && (
+                      <div className="px-4 pt-3">
+                        <div className="flex items-start gap-2.5 px-4 py-3 border-2 border-[#EF4444]/25 bg-[#EF4444]/[0.04]">
+                          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#EF4444]" />
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-[#EF4444] mb-1">Analyse interrompue</p>
+                            {msg.multiErreur === 'quota' ? (
+                              <>
+                                <p className="text-[12px] text-[var(--text-primary)]/70 leading-relaxed">
+                                  Crédits épuisés. Une réponse à plusieurs personas coûte un crédit par contradicteur — il n'en restait pas assez pour aller au bout.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => setCurrentPage('settings')}
+                                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
+                                >
+                                  <Coins className="w-3.5 h-3.5" /> Acheter des crédits
+                                </button>
+                              </>
+                            ) : (
+                              <p className="text-[12px] text-[var(--text-primary)]/70 leading-relaxed">
+                                Connexion interrompue pendant l'analyse. Vérifiez votre réseau, puis relancez.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {msg.content ? (
                       <div className="px-4 py-3">

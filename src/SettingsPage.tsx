@@ -302,6 +302,7 @@ type Props = {
   weeklyUsage: { count: number; week: string };
   userCredits: number;
   totalCredits: number;
+  illimite?: boolean;
   user: FirebaseUser | null;
   autoUseCredits: boolean;
   onAutoUseCreditsChange: (v: boolean) => void;
@@ -403,7 +404,7 @@ const PRO_WEEKLY   = 700;
 
 export default function SettingsPage({
   onBack, profile: initialProfile, onSave,
-  subscription, dailyUsage, weeklyUsage, userCredits, totalCredits, user,
+  subscription, dailyUsage, weeklyUsage, userCredits, totalCredits, illimite = false, user,
   autoUseCredits, onAutoUseCreditsChange,
   showSuggestions, onShowSuggestionsChange,
   showDailyChallenge, onShowDailyChallengeChange,
@@ -552,7 +553,9 @@ export default function SettingsPage({
                 : sectionCourante?.sous?.find((s) => s.id === chemin[1])?.label ?? sectionCourante?.label}
             </h1>
             <p className="text-[9px] font-medium text-[#141414]/40 uppercase tracking-widest mt-0.5">
-              {subscription === 'pro' ? `✦ Plan Pro · ${userCredits} crédit${userCredits !== 1 ? 's' : ''} supp.` : `${userCredits} crédit${userCredits !== 1 ? 's' : ''} disponible${userCredits !== 1 ? 's' : ''}`}
+              {illimite ? '✦ Crédits illimités'
+                : subscription === 'pro' ? `✦ Plan Pro · ${userCredits} crédit${userCredits !== 1 ? 's' : ''} supp.`
+                : `${userCredits} crédit${userCredits !== 1 ? 's' : ''} disponible${userCredits !== 1 ? 's' : ''}`}
             </p>
           </div>
           <AnimatePresence>
@@ -711,9 +714,15 @@ export default function SettingsPage({
                 <Coins className="w-4 h-4 text-[#F59E0B]" />
               </div>
               <h2 className="text-[11px] font-black uppercase tracking-widest text-[#F59E0B]">Crédits</h2>
-              <span className="ml-auto text-2xl font-black text-[#141414]">{userCredits}</span>
+              <span className="ml-auto text-2xl font-black text-[#141414]">{illimite ? '∞' : userCredits}</span>
             </div>
             <div className="px-5 py-4">
+              {illimite && (
+                <div className="mb-4 px-4 py-3 border-2 border-[#10B981]/30 bg-[#10B981]/[0.05]">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#10B981]">Crédits illimités</p>
+                  <p className="text-[11px] text-[#141414]/55 mt-1">Ce compte n'est pas décompté : envoyez autant de messages et d'analyses multi-personas que vous voulez.</p>
+                </div>
+              )}
               <p className="text-[11px] text-[#141414]/50 mb-4">
                 1 crédit = 1 message. S'activent automatiquement quand votre quota quotidien est épuisé. <strong>N'expirent jamais.</strong>
               </p>
