@@ -41,6 +41,7 @@ import { loadProfile, saveProfile, buildProfileContext, isProfileFilled, type Us
 import { buildSystemPrompt } from './systemPrompt.js';
 import { deducePersona, deduceDuo, ordrePersonas } from './deducePersona';
 import { deduceFriction } from './deduceFriction';
+import { classifieIntention, type Intention } from './classifieIntention';
 import {
   directiveFormat, formatEstAuto, FORMAT_AUTO, longueurDepuisProfil, profondeurDepuisProfil,
   type FormatReponse, type Longueur, type Profondeur,
@@ -108,6 +109,9 @@ interface Message {
     etapes: { persona: Persona; content: string }[];
     synthese: string;
   };
+  // Réponse conversationnelle (salutation / méta) : pas un contradicteur, donc
+  // pas de badge persona ni de friction — l'en-tête affiche « Le Challenger ».
+  conversationnel?: boolean;
 }
 
 interface Conversation {
@@ -247,6 +251,26 @@ const SUGGESTIONS: Record<Persona, { text: string; icon: React.ElementType }[]> 
 // Enterré ici, il ne pouvait être exercé qu'en montant React : cinq campagnes
 // d'évaluation ont donc porté sur le prompt de l'API publique, jamais sur
 // celui-ci — que rencontrent pourtant les utilisateurs.
+
+// ─── Prompts conversationnels (message social / méta) ────────────────────────
+// Quand l'utilisateur dit bonjour ou demande ce que fait l'outil, on ne déploie
+// pas de contradiction : réponse directe, brève, humaine.
+const PROMPT_SOCIAL = `Tu es Challenger, un assistant de pensée critique qui met les idées à l'épreuve.
+L'utilisateur t'adresse un message de courtoisie (salutation, « ça va », remerciement) — PAS une thèse à examiner.
+Réponds de façon brève, chaleureuse et naturelle, comme un interlocuteur — jamais comme un contradicteur.
+Interdits : aucune analyse critique, aucune section, aucune mise en garde, aucune contradiction, aucun titre.
+Une à deux phrases suffisent. Tu peux, si c'est naturel, inviter l'utilisateur à te soumettre une idée, une opinion ou une décision à mettre à l'épreuve — sans insister.`;
+
+const PROMPT_META = `Tu es Challenger, un assistant de pensée critique. L'utilisateur demande ce que tu sais faire, qui tu es, ou comment tu fonctionnes.
+Explique-le clairement, simplement, sans jargon et sans le contredire.
+Ce que tu fais : tu mets à l'épreuve une idée, une opinion, une décision ou un raisonnement en jouant le contradicteur constructif.
+Tu peux adopter différents profils selon la question — l'Architecte (logique et cohérence), le Fact-Checker (preuves et sources), l'Opposant (attaque des valeurs), l'Arbitre (tranche), le Stratège (plan d'action) — et le ton se règle d'une friction douce à extrême.
+Tu peux aussi répondre avec plusieurs profils à la fois, mener une investigation où ils s'enchaînent, régler la longueur et la profondeur de la réponse, et générer des PDF.
+Termine en invitant l'utilisateur à te soumettre une thèse, une opinion ou une décision. Reste concis : quelques phrases ou une courte liste. Ne contredis rien.`;
+
+function promptConversationnel(intention: 'social' | 'meta'): string {
+  return intention === 'meta' ? PROMPT_META : PROMPT_SOCIAL;
+}
 
 // ─── Contrôle de format : barre à 3 crans (longueur / profondeur) ────────────
 // Une barre remplace trois boutons : le choix est un curseur, pas un menu, et
@@ -2711,23 +2735,37 @@ export default function App() {
       // qu'on ne pouvait pas faire avant d'avoir écrit. Un persona épinglé, ou
       // une conversation déjà engagée avec un contradicteur, priment sur la
       // déduction — on ne change pas de contradicteur en cours d'échange.
-      const conversationEngagee = activeConv?.messages?.some((m) => m.role === 'user');
+      // Intention du message : un « bonjour » ou un « que sais-tu faire ? » ne
+      // sont pas des thèses à contredire. Hors mode débat/entretien, une intention
+      // sociale ou méta déclenche une réponse normale, pas la machinerie de
+      // contradiction (persona, friction, sections).
+      const conversationnel = !activeConv?.debatePersonaId && !activeConv?.interviewType;
+      const intention: Intention = conversationnel ? classifieIntention(text).intention : 'substantiel';
+      const estSubstantiel = intention === 'substantiel';
+      // Déduction : au premier message SUBSTANTIEL, pas au premier message tout
+      // court — sinon un « bonjour » d'ouverture ferait rater l'aiguillage de la
+      // vraie thèse qui suit. On regarde s'il y a déjà eu un échange de fond.
+      const dejaSubstantiel = (activeConv?.messages ?? []).some(
+        (m) => m.role === 'user' && classifieIntention(m.content).intention === 'substantiel',
+      );
+
       let activePersona = persona;
       let activeLevel = level;
-      if (autoMode && !conversationEngagee) {
-        // Le contradicteur est déduit du premier message. On ne redéduit pas en
-        // cours d'échange : changer d'interlocuteur au milieu d'une conversation
-        // serait déroutant.
+      if (autoMode && !dejaSubstantiel && estSubstantiel) {
+        // Le contradicteur est déduit du premier message substantiel. On ne
+        // redéduit pas ensuite (changer d'interlocuteur en cours serait
+        // déroutant), ni sur une simple politesse.
         const d = deducePersona(text);
         activePersona = d.persona;
         setPersona(d.persona);
         setDerniereDeduction({ persona: d.persona, motif: d.motif, parDefaut: d.parDefaut });
       } else {
-        // Mode manuel, ou conversation déjà engagée : on garde le persona courant.
+        // Mode manuel, thèse déjà déduite, ou message social/méta.
         setDerniereDeduction(null);
       }
-      // La friction se déduit indépendamment, et seulement au premier message.
-      if (autoFriction && !conversationEngagee) {
+      // La friction se déduit indépendamment, au premier message substantiel —
+      // on ne « durcit » pas le ton d'un bonjour.
+      if (autoFriction && !dejaSubstantiel && estSubstantiel) {
         const df = deduceFriction(text);
         activeLevel = df.level;
         setLevel(df.level);
@@ -2817,7 +2855,10 @@ export default function App() {
         };
 
         const activeConvNow = conversations.find((c) => c.id === convId);
-        const basePrompt = activeConvNow?.debatePrompt ?? buildSystemPrompt(activePersona, activeLevel);
+        // Message social/méta : prompt conversationnel léger au lieu du
+        // contradicteur. Un débat/entretien (debatePrompt) prime toujours.
+        const basePrompt = activeConvNow?.debatePrompt
+          ?? (estSubstantiel ? buildSystemPrompt(activePersona, activeLevel) : promptConversationnel(intention as 'social' | 'meta'));
         const profilAutorise = !activeConvNow?.debatePrompt && !activeConvNow?.noProfile && !noProfileMode;
         const profileCtx = profilAutorise ? buildProfileContext(userProfile) : '';
         // Mémoire cognitive : soumise au même consentement que le profil.
@@ -2859,7 +2900,10 @@ Transpose ta pensée sur ce sujet contemporain — tout en restant fidèle à to
 Reste profondément dans le personnage. C'est précisément le décalage temporel qui rend la conversation intéressante.`;
         }
 
-        const enrichedSystemPrompt = systemPrompt + modeOverrides + `\n\n## Accès web et contexte temps réel (CRITIQUE)
+        // Pour un message social/méta, on s'en tient au prompt léger : ni règles
+        // de contradiction, ni rigueur chiffrée, ni injonctions web — inutiles
+        // pour un bonjour, et qui alourdiraient la réponse.
+        const enrichedSystemPrompt = !estSubstantiel ? systemPrompt : systemPrompt + modeOverrides + `\n\n## Accès web et contexte temps réel (CRITIQUE)
 Date actuelle : ${currentDateStr}
 
 Tu as ACCÈS EN TEMPS RÉEL à des données web fraîches grâce à un moteur de recherche intégré. Ces données sont injectées dans ton contexte sous la section "Données web en temps réel" quand elles sont disponibles.
@@ -3046,6 +3090,7 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
                 timestamp: new Date(),
                 persona: activePersona,
                 level: activeLevel,
+                conversationnel: !estSubstantiel,
               }],
               updatedAt: new Date(),
             }
@@ -5599,7 +5644,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 }
 
                 // Couleur du persona (chat normal) — accent visuel par message
-                const pColor = PERSONAS[msg.persona ?? persona].color;
+                // Réponse conversationnelle (bonjour / méta) : « Le Challenger »
+                // en bleu auto, sans persona ni friction.
+                const estConv = !!msg.conversationnel;
+                const pColor = estConv ? '#5D7BFF' : PERSONAS[msg.persona ?? persona].color;
                 // Réponse IA en chat normal → pleine largeur, teintée de la couleur du mode
                 const aiFull = !isUser && !isInterview && !isDebate;
 
@@ -5659,7 +5707,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           return <IIcon className="w-2.5 h-2.5" style={{ color: `${ic.accentColor}90` }} />;
                         })()}
                         {!isUser && !isInterview && !isDebate && (() => {
-                          const MsgIcon = PERSONAS[msg.persona ?? persona].icon;
+                          const MsgIcon = estConv ? Sparkles : PERSONAS[msg.persona ?? persona].icon;
                           return <MsgIcon className="w-2.5 h-2.5" style={{ color: pColor }} />;
                         })()}
                         {!isUser && !isInterview && isDebate && dp && (
@@ -5677,9 +5725,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           {isUser ? 'Vous'
                             : isInterview && ic ? ic.interviewerRole
                             : isDebate && dp ? dp.shortName
+                            : estConv ? 'Le Challenger'
                             : PERSONAS[msg.persona ?? persona].shortName}
                         </p>
-                        {!isUser && !isInterview && !isDebate && msg.level && (
+                        {!isUser && !isInterview && !isDebate && !estConv && msg.level && (
                           <span className="text-[6px] font-black uppercase tracking-widest text-[#6b7280] border border-[#dcdfe4] px-1 py-px rounded-sm">
                             {FRICTION[msg.level ?? level].label}
                           </span>
