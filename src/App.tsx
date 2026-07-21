@@ -6074,7 +6074,9 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                           const isCollapsed = collapsedMsgs.has(msg.id);
                           const raw = isLong && isCollapsed ? msg.content.slice(0, 300) + '…' : msg.content;
                           // Citations [n] cliquables uniquement si des sources sont présentes
-                          const displayed = msg.sources?.length ? linkifyCitations(raw, msg.sources.length) : raw;
+                          // Toujours passer par linkifyCitations : sans sources, il
+                          // efface les renvois [n] inventés au lieu de les laisser.
+                          const displayed = linkifyCitations(raw, msg.sources?.length ?? 0);
                           const isCopied = copiedMsgId === msg.id;
                           return (
                             <>

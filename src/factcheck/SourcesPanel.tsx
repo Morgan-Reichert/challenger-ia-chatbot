@@ -34,12 +34,13 @@ const TIER_UI: Record<SourceTier, { color: string; label: string }> = {
   unknown: { color: '#9CA3AF', label: 'Non classée' },
 };
 
-/** Transforme les `[n]` (n valide) en liens markdown `[n](#cia-src-n)`. */
+/** Transforme les `[n]` valides en liens `[n](#cia-src-n)` et SUPPRIME les
+ *  renvois hors-plage (une citation inventée vers une source inexistante :
+ *  mieux vaut l'effacer que de laisser une fausse marque de rigueur). */
 export function linkifyCitations(text: string, count: number): string {
-  if (count <= 0) return text;
-  return text.replace(/\[(\d{1,2})\]/g, (m, num) => {
+  return text.replace(/\[(\d{1,2})\]/g, (_m, num) => {
     const i = parseInt(num, 10);
-    return i >= 1 && i <= count ? `[${i}](#cia-src-${i})` : m;
+    return i >= 1 && i <= count ? `[${i}](#cia-src-${i})` : '';
   });
 }
 
@@ -81,6 +82,15 @@ export function SourcesPanel({ sources }: { sources: SourceRef[] }) {
   const [open, setOpen] = useState(false);
   if (!sources || sources.length === 0) return null;
 
+  // Résumé de fiabilité : combien de sources fiables / modérées / peu fiables.
+  const nb = { high: 0, medium: 0, low: 0, unknown: 0 };
+  for (const s of sources) nb[s.tier] = (nb[s.tier] ?? 0) + 1;
+  const resume = [
+    nb.high && `${nb.high} fiable${nb.high > 1 ? 's' : ''}`,
+    nb.medium && `${nb.medium} modérée${nb.medium > 1 ? 's' : ''}`,
+    nb.low && `${nb.low} peu fiable${nb.low > 1 ? 's' : ''}`,
+  ].filter(Boolean).join(' · ');
+
   return (
     <div className="cia-sources mt-3 rounded-lg overflow-hidden border-2 border-[#5D7BFF]/25 bg-white shadow-[0_1px_3px_rgba(20,20,40,0.08)]">
       <button
@@ -91,7 +101,8 @@ export function SourcesPanel({ sources }: { sources: SourceRef[] }) {
         <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">
           Sources · {sources.length}
         </span>
-        <ChevronDown className={`ml-auto w-3.5 h-3.5 text-[#5D7BFF] transition-transform ${open ? 'rotate-180' : ''}`} />
+        {resume && <span className="text-[8px] font-bold text-[#141428]/40 truncate hidden sm:inline">{resume}</span>}
+        <ChevronDown className={`ml-auto w-3.5 h-3.5 text-[#5D7BFF] transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (

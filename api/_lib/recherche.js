@@ -22,6 +22,25 @@
 const DELAI_MS = 6000;
 const MAX_SOURCES = 6;
 
+/* ─── Cache mémoire (par instance chaude) ─────────────────────────────────────
+ * Coupe les appels répétés (mêmes questions, rafales multi-personas) → moins de
+ * coûts, moins de latence, moins de rate-limits. TTL court car l'actualité
+ * bouge. Persiste tant que l'instance serverless reste chaude ; à froid, on
+ * repart d'un cache vide, ce qui est sans risque. */
+const CACHE = new Map();
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX = 200;
+function cacheGet(cle) {
+  const e = CACHE.get(cle);
+  if (!e) return null;
+  if (Date.now() - e.at > CACHE_TTL_MS) { CACHE.delete(cle); return null; }
+  return e.data;
+}
+function cacheSet(cle, data) {
+  if (CACHE.size >= CACHE_MAX) CACHE.delete(CACHE.keys().next().value);
+  CACHE.set(cle, { at: Date.now(), data });
+}
+
 /* ─── Vérification d'atteignabilité ───────────────────────────────────────── */
 
 // Domaines dont on sait qu'ils exigent une authentification ou un abonnement :
@@ -102,7 +121,21 @@ async function viaTavily(requete, cle) {
   const d = await r.json();
   return (d.results ?? []).map((s) => ({
     titre: s.title, url: s.url, extrait: (s.content ?? '').slice(0, 600),
+    date: s.published_date ?? null,
     fournisseur: 'tavily',
+  }));
+}
+
+/** Brave Search — alternative si BRAVE_API_KEY est configurée. */
+async function viaBrave(requete, cle) {
+  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(requete)}&count=${MAX_SOURCES}`;
+  const r = await fetch(url, { headers: { Accept: 'application/json', 'X-Subscription-Token': cle } });
+  if (!r.ok) throw new Error(`brave_http_${r.status}`);
+  const d = await r.json();
+  return (d.web?.results ?? []).slice(0, MAX_SOURCES).map((s) => ({
+    titre: s.title, url: s.url, extrait: (s.description ?? '').replace(/<\/?[^>]+>/g, '').slice(0, 600),
+    date: s.page_age ?? s.age ?? null,
+    fournisseur: 'brave',
   }));
 }
 
@@ -203,19 +236,25 @@ export function motsClefs(phrase, maximum = 4) {
  * le dire — d'où le champ `panne`, qui remonte jusqu'à l'appelant.
  */
 export async function rechercher(requete, { lang = 'fr' } = {}) {
-  const cle = process.env.TAVILY_API_KEY;
+  const cleCache = `${lang}::${(requete ?? '').trim().toLowerCase()}`.slice(0, 300);
+  const enCache = cacheGet(cleCache);
+  if (enCache) return enCache;
+
+  const cleTavily = process.env.TAVILY_API_KEY;
+  const cleBrave = process.env.BRAVE_API_KEY;
   let brutes = [];
   let panne = null;
 
-  if (cle) {
-    try {
-      brutes = await viaTavily(requete, cle);
-    } catch (e) {
-      console.error('[recherche] tavily indisponible —', e?.message ?? e);
-      panne = 'tavily_indisponible';
-    }
+  // Chaîne de fournisseurs, du plus riche au repli public : Tavily → Brave →
+  // encyclopédie. Chaque maillon ne s'active que si le précédent n'a rien donné.
+  if (cleTavily) {
+    try { brutes = await viaTavily(requete, cleTavily); }
+    catch (e) { console.error('[recherche] tavily indisponible —', e?.message ?? e); panne = 'tavily_indisponible'; }
   }
-
+  if (brutes.length === 0 && cleBrave) {
+    try { brutes = await viaBrave(requete, cleBrave); if (panne) panne = 'repli_brave'; }
+    catch (e) { console.error('[recherche] brave indisponible —', e?.message ?? e); panne = panne ?? 'brave_indisponible'; }
+  }
   if (brutes.length === 0) {
     try {
       // L'index encyclopédique répond à des mots-clés, pas à une phrase.
@@ -223,7 +262,9 @@ export async function rechercher(requete, { lang = 'fr' } = {}) {
       if (panne) panne = 'repli_encyclopedie';
     } catch (e) {
       console.error('[recherche] encyclopedie indisponible —', e?.message ?? e);
-      return { sources: [], contexte: '', panne: 'aucune_source' };
+      const vide = { sources: [], ecartees: [], contexte: '', panne: 'aucune_source' };
+      cacheSet(cleCache, vide);
+      return vide;
     }
   }
 
@@ -243,10 +284,12 @@ export async function rechercher(requete, { lang = 'fr' } = {}) {
     ? retenues.map((s) => `[${s.n}] ${s.titre} — ${s.url}\n${s.extrait}`).join('\n\n')
     : '';
 
-  return {
+  const resultat = {
     sources: retenues,
     ecartees,
     contexte,
     panne: retenues.length ? panne : (panne ?? 'aucune_source_atteignable'),
   };
+  cacheSet(cleCache, resultat);
+  return resultat;
 }

@@ -200,6 +200,7 @@ export default async function handler(req, res) {
         n: x.n, title: x.titre, url: x.url, snippet: x.extrait,
         domain: safeDomain(x.url), tier: getSourceTier(x.url),
         tierLabel: tierLabel(getSourceTier(x.url)),
+        date: x.date ?? null,
       }));
 
       if (rech.contexte) {
@@ -207,6 +208,8 @@ export default async function handler(req, res) {
 Chaque affirmation factuelle tirée des sources ci-dessus DOIT porter sa référence entre crochets — [n] — dans la MÊME phrase. Plusieurs numéros peuvent se cumuler : [1][3].
 Tu ne renvoies JAMAIS à un numéro absent de la liste : un renvoi inventé imite la rigueur pour mieux tromper, et c'est la faute la plus grave possible ici.
 Tout chiffre, pourcentage ou statistique doit porter un renvoi. Si aucune source ne l'établit, tu ne l'écris pas.
+Fraîcheur : si une source est visiblement trop ANCIENNE pour une question d'actualité, signale-le (« source datée, à confirmer ») plutôt que de la présenter comme à jour.
+Recoupement : si plusieurs sources CONCORDENT, dis-le ; si elles DIVERGENT, nomme lesquelles et sur quoi.
 Ta réponse est vérifiée automatiquement sur ces points.`;
 
         const consigneFactcheck = cible.mode === 'factcheck'
