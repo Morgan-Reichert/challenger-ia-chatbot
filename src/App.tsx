@@ -43,6 +43,7 @@ import { deducePersona, deduceDuo, ordrePersonas } from './deducePersona';
 import { deduceFriction } from './deduceFriction';
 import { classifieIntention, type Intention } from './classifieIntention';
 import { estCompteIllimite } from './comptesIllimites';
+import { setShareContext } from './shareContext';
 import {
   directiveFormat, formatEstAuto, FORMAT_AUTO, longueurDepuisProfil, profondeurDepuisProfil,
   type FormatReponse, type Longueur, type Profondeur,
@@ -3250,6 +3251,21 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
 
   // Garde sendRef à jour pour startListening (défini avant send dans le composant)
   useEffect(() => { sendRef.current = send; }, [send]);
+
+  // Contexte de partage : ce dont le bouton « Partager » d'un verdict a besoin
+  // pour proposer « partager la conversation » (lien + pseudo). Enfoui dans le
+  // rendu des messages, il ne peut pas recevoir ces infos en props → registre.
+  useEffect(() => {
+    setShareContext({
+      pseudo: userProfile.displayName || user?.displayName?.split(' ')[0] || '',
+      peutPartagerConversation: FIREBASE_ENABLED && !!user && !!activeConv && activeConv.messages.length > 0,
+      creerLienConversation: async () => {
+        if (!activeConv || !user) return null;
+        const shareId = await fsShareConversation(activeConv, user.uid);
+        return shareId ? `${window.location.origin}${window.location.pathname}?share=${shareId}` : null;
+      },
+    });
+  }, [activeConv, user, userProfile.displayName]);
 
   /**
    * Envoie immédiatement, ou met en file d'attente si l'IA répond encore.

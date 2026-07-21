@@ -19,6 +19,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { splitViz, normalizeMd } from './vizParse';
 import { shareVerdict } from '../verdictShare';
+import { getShareContext } from '../shareContext';
 import type {
   VizSpec, BalanceSpec, ArgMapSpec, ConfidenceSpec, ConfidenceLevel,
   VerdictSpec, FactVerdict, RiskLevel, ConsensusLevel, ConfidenceBand,
@@ -264,6 +265,21 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
   const confIdx = CONF_BANDS.findIndex((b) => b.band === spec.confidence);
   const conf = CONF_BANDS[confIdx] ?? CONF_BANDS[2];
 
+  // Menu de partage : verdict seul (QR → vitrine) ou conversation (QR → lien
+  // de consultation + appel à l'action au pseudo de l'utilisateur).
+  const [menu, setMenu] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const ctx = getShareContext();
+  const partagerVerdict = () => { setMenu(false); shareVerdict(spec).catch(() => {}); };
+  const partagerConversation = async () => {
+    setMenu(false);
+    if (!ctx) { shareVerdict(spec).catch(() => {}); return; }
+    setBusy(true);
+    const url = await ctx.creerLienConversation().catch(() => null);
+    setBusy(false);
+    shareVerdict(spec, { conversationUrl: url, pseudo: ctx.pseudo }).catch(() => {});
+  };
+
   return (
     <div className="my-4 border border-white/10 bg-[#15171f] rounded-xl p-3">
       <div className="flex items-center gap-2 mb-2.5">
@@ -274,13 +290,37 @@ function Verdict({ spec }: { spec: VerdictSpec }) {
               {spec.basis === 'sources' ? 'sources' : spec.basis === 'donnees_utilisateur' ? 'tes données' : 'qualitatif'}
             </span>
           )}
-          <button
-            onClick={() => { shareVerdict(spec).catch(() => {}); }}
-            className="text-[7px] font-black uppercase tracking-widest text-white/40 hover:text-white border border-white/15 hover:border-white/40 px-1.5 py-px rounded-sm transition-colors"
-            title="Partager ce verdict en image"
-          >
-            ↗ Partager
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setMenu((o) => !o)}
+              disabled={busy}
+              className="text-[7px] font-black uppercase tracking-widest text-white/40 hover:text-white border border-white/15 hover:border-white/40 px-1.5 py-px rounded-sm transition-colors disabled:opacity-50"
+              title="Partager ce verdict en image"
+            >
+              {busy ? '…' : '↗ Partager'}
+            </button>
+            {menu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-[#1c1f2b] border border-white/15 rounded-lg shadow-xl overflow-hidden">
+                  <button onClick={partagerVerdict} className="w-full text-left px-3 py-2 hover:bg-white/5 transition-colors">
+                    <span className="block text-[10px] font-black text-white/90">Ce verdict</span>
+                    <span className="block text-[8px] text-white/40">Image + QR vers Challenger IA</span>
+                  </button>
+                  <button
+                    onClick={partagerConversation}
+                    disabled={!ctx?.peutPartagerConversation}
+                    className="w-full text-left px-3 py-2 border-t border-white/10 hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="block text-[10px] font-black text-white/90">La conversation complète</span>
+                    <span className="block text-[8px] text-white/40">
+                      {ctx?.peutPartagerConversation ? 'QR vers la conversation + ton pseudo' : 'Connecte-toi pour partager'}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

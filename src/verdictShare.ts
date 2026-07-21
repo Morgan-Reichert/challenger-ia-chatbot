@@ -1,7 +1,30 @@
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import QRCode from 'qrcode';
 import type { VerdictSpec } from './viz/vizParse';
+import { VITRINE_URL } from './shareContext';
+
+/** Options de partage : par défaut QR vers la vitrine ; sinon vers la conversation. */
+export type ShareVerdictOptions = {
+  /** Lien de consultation de la conversation. Présent = mode « conversation ». */
+  conversationUrl?: string | null;
+  /** Pseudo pour l'appel à l'action (mode conversation). */
+  pseudo?: string;
+};
+
+/** Génère l'image d'un QR code (data URL) pour une URL, ou null si échec. */
+async function qrImage(url: string): Promise<HTMLImageElement | null> {
+  try {
+    const dataUrl = await QRCode.toDataURL(url, {
+      width: 220, margin: 1, errorCorrectionLevel: 'M',
+      color: { dark: '#14161f', light: '#ffffff' },
+    });
+    return await chargerImage(dataUrl);
+  } catch {
+    return null;
+  }
+}
 
 // Métadonnées (alignées sur le composant Verdict — mêmes anti-confusions).
 // Le vert/rouge ne vit QUE sur l'axe FAIT. Consensus & Confiance sont neutres.
@@ -74,7 +97,7 @@ function pill(ctx: CanvasRenderingContext2D, x: number, y: number, label: string
 }
 
 /** Dessine la carte Verdict et renvoie le canvas. */
-async function drawCard(spec: VerdictSpec): Promise<HTMLCanvasElement> {
+async function drawCard(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Promise<HTMLCanvasElement> {
   const W = 1080, H = 1350, P = 90, BRAND = '#5D7BFF';
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d')!;
@@ -163,13 +186,42 @@ async function drawCard(spec: VerdictSpec): Promise<HTMLCanvasElement> {
     for (const l of wrap(ctx, spec.note, W - P * 2).slice(0, 2)) { ctx.fillText(l, P, y); y += 36; }
   }
 
-  // Footer
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(P, H - 150, W - P * 2, 2);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff'; ctx.font = `800 30px ${SANS}`;
-  ctx.fillText('Challenger IA', W / 2, H - 95);
+  // ── Footer avec QR code ────────────────────────────────────────────────
+  // Mode conversation : QR vers le lien de consultation + appel à l'action
+  // personnalisé (pseudo). Sinon : QR vers le site vitrine.
+  const modeConv = !!opts.conversationUrl;
+  const cibleQR = opts.conversationUrl || VITRINE_URL;
+  const qr = await qrImage(cibleQR);
+
+  const fy = H - 300;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(P, fy, W - P * 2, 2);
+
+  // QR à droite, sur fond blanc (lisibilité au scan).
+  const qrSize = 190, qx = W - P - qrSize, qy = fy + 44;
+  if (qr) {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.roundRect(qx - 14, qy - 14, qrSize + 28, qrSize + 28, 16); ctx.fill();
+    ctx.drawImage(qr, qx, qy, qrSize, qrSize);
+    ctx.fillStyle = '#7c8496'; ctx.font = `700 20px ${SANS}`; ctx.textAlign = 'center';
+    ctx.fillText('SCANNE-MOI', qx + qrSize / 2, qy + qrSize + 44);
+    ctx.textAlign = 'left';
+  }
+
+  // Texte à gauche du QR, centré verticalement sur le bloc.
+  const txtW = qx - 28 - P;
+  let ty = qy + 20;
+  const pseudo = (opts.pseudo || '').trim();
+  const cta = modeConv
+    ? (pseudo ? `${pseudo} vous partage cet échange` : 'Découvrez cet échange en entier')
+    : "Musclez votre esprit critique";
+  ctx.fillStyle = '#e9ebf2'; ctx.font = `800 34px ${SANS}`;
+  for (const l of wrap(ctx, cta, txtW).slice(0, 2)) { ctx.fillText(l, P, ty + 34); ty += 44; }
+  ty += 18;
+  ctx.fillStyle = BRAND; ctx.font = `800 30px ${SANS}`;
+  ctx.fillText('Challenger IA', P, ty + 30); ty += 44;
   ctx.fillStyle = '#7c8496'; ctx.font = `500 24px ${SANS}`;
-  ctx.fillText("L'IA qui muscle votre esprit critique", W / 2, H - 55);
+  ctx.fillText(modeConv ? 'Scannez pour lire la conversation' : "L'IA qui muscle votre esprit critique", P, ty + 24);
 
   return cv;
 }
@@ -183,8 +235,8 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /** Génère l'image du verdict et la partage (natif : feuille de partage ; web : navigator.share ou téléchargement). */
-export async function shareVerdict(spec: VerdictSpec): Promise<void> {
-  const canvas = await drawCard(spec);
+export async function shareVerdict(spec: VerdictSpec, opts: ShareVerdictOptions = {}): Promise<void> {
+  const canvas = await drawCard(spec, opts);
   const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), 'image/png'));
   const filename = 'verdict-challenger-ia.png';
 
