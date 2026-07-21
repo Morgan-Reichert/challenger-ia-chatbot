@@ -6771,7 +6771,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             {/* Barre d'options : format de réponse + réponse multi-personas.
                 Alignée à gauche, compacte sur mobile, sans retour à la ligne. */}
             {!activeConv?.interviewType && (
-              <div className="flex items-center gap-1.5 mb-2">
+              <div className="flex flex-wrap items-center gap-1.5 mb-2">
                 {/* Format — longueur ET profondeur, réglées par message, repliées
                     dans un chip. « Auto » sur les deux axes = le modèle s'adapte. */}
                 <div className="relative">
@@ -6789,7 +6789,8 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Format</span>
-                    <span className="text-[8px] font-black uppercase tracking-widest opacity-60 whitespace-nowrap">
+                    {/* Détail (« Bref · Fouillé ») masqué sur mobile pour tenir la ligne. */}
+                    <span className={cx('text-[8px] font-black uppercase tracking-widest opacity-60 whitespace-nowrap', isMobile && !formatEstAuto(formatReponse) && 'hidden')}>
                       {formatEstAuto(formatReponse)
                         ? 'Auto'
                         : [
