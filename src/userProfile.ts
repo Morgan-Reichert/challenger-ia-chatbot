@@ -60,6 +60,7 @@ export type UserProfile = {
   // Calibrage — renseigné à l'inscription, modifiable ensuite
   objectif: string;          // ce que l'utilisateur vient chercher
   personaPrefere: string;    // contradicteur de départ
+  personaEpingle: string;    // contradicteur épinglé (auto suspendu si non vide)
   frictionPreferee: string;  // ton de départ
   // Déduits des réponses, et MONTRÉS à l'utilisateur au dernier écran.
   // Déduire sans le dire relèverait du profilage dissimulé — contraire à
@@ -89,6 +90,7 @@ export const EMPTY_PROFILE: UserProfile = {
   interestNotes: '',
   objectif: '',
   personaPrefere: '',
+  personaEpingle: '',
   frictionPreferee: '',
   usage: '',
   longueurReponse: '',
