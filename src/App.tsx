@@ -1530,6 +1530,8 @@ export default function App() {
     };
   });
   const [multiConfigOuvert, setMultiConfigOuvert] = useState(false);
+  // Mode manuel : personas ajoutés au persona de base pour une réponse multiple.
+  const [personasExtra, setPersonasExtra] = useState<Persona[]>([]);
   // Cheminements d'investigation dépliés (par id de message).
   const [cheminementsOuverts, setCheminementsOuverts] = useState<Set<string>>(new Set());
   // Dernière déduction, affichée sous la réponse pour l'expliquer et l'annuler.
@@ -2612,7 +2614,7 @@ export default function App() {
 
   // ── Send message
   const send = useCallback(
-    async (text: string, attachments: Attachment[] = [], opts?: { multi?: { mode: 'parallele' | 'investigation'; nombre: number } }) => {
+    async (text: string, attachments: Attachment[] = [], opts?: { multi?: { mode: 'parallele' | 'investigation'; personas: Persona[] } }) => {
       if (!text.trim() && attachments.length === 0) return;
       if (sending || sendingRef.current) return;
       sendingRef.current = true;
@@ -2883,13 +2885,15 @@ Tu ne donnes JAMAIS un chiffre, score, pourcentage, note ou statistique présent
           : allMessages;
 
         // ── Réponse multi-personas (parallèle / investigation) ─────────────
-        // Réservé au mode automatique — c'est lui qui choisit le jeu de
-        // contradicteurs complémentaires. Chaque appel modèle coûte un crédit,
-        // déduit côté serveur : N regards = N crédits ; investigation ≈ N+1.
-        if (opts?.multi && autoMode) {
+        // La liste des contradicteurs est résolue par l'appelant : en mode auto,
+        // elle est déduite ; en mode manuel, c'est le persona de base + ceux que
+        // l'utilisateur a ajoutés. Chaque appel modèle coûte un crédit, déduit
+        // côté serveur : N regards = N crédits ; investigation ≈ N+1.
+        if (opts?.multi) {
           setDerniereDeduction(null); // la réponse multiple remplace la puce simple
-          const { mode, nombre } = opts.multi;
-          const personas = ordrePersonas(text, nombre);
+          const { mode } = opts.multi;
+          // Dédoublonnage + garde-fou : au moins deux personas, cinq au plus.
+          const personas = [...new Set(opts.multi.personas)].slice(0, 5);
           const asstIdMulti = uid();
 
           const historique = contextMessages.slice(0, -1)
@@ -6373,9 +6377,10 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
               )}
             </AnimatePresence>
 
-            {/* Barre d'options : format de réponse (toujours) + double regard (auto). */}
+            {/* Barre d'options : format de réponse + réponse multi-personas.
+                Alignée à gauche, compacte sur mobile, sans retour à la ligne. */}
             {!activeConv?.interviewType && (
-              <div className="flex justify-center items-center gap-2 mb-2">
+              <div className="flex items-center gap-1.5 mb-2">
                 {/* Format — longueur ET profondeur, réglées par message, repliées
                     dans un chip. « Auto » sur les deux axes = le modèle s'adapte. */}
                 <div className="relative">
@@ -6384,15 +6389,16 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     onClick={() => setFormatOuvert((o) => !o)}
                     title="Choisir la longueur et la profondeur de la réponse"
                     className={cx(
-                      'flex items-center gap-2 px-3 py-1.5 border-2 transition-all',
+                      'flex items-center gap-1.5 border-2 transition-all',
+                      isMobile ? 'px-2.5 py-1' : 'px-3 py-1.5',
                       formatOuvert || !formatEstAuto(formatReponse)
                         ? 'border-[#5D7BFF] bg-[#5D7BFF]/[0.06] text-[#5D7BFF]'
                         : 'border-[var(--border)] text-[var(--text-primary)]/45 hover:border-[#5D7BFF]/40 hover:text-[#5D7BFF]',
                     )}
                   >
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <SlidersHorizontal className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Format</span>
-                    <span className="text-[8px] font-black uppercase tracking-widest opacity-60">
+                    <span className="text-[8px] font-black uppercase tracking-widest opacity-60 whitespace-nowrap">
                       {formatEstAuto(formatReponse)
                         ? 'Auto'
                         : [
@@ -6402,17 +6408,23 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                     </span>
                   </button>
 
-                  <AnimatePresence>
-                    {formatOuvert && (
+                  {/* Pas d'AnimatePresence/exit : une animation de sortie peut
+                      rester bloquée (preview bridé, onglet hors focus) et coincer
+                      le menu ouvert. Démontage instantané = fermeture fiable. */}
+                  {formatOuvert && (
                       <>
                         {/* Voile transparent pour fermer au clic extérieur. */}
                         <div className="fixed inset-0 z-40" onClick={() => setFormatOuvert(false)} />
                         <motion.div
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 6 }}
                           transition={{ duration: 0.12 }}
-                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-[280px] p-4 space-y-4 border-2 border-[#5D7BFF]/25 bg-[var(--bg-elevated,#fff)] shadow-xl"
+                          className={cx(
+                            'z-50 p-4 space-y-4 border-2 border-[#5D7BFF]/25 shadow-xl',
+                            isMobile
+                              ? 'fixed left-3 right-3 bottom-[88px] max-h-[68vh] overflow-y-auto'
+                              : 'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-[280px]',
+                          )}
                           style={{ background: 'var(--bg-elevated, #ffffff)' }}
                         >
                           <div className="flex items-center justify-between">
@@ -6447,42 +6459,56 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                         </motion.div>
                       </>
                     )}
-                  </AnimatePresence>
                 </div>
 
-                {/* Réponse multi-personas — au clic, un popup configure le nombre
-                    de contradicteurs et le mode (parallèle / investigation) avant
-                    de lancer. Réservé au mode automatique, qui choisit le jeu. */}
-                {autoMode && !activeConv?.debatePersonaId && (
+                {/* Réponse multi-personas — au clic, un popup configure le jeu de
+                    contradicteurs et le mode avant de lancer. Disponible en auto
+                    (le jeu est déduit) comme en manuel (l'utilisateur choisit les
+                    personas qui s'ajoutent au persona de base). */}
+                {!activeConv?.debatePersonaId && (() => {
+                  const nbCredits = (autoMode ? multiConfig.nombre : 1 + personasExtra.length)
+                    + (multiConfig.mode === 'investigation' ? 1 : 0);
+                  const personasResolus = autoMode
+                    ? ordrePersonas(input || 'x', multiConfig.nombre)
+                    : [persona, ...personasExtra];
+                  const pretALancer = !!input.trim() && !sending && personasResolus.length >= 2;
+                  const lancer = () => {
+                    if (!pretALancer) return;
+                    setMultiConfigOuvert(false);
+                    send(input, pendingAttachments, { multi: { mode: multiConfig.mode, personas: personasResolus } });
+                  };
+                  return (
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setMultiConfigOuvert((o) => !o)}
                       title="Autoriser une réponse à plusieurs contradicteurs"
                       className={cx(
-                        'group flex items-center gap-2 px-3 py-1.5 border-2 transition-all',
+                        'group flex items-center gap-1.5 border-2 transition-all',
+                        isMobile ? 'px-2.5 py-1' : 'px-3 py-1.5',
                         multiConfigOuvert
                           ? 'border-[#5D7BFF] bg-[#5D7BFF]/10 text-[#5D7BFF]'
                           : 'border-[#5D7BFF]/30 bg-[#5D7BFF]/[0.04] text-[#5D7BFF] hover:border-[#5D7BFF] hover:bg-[#5D7BFF]/10',
                       )}
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Plusieurs personas</span>
-                      <span className="text-[8px] font-black uppercase tracking-widest bg-[#5D7BFF] text-white px-1.5 py-0.5">
-                        {multiConfig.mode === 'investigation' ? `×${multiConfig.nombre + 1}` : `×${multiConfig.nombre}`} crédits
-                      </span>
+                      <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">{isMobile ? 'Multi' : 'Plusieurs personas'}</span>
+                      <span className="text-[8px] font-black uppercase tracking-widest bg-[#5D7BFF] text-white px-1.5 py-0.5 whitespace-nowrap">×{nbCredits}</span>
                     </button>
 
-                    <AnimatePresence>
-                      {multiConfigOuvert && (
+                    {multiConfigOuvert && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setMultiConfigOuvert(false)} />
                           <motion.div
                             initial={{ opacity: 0, y: 6 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 6 }}
                             transition={{ duration: 0.12 }}
-                            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-[320px] p-4 space-y-4 border-2 border-[#5D7BFF]/25 shadow-xl"
+                            className={cx(
+                              'z-50 p-4 space-y-3.5 border-2 border-[#5D7BFF]/25 shadow-xl',
+                              isMobile
+                                ? 'fixed left-3 right-3 bottom-[88px] max-h-[68vh] overflow-y-auto'
+                                : 'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-[320px]',
+                            )}
                             style={{ background: 'var(--bg-elevated, #ffffff)' }}
                           >
                             <div className="flex items-center gap-1.5">
@@ -6490,49 +6516,72 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                               <span className="text-[9px] font-black uppercase tracking-widest text-[#5D7BFF]">Réponse à plusieurs personas</span>
                             </div>
 
-                            {/* Nombre de contradicteurs */}
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50">Nombre de contradicteurs</span>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre - 1 })}
-                                    disabled={multiConfig.nombre <= 2}
-                                    className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black"
-                                  >−</button>
-                                  <span className="w-5 text-center text-[13px] font-black text-[var(--text-primary)]">{multiConfig.nombre}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre + 1 })}
-                                    disabled={multiConfig.nombre >= 5}
-                                    className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black"
-                                  >+</button>
+                            {autoMode ? (
+                              /* Auto : le jeu est déduit, on règle juste le nombre. */
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50">Nombre de contradicteurs</span>
+                                  <div className="flex items-center gap-2">
+                                    <button type="button" onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre - 1 })} disabled={multiConfig.nombre <= 2}
+                                      className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black">−</button>
+                                    <span className="w-5 text-center text-[13px] font-black text-[var(--text-primary)]">{multiConfig.nombre}</span>
+                                    <button type="button" onClick={() => changerMultiConfig({ ...multiConfig, nombre: multiConfig.nombre + 1 })} disabled={multiConfig.nombre >= 5}
+                                      className="w-6 h-6 flex items-center justify-center border-2 border-[var(--border)] text-[var(--text-primary)]/60 hover:border-[#5D7BFF] hover:text-[#5D7BFF] disabled:opacity-30 disabled:cursor-not-allowed font-black">+</button>
+                                  </div>
                                 </div>
+                                <p className="text-[8px] text-[var(--text-primary)]/40 leading-snug">Le Challenger choisit les angles complémentaires (2 à 5).</p>
                               </div>
-                              <p className="text-[8px] text-[var(--text-primary)]/40 leading-snug">De 2 à 5 contradicteurs aux angles complémentaires.</p>
-                            </div>
+                            ) : (
+                              /* Manuel : le persona de base répond toujours ; on ajoute les autres. */
+                              <div>
+                                <span className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/50 mb-2">Contradicteurs</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(Object.keys(PERSONAS) as Persona[]).map((k) => {
+                                    const info = PERSONAS[k];
+                                    const PIcon = info.icon;
+                                    const isBase = k === persona;
+                                    const isSel = isBase || personasExtra.includes(k);
+                                    return (
+                                      <button
+                                        key={k}
+                                        type="button"
+                                        disabled={isBase}
+                                        onClick={() => setPersonasExtra((prev) =>
+                                          prev.includes(k) ? prev.filter((x) => x !== k)
+                                          : (1 + prev.length < 5 ? [...prev, k] : prev))}
+                                        className={cx('flex items-center gap-1 px-2 py-1 border-2 transition-all text-[9px] font-black uppercase tracking-wider disabled:cursor-default')}
+                                        style={isSel
+                                          ? { borderColor: info.color, background: `${info.color}14`, color: info.color }
+                                          : { borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                                      >
+                                        <PIcon className="w-3 h-3" style={{ color: info.color }} />
+                                        {info.shortName}{isBase ? ' · base' : ''}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-[8px] text-[var(--text-primary)]/40 leading-snug mt-2">
+                                  <strong style={{ color: PERSONAS[persona].color }}>{PERSONAS[persona].shortName}</strong> (persona choisi) répond toujours. Ajoutez-en d'autres — jusqu'à 5 au total.
+                                </p>
+                              </div>
+                            )}
 
                             {/* Mode */}
                             <div className="space-y-2">
                               {([
-                                { v: 'parallele' as const, titre: 'Regards parallèles', desc: 'Chacun répond de son côté, réponses côte à côte.', cout: `×${multiConfig.nombre} crédits` },
-                                { v: 'investigation' as const, titre: 'Investigation enchaînée', desc: 'Chacun relit le précédent et affine ; une synthèse tranche. Cheminement consultable.', cout: `×${multiConfig.nombre + 1} crédits` },
+                                { v: 'parallele' as const, titre: 'Regards parallèles', desc: 'Chacun répond de son côté, réponses côte à côte.' },
+                                { v: 'investigation' as const, titre: 'Investigation enchaînée', desc: 'Chacun relit le précédent et affine ; une synthèse tranche. Cheminement consultable.' },
                               ]).map((opt) => (
                                 <button
                                   key={opt.v}
                                   type="button"
                                   onClick={() => changerMultiConfig({ ...multiConfig, mode: opt.v })}
-                                  className={cx(
-                                    'w-full text-left p-2.5 border-2 transition-all',
-                                    multiConfig.mode === opt.v
-                                      ? 'border-[#5D7BFF] bg-[#5D7BFF]/[0.06]'
-                                      : 'border-[var(--border)] hover:border-[#5D7BFF]/40',
-                                  )}
+                                  className={cx('w-full text-left p-2.5 border-2 transition-all',
+                                    multiConfig.mode === opt.v ? 'border-[#5D7BFF] bg-[#5D7BFF]/[0.06]' : 'border-[var(--border)] hover:border-[#5D7BFF]/40')}
                                 >
                                   <div className="flex items-center justify-between mb-0.5">
                                     <span className={cx('text-[10px] font-black uppercase tracking-wider', multiConfig.mode === opt.v ? 'text-[#5D7BFF]' : 'text-[var(--text-primary)]/70')}>{opt.titre}</span>
-                                    <span className="text-[7px] font-black uppercase tracking-widest bg-[#5D7BFF]/15 text-[#5D7BFF] px-1.5 py-0.5">{opt.cout}</span>
+                                    <span className="text-[7px] font-black uppercase tracking-widest bg-[#5D7BFF]/15 text-[#5D7BFF] px-1.5 py-0.5">×{(autoMode ? multiConfig.nombre : 1 + personasExtra.length) + (opt.v === 'investigation' ? 1 : 0)}</span>
                                   </div>
                                   <p className="text-[8px] text-[var(--text-primary)]/45 leading-snug">{opt.desc}</p>
                                 </button>
@@ -6541,19 +6590,21 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
                             <button
                               type="button"
-                              onClick={() => { if (input.trim() && !sending) { setMultiConfigOuvert(false); send(input, pendingAttachments, { multi: multiConfig }); } }}
-                              disabled={sending || !input.trim()}
+                              onClick={lancer}
+                              disabled={!pretALancer}
                               className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
-                              {input.trim() ? 'Lancer l’analyse' : 'Écrivez votre question'}
+                              {!input.trim() ? 'Écrivez votre question'
+                                : personasResolus.length < 2 ? 'Ajoutez un contradicteur'
+                                : `Lancer · ×${nbCredits} crédits`}
                             </button>
                           </motion.div>
                         </>
                       )}
-                    </AnimatePresence>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
