@@ -31,7 +31,6 @@ import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
 import { signalerSession } from './sessions';
 import Calibrage, { type ResultatCalibrage } from './Calibrage';
-import { mirrorBaseChatConvs } from './outils/JournalismeApp';
 import { getPinnedTools } from './outils/useOutilSessions';
 import type { OutilId } from './outils/outilsTypes';
 import { OUTILS_MAP } from './outils/outilsTypes';
@@ -1346,8 +1345,8 @@ function OnboardingOverlay({
             className="text-center max-w-md w-full"
           >
             <motion.img
-              src="/icon-192.png" alt="Challenger IA"
-              className="w-14 h-14 object-contain mx-auto mb-8"
+              src="/logocompletbleu.png" alt="Challenger IA"
+              className="h-11 w-auto max-w-[240px] object-contain mx-auto mb-8"
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }}
             />
 
@@ -5245,14 +5244,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Nos Outils Partenaires ──────────────────────────────────────────── */}
       {currentPage === 'outils' && (() => {
-        // Mirror conversations so JournalismeApp can import them
-        mirrorBaseChatConvs(conversations.map(c => ({
-          id: c.id,
-          title: c.title,
-          messages: c.messages.map(m => ({ id: m.id, role: m.role, content: m.content, timestamp: m.timestamp.toISOString() })),
-          createdAt: c.createdAt.toISOString(),
-          updatedAt: c.updatedAt.toISOString(),
-        })));
         return (
           <div className="flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]">
             <OutilsPage
