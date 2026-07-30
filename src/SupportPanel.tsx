@@ -10,10 +10,12 @@
  * échanges.
  */
 import { useState } from 'react';
-import { LifeBuoy, History, Copy, Check, Mail } from 'lucide-react';
+import { LifeBuoy, History, Copy, Check, Mail, BookOpen, ArrowUpRight } from 'lucide-react';
 import { JOURNAL } from './versions';
 
 const CONTACT = 'stariax.dev.a@outlook.com';
+// Centre d'aide STARIAX : FAQ, tickets, demandes et suivi des signalements.
+const AIDE_URL = 'https://stariax.tech/help';
 
 function contexteTechnique(): string {
   const l: string[] = [];
@@ -46,6 +48,28 @@ export default function SupportPanel() {
 
   return (
     <div className="space-y-4">
+
+      {/* ── Centre d'aide STARIAX ──────────────────────────────────────────── */}
+      <a
+        href={AIDE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group block border-2 border-[#10B981]/25 bg-[#10B981]/[0.04] hover:border-[#10B981]/50 hover:bg-[#10B981]/[0.07] transition-colors"
+      >
+        <div className="flex items-center gap-3 px-5 py-4">
+          <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center"
+               style={{ background: '#10B98115', border: '1.5px solid #10B98130' }}>
+            <BookOpen className="w-4 h-4 text-[#10B981]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-[#10B981]">Centre d&apos;aide</h2>
+            <p className="mt-0.5 text-[10px] text-[#141414]/50 leading-relaxed">
+              FAQ, tickets, demandes et suivi des signalements sur STARIAX.
+            </p>
+          </div>
+          <ArrowUpRight className="w-4 h-4 flex-shrink-0 text-[#10B981]/50 group-hover:text-[#10B981] transition-colors" />
+        </div>
+      </a>
 
       {/* ── Signaler un problème ───────────────────────────────────────────── */}
       <div className="border-2 border-[#141414]/10 bg-white">
