@@ -1642,7 +1642,9 @@ export default function App() {
     useState<{ text: string; attachments: Attachment[] } | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
-  const [sidebarExtrasOpen, setSidebarExtrasOpen] = useState(false);
+  // Nav du bas (mobile) : base = Chat · Sessions · +. Le + agrandit la barre,
+  // devient X et révèle Paramètres.
+  const [navExpanded, setNavExpanded] = useState(false);
 
   // ── Auth state
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -4795,62 +4797,6 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                 })()}
               </div>
 
-              {/* ── Menu dépliable ── */}
-              <div className="border-2 border-white/10 overflow-hidden">
-                <button
-                  onClick={() => setSidebarExtrasOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
-                >
-                  <span className="text-[11px] font-black uppercase tracking-widest">Navigation</span>
-                  <motion.div animate={{ rotate: sidebarExtrasOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
-                    <Plus className="w-4 h-4" />
-                  </motion.div>
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {sidebarExtrasOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      style={{ overflow: 'hidden' }}
-                    >
-                      <div className="border-t border-white/10 divide-y divide-white/5">
-                        {/* Bibliothèque */}
-                        <button
-                          onClick={() => { setCurrentPage('outils'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <BookOpen className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Bibliothèque</span>
-                          </div>
-                          <ChevronRight className="w-3 h-3 opacity-50" />
-                        </button>
-
-                        {/* Profil IA */}
-                        <button
-                          onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); setSidebarExtrasOpen(false); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-white/50 hover:text-white/80 hover:bg-[#5D7BFF]/5 transition-all"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Settings className="w-4 h-4" />
-                            <span className="text-[11px] font-black uppercase tracking-widest">Profil IA</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {isProfileFilled(userProfile) && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                            )}
-                            <ChevronRight className="w-3 h-3 opacity-50" />
-                          </div>
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
               {/* ── Outils épinglés ─────────────────────────────────────── */}
               {pinnedTools.length > 0 && (
                 <div className="space-y-1">
@@ -7194,39 +7140,84 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
         </div>
       </div>
 
-      {/* ── Bottom Navigation (mobile only) — flottante & glassmorphisme ──── */}
+      {/* ── Bottom Navigation (mobile only) — flottante & glassmorphisme ────
+          Base : Chat · Sessions · +. Le + agrandit la barre, se change en X
+          et révèle Paramètres. */}
       <AnimatePresence>
         {!inputFocused && (
-          <motion.nav
+          <motion.div
             key="bottom-nav"
             initial={{ y: 90, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 90, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-            className="fixed left-3 right-3 z-30 md:hidden flex rounded-2xl overflow-hidden bg-[#141414]/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
+            className="fixed left-0 right-0 z-30 md:hidden flex justify-center px-3 pointer-events-none"
             style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
           >
-            {([
-              { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
-              { icon: BookOpen, label: 'Bibliothèque', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
-              { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
-              { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
-            ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
-              <motion.button
-                key={label}
-                type="button"
-                onClick={action}
-                whileTap={{ scale: 0.88 }}
-                className={cx(
-                  'flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors',
-                  active ? 'text-[#5D7BFF]' : 'text-white/35 hover:text-white/60'
+            <motion.nav
+              layout
+              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              className="pointer-events-auto flex items-center gap-1 p-1.5 rounded-2xl bg-[#141414]/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
+            >
+              {([
+                { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); setNavExpanded(false); }, active: currentPage === 'chat' },
+                { icon: Menu, label: 'Sessions', action: () => { setSidebarOpen((v) => !v); setNavExpanded(false); }, active: sidebarOpen },
+              ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
+                <motion.button
+                  key={label}
+                  layout
+                  type="button"
+                  onClick={action}
+                  whileTap={{ scale: 0.88 }}
+                  className={cx(
+                    'flex flex-col items-center justify-center w-[62px] py-2 gap-0.5 rounded-xl transition-colors',
+                    active ? 'text-[#5D7BFF] bg-[#5D7BFF]/10' : 'text-white/40 hover:text-white/70'
+                  )}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
+                </motion.button>
+              ))}
+
+              {/* Paramètres — révélé quand la barre est agrandie */}
+              <AnimatePresence initial={false}>
+                {navExpanded && (
+                  <motion.button
+                    key="nav-settings"
+                    layout
+                    initial={{ opacity: 0, width: 0, scale: 0.6 }}
+                    animate={{ opacity: 1, width: 62, scale: 1 }}
+                    exit={{ opacity: 0, width: 0, scale: 0.6 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    type="button"
+                    onClick={() => { setCurrentPage('settings'); setSidebarOpen(false); setNavExpanded(false); }}
+                    whileTap={{ scale: 0.88 }}
+                    className={cx(
+                      'flex flex-col items-center justify-center py-2 gap-0.5 rounded-xl overflow-hidden transition-colors',
+                      currentPage === 'settings' ? 'text-[#5D7BFF] bg-[#5D7BFF]/10' : 'text-white/40 hover:text-white/70'
+                    )}
+                  >
+                    <Settings className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-[7px] font-black uppercase tracking-widest">Paramètres</span>
+                  </motion.button>
                 )}
+              </AnimatePresence>
+
+              {/* Bouton + / X */}
+              <motion.button
+                layout
+                type="button"
+                onClick={() => setNavExpanded((v) => !v)}
+                whileTap={{ scale: 0.88 }}
+                aria-label={navExpanded ? 'Réduire la navigation' : 'Plus d’options'}
+                className="flex items-center justify-center w-[52px] h-[46px] rounded-xl bg-[#5D7BFF] text-white hover:bg-[#4a68e8] transition-colors"
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
+                <motion.div animate={{ rotate: navExpanded ? 135 : 0 }} transition={{ type: 'spring', stiffness: 420, damping: 26 }}>
+                  <Plus className="w-5 h-5" />
+                </motion.div>
               </motion.button>
-            ))}
-          </motion.nav>
+            </motion.nav>
+          </motion.div>
         )}
       </AnimatePresence>
 

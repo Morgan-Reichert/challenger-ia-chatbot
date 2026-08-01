@@ -536,7 +536,7 @@ export default function SettingsPage({
 
       {/* Header */}
       <div
-        className="flex-shrink-0 bg-white border-b border-[var(--border)] px-6 py-4"
+        className="flex-shrink-0 bg-[var(--bg-chat)] border-b border-[var(--border)] px-6 py-4"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
       >
         <div className="flex items-center gap-4 mb-4">
@@ -614,7 +614,7 @@ export default function SettingsPage({
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto bg-[#F8F9FF]">
+      <div className="flex-1 overflow-y-auto bg-[var(--bg-app)]">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
 
         {/* ═══════════════ NIVEAU 0 — MENU DES SECTIONS ═══════════════ */}
