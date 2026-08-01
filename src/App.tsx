@@ -5666,7 +5666,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           ref={scrollerRef}
           onScroll={handleChatScroll}
           className={cx('flex-1 overflow-y-auto overflow-x-hidden px-6 py-8 transition-colors', (activeConv?.debatePersonaId || interviewCfg) ? '' : '')}
-          style={interviewCfg ? { background: interviewCfg.bgColor } : activeConv?.debatePersonaId ? { background: '#0a0c14' } : undefined}
+          style={interviewCfg ? { background: interviewCfg.bgColor } : activeConv?.debatePersonaId ? { background: '#0a0c14' } : { background: 'linear-gradient(170deg, rgba(93,123,255,0.08) 0%, rgba(93,123,255,0.03) 22%, rgba(93,123,255,0) 48%), var(--bg-app)' }}
         >
           {!activeConv || activeConv.messages.length === 0 ? (
             activeConv?.interviewType ? (
