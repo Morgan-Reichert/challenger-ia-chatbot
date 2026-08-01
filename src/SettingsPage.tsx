@@ -11,7 +11,7 @@ import FacturationPanel from './FacturationPanel';
 import ReutilisationPanel from './ReutilisationPanel';
 import SupportPanel from './SupportPanel';
 import {
-  ArrowLeft, User, Briefcase, Brain, Heart, Download, Upload,
+  ArrowLeft, User, UserCircle, Briefcase, Brain, Heart, Download, Upload,
   Trash2, Check, X, Sparkles, FileText, Zap, HelpCircle,
   CreditCard, BarChart2, Crown, Coins, TrendingUp, ShieldCheck, Zap as ZapIcon, MessageSquare,
   SlidersHorizontal, Info, Bell, KeyRound, ChevronRight,
@@ -325,32 +325,58 @@ type Props = {
    intermédiaire : imposer un clic sur une liste d'un seul élément allongerait
    le chemin sans rien clarifier.
    ═════════════════════════════════════════════════════════════════════════ */
-type SousSection = { id: string; label: string; icon: LucideIcon; hint: string };
-type SectionReglages = {
+// Un seul type récursif : une rubrique peut en contenir d'autres, à n'importe
+// quelle profondeur. Le « Compte » regroupe ainsi Profil, Abonnement, Sécurité
+// et Confidentialité, chacun gardant ses propres sous-sections (3 niveaux).
+type Noeud = {
   id: string;
   label: string;
   icon: LucideIcon;
-  accent: string;
-  desc: string;
-  sous?: SousSection[];
+  accent?: string;
+  desc?: string;
+  hint?: string;
+  sous?: Noeud[];
 };
 
-const ARBORESCENCE: SectionReglages[] = [
+const ARBORESCENCE: Noeud[] = [
   {
-    id: 'profil', label: 'Profil IA', icon: User, accent: '#5D7BFF',
-    desc: "Ce que l'IA sait de vous et mobilise dans vos échanges.",
+    id: 'compte', label: 'Compte', icon: UserCircle, accent: '#5D7BFF',
+    desc: 'Votre profil, votre abonnement, la sécurité et vos données.',
     sous: [
-      { id: 'identite',  label: 'Identité',               icon: User,      hint: 'Nom affiché, parcours de vie' },
-      { id: 'parcours',  label: 'Parcours professionnel', icon: Briefcase, hint: 'Métier, secteur, expertise' },
-      { id: 'caractere', label: 'Personnalité',           icon: Brain,     hint: 'Type MBTI et traits Big Five' },
-      { id: 'neuro',     label: 'Profil neuro',           icon: Zap,       hint: 'Fonctionnement cognitif — données sensibles' },
-      { id: 'interets',  label: "Centres d'intérêt",      icon: Heart,     hint: 'Sujets qui vous mobilisent' },
-      { id: 'fichier',   label: 'Données du profil',      icon: Download,  hint: 'Importer, exporter, effacer le profil' },
+      {
+        id: 'profil', label: 'Profil', icon: User, accent: '#5D7BFF',
+        desc: "Ce que l'IA sait de vous et mobilise dans vos échanges.",
+        sous: [
+          { id: 'identite',  label: 'Identité',               icon: User,      hint: 'Nom affiché, parcours de vie' },
+          { id: 'parcours',  label: 'Parcours professionnel', icon: Briefcase, hint: 'Métier, secteur, expertise' },
+          { id: 'caractere', label: 'Personnalité',           icon: Brain,     hint: 'Type MBTI et traits Big Five' },
+          { id: 'neuro',     label: 'Profil neuro',           icon: Zap,       hint: 'Fonctionnement cognitif — données sensibles' },
+          { id: 'interets',  label: "Centres d'intérêt",      icon: Heart,     hint: 'Sujets qui vous mobilisent' },
+          { id: 'fichier',   label: 'Données du profil',      icon: Download,  hint: 'Importer, exporter, effacer le profil' },
+        ],
+      },
+      {
+        id: 'abonnement', label: 'Abonnement & crédits', icon: CreditCard, accent: '#F59E0B',
+        desc: 'Votre plan, vos crédits et les offres spécialisées.',
+        sous: [
+          { id: 'plan',         label: 'Mon plan',     icon: Crown,     hint: 'Formule en cours et recharges' },
+          { id: 'consommation', label: 'Consommation', icon: BarChart2, hint: 'Quotas, historique, empreinte' },
+          { id: 'facturation',  label: 'Facturation',  icon: FileText,  hint: 'Factures, moyen de paiement, résiliation' },
+        ],
+      },
+      {
+        id: 'securite', label: 'Sécurité du compte', icon: ShieldCheck, accent: '#EF4444',
+        desc: 'Mot de passe, adresse vérifiée et appareils connectés.',
+      },
+      {
+        id: 'confidentialite', label: 'Données & confidentialité', icon: ShieldCheck, accent: '#0EA5E9',
+        desc: 'Export, effacement, partages publics et usage de vos échanges.',
+        sous: [
+          { id: 'mes-donnees',   label: 'Mes données',    icon: Download, hint: 'Export, effacement, partages publics' },
+          { id: 'reutilisation', label: 'Réutilisation',  icon: BookLock, hint: 'Analyse de vos conversations' },
+        ],
+      },
     ],
-  },
-  {
-    id: 'securite', label: 'Sécurité du compte', icon: ShieldCheck, accent: '#EF4444',
-    desc: 'Mot de passe, adresse vérifiée et appareils connectés.',
   },
   {
     id: 'progression', label: 'Progression', icon: TrendingUp, accent: '#10B981',
@@ -369,23 +395,6 @@ const ARBORESCENCE: SectionReglages[] = [
     ],
   },
   {
-    id: 'abonnement', label: 'Abonnement & crédits', icon: CreditCard, accent: '#F59E0B',
-    desc: 'Votre plan, vos crédits et votre consommation.',
-    sous: [
-      { id: 'plan',         label: 'Mon plan',     icon: Crown,     hint: 'Formule en cours et recharges' },
-      { id: 'consommation', label: 'Consommation', icon: BarChart2, hint: 'Quotas, historique, empreinte' },
-      { id: 'facturation',  label: 'Facturation',  icon: FileText,  hint: 'Factures, moyen de paiement, résiliation' },
-    ],
-  },
-  {
-    id: 'confidentialite', label: 'Données & confidentialité', icon: ShieldCheck, accent: '#0EA5E9',
-    desc: 'Export, effacement, partages publics et usage de vos échanges.',
-    sous: [
-      { id: 'mes-donnees',   label: 'Mes données',    icon: Download, hint: 'Export, effacement, partages publics' },
-      { id: 'reutilisation', label: 'Réutilisation',  icon: BookLock, hint: 'Analyse de vos conversations' },
-    ],
-  },
-  {
     id: 'developpeurs', label: 'Développeurs', icon: KeyRound, accent: '#7C3AED',
     desc: "Clés d'API pour appeler Challenger depuis vos applications.",
   },
@@ -398,6 +407,19 @@ const ARBORESCENCE: SectionReglages[] = [
     desc: 'Éditeur, version installée et textes contractuels.',
   },
 ];
+
+/** Nœuds traversés le long d'un chemin d'identifiants (racine → feuille). */
+function noeudsDuChemin(chemin: string[]): Noeud[] {
+  const out: Noeud[] = [];
+  let niveau: Noeud[] = ARBORESCENCE;
+  for (const id of chemin) {
+    const n = niveau.find((x) => x.id === id);
+    if (!n) break;
+    out.push(n);
+    niveau = n.sous ?? [];
+  }
+  return out;
+}
 
 const FREE_DAILY   = 20;
 const FREE_WEEKLY  = 100;
@@ -414,14 +436,21 @@ export default function SettingsPage({
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
-  // Chemin courant : [] = menu racine, [section] = liste des sous-sections,
-  // [section, sousSection] = contenu.
+  // Chemin courant : suite d'identifiants de la racine vers la feuille.
+  // [] = menu racine ; un nœud avec `sous` affiche un sous-menu ; une feuille
+  // affiche son contenu. Profondeur variable (jusqu'à 3 pour la branche Compte).
   const [chemin, setChemin] = useState<string[]>([]);
-  const sectionCourante = ARBORESCENCE.find((s) => s.id === chemin[0]);
+  const noeuds = noeudsDuChemin(chemin);
+  const noeudCourant = noeuds[noeuds.length - 1];
 
-  /** Vrai lorsque le contenu désigné doit être affiché. */
-  const ouvert = (section: string, sous?: string) =>
-    chemin[0] === section && (sous === undefined ? !sectionCourante?.sous : chemin[1] === sous);
+  /** Vrai lorsqu'une feuille est sélectionnée et correspond au contenu visé —
+   *  (parent, feuille), ou (feuille) pour une rubrique sans sous-section. */
+  const ouvert = (section: string, sous?: string) => {
+    if (!noeudCourant || noeudCourant.sous) return false;
+    if (sous === undefined) return noeudCourant.id === section;
+    const parent = noeuds[noeuds.length - 2];
+    return parent?.id === section && noeudCourant.id === sous;
+  };
 
   const remonter = () => (chemin.length === 0 ? onBack() : setChemin(chemin.slice(0, -1)));
 
@@ -550,9 +579,7 @@ export default function SettingsPage({
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-[13px] font-black uppercase tracking-widest text-[#141414] truncate">
-              {chemin.length === 0
-                ? 'Paramètres'
-                : sectionCourante?.sous?.find((s) => s.id === chemin[1])?.label ?? sectionCourante?.label}
+              {chemin.length === 0 ? 'Paramètres' : noeudCourant?.label}
             </h1>
             <p className="text-[9px] font-medium text-[#141414]/40 uppercase tracking-widest mt-0.5">
               {illimite ? '✦ Crédits illimités'
@@ -590,9 +617,7 @@ export default function SettingsPage({
             </button>
             {chemin.map((segment, i) => {
               const dernier = i === chemin.length - 1;
-              const libelle = i === 0
-                ? sectionCourante?.label
-                : sectionCourante?.sous?.find((s) => s.id === segment)?.label;
+              const libelle = noeuds[i]?.label;
               return (
                 <React.Fragment key={segment}>
                   <ChevronRight className="w-3 h-3 text-[#141414]/20 flex-shrink-0" />
@@ -640,24 +665,32 @@ export default function SettingsPage({
           </div>
         )}
 
-        {/* ═══════════════ NIVEAU 1 — MENU DES SOUS-SECTIONS ═══════════════ */}
-        {chemin.length === 1 && sectionCourante?.sous && (
+        {/* ═══ MENU D'UN NŒUD À SOUS-SECTIONS (toute profondeur) ═══ */}
+        {chemin.length > 0 && noeudCourant?.sous && (
           <div className="space-y-2">
-            <p className="text-[10px] text-[#141414]/45 leading-relaxed px-1 pb-1">{sectionCourante.desc}</p>
-            {sectionCourante.sous.map((ss) => (
-              <button
-                key={ss.id}
-                onClick={() => setChemin([sectionCourante.id, ss.id])}
-                className="w-full flex items-center gap-4 px-5 py-3.5 bg-white border-2 border-[#141414]/10 hover:border-[#141414]/25 transition-colors text-left group"
-              >
-                <ss.icon className="w-4 h-4 flex-shrink-0" style={{ color: sectionCourante.accent }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-[#141414]">{ss.label}</p>
-                  <p className="text-[10px] text-[#141414]/45 mt-0.5">{ss.hint}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 flex-shrink-0 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />
-              </button>
-            ))}
+            {noeudCourant.desc && (
+              <p className="text-[10px] text-[#141414]/45 leading-relaxed px-1 pb-1">{noeudCourant.desc}</p>
+            )}
+            {noeudCourant.sous.map((ss) => {
+              const accent = ss.accent ?? noeudCourant.accent ?? '#5D7BFF';
+              return (
+                <button
+                  key={ss.id}
+                  onClick={() => setChemin([...chemin, ss.id])}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 bg-white border-2 border-[#141414]/10 hover:border-[#141414]/25 transition-colors text-left group"
+                >
+                  <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center"
+                       style={{ background: `${accent}12`, border: `1.5px solid ${accent}30` }}>
+                    <ss.icon className="w-4 h-4" style={{ color: accent }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black text-[#141414]">{ss.label}</p>
+                    <p className="text-[10px] text-[#141414]/45 mt-0.5">{ss.desc ?? ss.hint}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 flex-shrink-0 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />
+                </button>
+              );
+            })}
           </div>
         )}
 
