@@ -27,6 +27,7 @@ import {
 } from './userProfile';
 import { SECTEURS } from './comportement';
 import { CREDIT_PACKS, type Plan } from './supabase';
+import { OUTILS_LIST, type OutilId } from './outils/outilsTypes';
 import {
   CUSTOM_PERSONA_MAX_NAME, CUSTOM_PERSONA_MAX_DESC,
   validateCustomPrompt, exportCustomPersonaToJson, parseCustomPersonaJson,
@@ -314,6 +315,7 @@ type Props = {
   shares: { shareId: string; title: string; sharedAt: string }[];
   onRevokeShare: (shareId: string) => Promise<boolean>;
   onRefreshShares: () => void;
+  onOpenTool?: (id: OutilId) => void;
   onAccountDeleted: () => void;
 };
 
@@ -432,7 +434,7 @@ export default function SettingsPage({
   autoUseCredits, onAutoUseCreditsChange,
   showSuggestions, onShowSuggestionsChange,
   showDailyChallenge, onShowDailyChallengeChange,
-  shares, onRevokeShare, onRefreshShares, onAccountDeleted,
+  shares, onRevokeShare, onRefreshShares, onOpenTool, onAccountDeleted,
 }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [saved, setSaved] = useState(false);
@@ -453,6 +455,10 @@ export default function SettingsPage({
   };
 
   const remonter = () => (chemin.length === 0 ? onBack() : setChemin(chemin.slice(0, -1)));
+
+  // Page Abonnement : bascule entre les formules Challenger personnelles et les
+  // offres entreprise & spécialisées (l'ancienne Bibliothèque).
+  const [aboVue, setAboVue] = useState<'perso' | 'entreprise'>('perso');
 
   // Un compte invité porte un identifiant éphémère : des préférences liées au
   // compte y seraient perdues dès la déconnexion. On le considère donc absent
@@ -668,29 +674,105 @@ export default function SettingsPage({
         {/* ═══ MENU D'UN NŒUD À SOUS-SECTIONS (toute profondeur) ═══ */}
         {chemin.length > 0 && noeudCourant?.sous && (
           <div className="space-y-2">
-            {noeudCourant.desc && (
-              <p className="text-[10px] text-[#141414]/45 leading-relaxed px-1 pb-1">{noeudCourant.desc}</p>
+
+            {/* Abonnement : bouton double Personnels / Entreprise & spécialisé */}
+            {noeudCourant.id === 'abonnement' && (
+              <div className="flex p-1 mb-1 bg-[#141414]/[0.04] border border-[#141414]/10 rounded-xl">
+                {([['perso', 'Personnels'], ['entreprise', 'Entreprise & spécialisé']] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    onClick={() => setAboVue(k)}
+                    className={cx(
+                      'flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors',
+                      aboVue === k ? 'bg-white text-[#141414] shadow-sm' : 'text-[#141414]/45 hover:text-[#141414]/70',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             )}
-            {noeudCourant.sous.map((ss) => {
-              const accent = ss.accent ?? noeudCourant.accent ?? '#5D7BFF';
-              return (
-                <button
-                  key={ss.id}
-                  onClick={() => setChemin([...chemin, ss.id])}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 bg-white border-2 border-[#141414]/10 hover:border-[#141414]/25 transition-colors text-left group"
-                >
-                  <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center"
-                       style={{ background: `${accent}12`, border: `1.5px solid ${accent}30` }}>
-                    <ss.icon className="w-4 h-4" style={{ color: accent }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-black text-[#141414]">{ss.label}</p>
-                    <p className="text-[10px] text-[#141414]/45 mt-0.5">{ss.desc ?? ss.hint}</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 flex-shrink-0 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />
-                </button>
-              );
-            })}
+
+            {noeudCourant.id === 'abonnement' && aboVue === 'entreprise' ? (
+              /* ── Bibliothèque des spécialisations + offre entreprise ── */
+              <>
+                <p className="text-[10px] text-[#141414]/45 leading-relaxed px-1 pb-1">
+                  Des Challenger spécialisés par métier, et des offres pour les équipes. Chaque spécialisation s'active à la demande.
+                </p>
+                {OUTILS_LIST.map((o) => {
+                  const dispo = o.status === 'available';
+                  return (
+                    <button
+                      key={o.id}
+                      onClick={() => dispo && onOpenTool?.(o.id)}
+                      disabled={!dispo}
+                      className={cx(
+                        'w-full flex items-center gap-4 px-5 py-3.5 bg-white border-2 transition-colors text-left group',
+                        dispo ? 'border-[#141414]/10 hover:border-[#141414]/25' : 'border-[#141414]/8 opacity-70 cursor-default',
+                      )}
+                    >
+                      <img
+                        src={o.logoSrc} alt=""
+                        className="w-9 h-9 object-contain flex-shrink-0"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[11px] font-black text-[#141414] truncate">{o.name}</p>
+                          {!dispo && (
+                            <span className="text-[8px] font-black uppercase tracking-widest text-[#141414]/35 border border-[#141414]/15 px-1.5 py-0.5 flex-shrink-0">Bientôt</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#141414]/45 mt-0.5 truncate">{o.tagline}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[10px] font-black" style={{ color: o.accentColor }}>{o.price}</span>
+                        {dispo && <ChevronRight className="w-4 h-4 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />}
+                      </div>
+                    </button>
+                  );
+                })}
+                <div className="mt-3 border-2 border-dashed border-[#5D7BFF]/25 bg-[#5D7BFF]/[0.03] px-5 py-4">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#5D7BFF]">Pour les équipes</p>
+                  <p className="text-[10px] text-[#141414]/50 mt-1 leading-relaxed">
+                    Déploiement multi-comptes, facturation centralisée et spécialisations sur mesure.
+                  </p>
+                  <a
+                    href="mailto:stariax.dev.a@outlook.com?subject=Challenger%20IA%20%E2%80%94%20offre%20entreprise"
+                    className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-[#5D7BFF] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#4a68e8] transition-colors"
+                  >
+                    Contacter l'équipe
+                  </a>
+                </div>
+              </>
+            ) : (
+              /* ── Sous-sections classiques ── */
+              <>
+                {noeudCourant.desc && (
+                  <p className="text-[10px] text-[#141414]/45 leading-relaxed px-1 pb-1">{noeudCourant.desc}</p>
+                )}
+                {noeudCourant.sous.map((ss) => {
+                  const accent = ss.accent ?? noeudCourant.accent ?? '#5D7BFF';
+                  return (
+                    <button
+                      key={ss.id}
+                      onClick={() => setChemin([...chemin, ss.id])}
+                      className="w-full flex items-center gap-4 px-5 py-3.5 bg-white border-2 border-[#141414]/10 hover:border-[#141414]/25 transition-colors text-left group"
+                    >
+                      <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center"
+                           style={{ background: `${accent}12`, border: `1.5px solid ${accent}30` }}>
+                        <ss.icon className="w-4 h-4" style={{ color: accent }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-[#141414]">{ss.label}</p>
+                        <p className="text-[10px] text-[#141414]/45 mt-0.5">{ss.desc ?? ss.hint}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 flex-shrink-0 text-[#141414]/20 group-hover:text-[#141414]/50 transition-colors" />
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 

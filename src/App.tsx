@@ -5235,6 +5235,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             shares={publicShares}
             onRevokeShare={revokeShare}
             onRefreshShares={refreshShares}
+            onOpenTool={(id) => { setOpenToolId(id); setCurrentPage('outils'); }}
             onAccountDeleted={() => {
               // Le compte n'existe plus côté serveur : on purge l'état local
               // et on repart d'une session vierge.
