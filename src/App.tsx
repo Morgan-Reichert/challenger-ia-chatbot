@@ -4539,13 +4539,13 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
             exit={isMobile ? { x: '-100%' } : { width: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             className={cx(
-              'flex flex-col bg-[#141414] text-white border-r border-white/10',
+              'flex flex-col text-white',
               isMobile
-                ? 'fixed inset-y-0 left-0 z-50 w-[280px] h-full overflow-y-auto'
-                : 'flex-shrink-0 h-full overflow-hidden'
+                ? 'fixed left-2 z-50 w-[280px] overflow-y-auto rounded-2xl bg-[#141414]/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.45)]'
+                : 'flex-shrink-0 h-full overflow-hidden bg-[#141414] border-r border-white/10'
             )}
             style={isMobile
-              ? { paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }
+              ? { top: 'calc(env(safe-area-inset-top, 0px) + 8px)', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }
               : { minWidth: 0 }}
           >
             {/* Logo */}
@@ -7194,34 +7194,41 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
         </div>
       </div>
 
-      {/* ── Bottom Navigation (mobile only) ─────────────────────────────── */}
-      <nav
-        className={cx(
-          'fixed bottom-0 left-0 right-0 z-30 md:hidden bg-[#141414] border-t border-white/10',
-          inputFocused ? 'hidden' : 'flex'
-        )}
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
-        {([
-          { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
-          { icon: BookOpen, label: 'Bibliothèque', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
-          { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
-          { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
-        ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={action}
-            className={cx(
-              'flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors',
-              active ? 'text-[#5D7BFF]' : 'text-white/30 hover:text-white/60'
-            )}
+      {/* ── Bottom Navigation (mobile only) — flottante & glassmorphisme ──── */}
+      <AnimatePresence>
+        {!inputFocused && (
+          <motion.nav
+            key="bottom-nav"
+            initial={{ y: 90, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 90, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+            className="fixed left-3 right-3 z-30 md:hidden flex rounded-2xl overflow-hidden bg-[#141414]/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
           >
-            <Icon className="w-5 h-5" />
-            <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
-          </button>
-        ))}
-      </nav>
+            {([
+              { icon: MessageSquare, label: 'Chat', action: () => { setCurrentPage('chat'); setSidebarOpen(false); }, active: currentPage === 'chat' },
+              { icon: BookOpen, label: 'Bibliothèque', action: () => { setCurrentPage('outils'); setSidebarOpen(false); }, active: currentPage === 'outils' },
+              { icon: Settings, label: 'Profil', action: () => { setCurrentPage('settings'); setSidebarOpen(false); }, active: currentPage === 'settings' },
+              { icon: Menu, label: 'Sessions', action: () => setSidebarOpen((v) => !v), active: sidebarOpen },
+            ] as { icon: React.ElementType; label: string; action: () => void; active: boolean }[]).map(({ icon: Icon, label, action, active }) => (
+              <motion.button
+                key={label}
+                type="button"
+                onClick={action}
+                whileTap={{ scale: 0.88 }}
+                className={cx(
+                  'flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors',
+                  active ? 'text-[#5D7BFF]' : 'text-white/35 hover:text-white/60'
+                )}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[7px] font-black uppercase tracking-widest">{label}</span>
+              </motion.button>
+            ))}
+          </motion.nav>
+        )}
+      </AnimatePresence>
 
       </>)}
 
