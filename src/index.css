@@ -139,6 +139,28 @@ html[data-mouvement='reduit'] *::after {
     overflow: hidden;
     /* Empêche le "tirer pour rafraîchir" et le rebond de scroll (ressenti app native) */
     overscroll-behavior: none;
+    /* iOS : pas d'inflation automatique du texte à la rotation */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* ── Finitions iPhone (WebView Capacitor) ──────────────────────────────────
+     Sur iOS l'app est une WebView plein écran : on lui donne les réflexes d'une
+     app native — pas de menu « copier/partager » au long-press sur les
+     contrôles, scroll inertiel, et zones tactiles qui ne se surlignent pas. */
+  button, a, [role="button"], label, nav {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* On garde le texte des échanges sélectionnable (citer une réponse de l'IA). */
+  .select-text, .select-text * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  /* Scroll inertiel iOS sur toutes les zones défilables. */
+  .overflow-y-auto, .overflow-x-auto, .overflow-auto {
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Helpers safe-area (notch / barre d'état / home indicator) */

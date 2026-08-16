@@ -30,6 +30,8 @@ import LibraryPage from './LibraryPage';
 import OutilsPage from './outils/OutilsPage';
 import SettingsPage from './SettingsPage';
 import { signalerSession } from './sessions';
+import { Capacitor } from '@capacitor/core';
+import { lireTexte, arreterLecture } from './tts';
 import Calibrage, { type ResultatCalibrage } from './Calibrage';
 import { getPinnedTools } from './outils/useOutilSessions';
 import type { OutilId } from './outils/outilsTypes';
@@ -1643,8 +1645,38 @@ export default function App() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   // Nav du bas (mobile) : base = Chat · Sessions · +. Le + agrandit la barre,
-  // devient X et révèle Paramètres.
+  // devient X et révèle Paramètres. Masquée sur iOS natif (jugée superflue :
+  // la navigation passe par la barre latérale et les retours).
   const [navExpanded, setNavExpanded] = useState(false);
+  const isIOSNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+  // Espace réservé en bas des pages sur mobile : sur iOS (sans nav du bas) on ne
+  // garde que la safe-area ; ailleurs on réserve la hauteur de la nav flottante.
+  const padBasMobile = isIOSNative
+    ? 'max-md:pb-[env(safe-area-inset-bottom,0px)]'
+    : 'max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]';
+
+  // Lecture à haute voix (ElevenLabs) : id du message en cours de lecture, et
+  // id de celui dont l'audio se prépare.
+  const [lectureId, setLectureId] = useState<string | null>(null);
+  const [lectureChargeId, setLectureChargeId] = useState<string | null>(null);
+
+  /** Lit une réponse à haute voix, ou coupe la lecture si elle est en cours. */
+  const basculerLecture = useCallback(async (id: string, contenu: string) => {
+    if (lectureId === id) { arreterLecture(); setLectureId(null); return; }
+    if (lectureChargeId) return; // une préparation est déjà en cours
+    const texte = stripViz(contenu).trim();
+    if (!texte) return;
+    setLectureChargeId(id);
+    try {
+      await lireTexte(texte, () => setLectureId((cur) => (cur === id ? null : cur)));
+      setLectureId(id);
+    } catch (e) {
+      console.error('[tts] lecture impossible —', e);
+      setLectureId(null);
+    } finally {
+      setLectureChargeId(null);
+    }
+  }, [lectureId, lectureChargeId]);
 
   // ── Auth state
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -5191,7 +5223,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
       {/* ── Nos Outils Partenaires ──────────────────────────────────────────── */}
       {currentPage === 'outils' && (() => {
         return (
-          <div className="flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]">
+          <div className={cx('flex-1 min-w-0 h-full', padBasMobile)}>
             <OutilsPage
               onBack={() => { setCurrentPage('chat'); setOpenToolId(undefined); }}
               user={user}
@@ -5203,7 +5235,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Bibliothèque ────────────────────────────────────────────────────── */}
       {currentPage === 'library' && (
-        <div className={cx('flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]', currentPage !== 'library' && 'hidden')}>
+        <div className={cx('flex-1 min-w-0 h-full', padBasMobile, currentPage !== 'library' && 'hidden')}>
           <LibraryPage
             onBack={() => setCurrentPage('chat')}
             onStartInterview={startInterview}
@@ -5214,7 +5246,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Réglages / Profil IA ─────────────────────────────────────────────── */}
       {currentPage === 'settings' && (
-        <div className={cx('flex-1 min-w-0 h-full max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]', currentPage !== 'settings' && 'hidden')}>
+        <div className={cx('flex-1 min-w-0 h-full', padBasMobile, currentPage !== 'settings' && 'hidden')}>
           <SettingsPage
             onBack={() => setCurrentPage('chat')}
             profile={userProfile}
@@ -5248,7 +5280,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
 
       {/* ── Main area ───────────────────────────────────────────────────────── */}
       <div
-        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', !inputFocused && 'max-md:pb-[calc(4rem+env(safe-area-inset-bottom,0px))]')}
+        className={cx('flex-1 flex flex-col min-w-0 h-full relative', currentPage !== 'chat' && 'hidden', !inputFocused && padBasMobile)}
         onDragEnter={(e) => {
           if (!e.dataTransfer.types.includes('Files')) return;
           dragCounterRef.current += 1;
@@ -6163,6 +6195,26 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
                                   {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
                                   {isCopied ? 'Copié !' : 'Copier'}
                                 </button>
+                                {/* Lecture à haute voix (ElevenLabs) */}
+                                {(() => {
+                                  const isLecture = lectureId === msg.id;
+                                  const isLectureCharge = lectureChargeId === msg.id;
+                                  return (
+                                    <button
+                                      onClick={() => basculerLecture(msg.id, msg.content)}
+                                      disabled={isLectureCharge}
+                                      className={cx('flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest border px-2 py-0.5 transition-all rounded-sm disabled:opacity-60',
+                                        (isInterview || isDebate)
+                                          ? 'text-white/25 hover:text-white/60 border-white/10 hover:border-white/30'
+                                          : 'text-[#9aa0ac] hover:text-[#374151] border-[#e0e2e7] hover:border-[#9ca3af]',
+                                        isLecture && '!text-[#5D7BFF] !border-[#5D7BFF]/40')}
+                                      title="Lire la réponse à haute voix"
+                                    >
+                                      <Volume2 className={cx('w-2.5 h-2.5', isLecture && 'animate-pulse')} />
+                                      {isLectureCharge ? '…' : isLecture ? 'Stop' : 'Écouter'}
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               {/* Raccourcis de reformulation — sur la dernière réponse
                                   seulement. Un clic envoie une consigne de suivi. */}
@@ -7145,7 +7197,7 @@ Choisis les personas pertinents par rapport au sujet (ex : pour un entretien che
           Base : Chat · Sessions · +. Le + agrandit la barre, se change en X
           et révèle Paramètres. */}
       <AnimatePresence>
-        {!inputFocused && (
+        {!isIOSNative && !inputFocused && (
           <motion.div
             key="bottom-nav"
             initial={{ y: 90, opacity: 0 }}
