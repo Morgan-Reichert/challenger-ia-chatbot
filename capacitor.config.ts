@@ -11,6 +11,14 @@ const config: CapacitorConfig = {
     // C'est le CSS env(safe-area-inset-*) de l'app qui gère les marges.
     contentInset: 'never',
   },
+  plugins: {
+    Keyboard: {
+      // 'native' : la WebView rétrécit pile au-dessus du clavier. Sans ça, le
+      // composeur (en bas d'un layout 100dvh) restait CACHÉ derrière le clavier
+      // et le bouton d'envoi devenait inatteignable.
+      resize: 'native',
+    },
+  },
 };
 
 export default config;

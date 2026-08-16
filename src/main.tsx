@@ -8,7 +8,16 @@ import { registerServiceWorker } from './push';
 import { initStariaxErrors } from './stariaxErrors';
 import { mesureAutorisee, surChangementConsentement } from './consent';
 import { chargerA11y, appliquerA11y } from './accessibilite';
+import { Capacitor } from '@capacitor/core';
 import './index.css';
+
+// iOS natif : masque la barre d'accessoires du clavier (chevrons ‹ › + « OK »),
+// superflue et qui empiétait sur le composeur.
+if (Capacitor.getPlatform() === 'ios') {
+  import('@capacitor/keyboard')
+    .then(({ Keyboard }) => Keyboard.setAccessoryBarVisible({ isVisible: false }))
+    .catch(() => { /* plugin indisponible : sans effet */ });
+}
 
 // Le script en tête de index.html a déjà posé les préférences avant le premier
 // rendu ; on les réapplique ici pour que le code TypeScript reste la référence
