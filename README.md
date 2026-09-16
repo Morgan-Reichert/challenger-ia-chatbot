@@ -21,7 +21,7 @@
 
 Challenger IA est une application web de chat IA conçue pour entraîner la **pensée critique**, l'**argumentation** et la **prise de parole en public**. L'IA ne valide pas — elle challenge, contredit, fact-check et pousse à aller plus loin.
 
-> Développé par [Stariax Group](https://stariax.be) — Belgique
+> Développé par [QlickLab](https://qlicklab.eu) — Belgique
 
 ---
 
